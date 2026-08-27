@@ -1,0 +1,26 @@
+# Dependencies
+/node_modules
+/vendor
+
+# Build output
+/dist
+/build
+/public/build
+/public/hot
+
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Logs
+npm-debug.log*
+yarn-error.log*
+*.log
+
+# Editor / OS
+/.idea
+/.vscode
+/.fleet
+.DS_Store
+Thumbs.db
