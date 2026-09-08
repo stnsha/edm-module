@@ -24,3 +24,5 @@ yarn-error.log*
 /.fleet
 .DS_Store
 Thumbs.db
+
+CLAUDE.md

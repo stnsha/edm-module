@@ -1,0 +1,2084 @@
+/* ATEM Module - Base Layout Styles */
+/* Custom classes use the edm- prefix. Visual language mirrors the */
+/* consultcall module (Bootstrap 5 + Inter font + white rounded panels). */
+
+/* ---------------------------------------------------------------
+   Base typography
+--------------------------------------------------------------- */
+* {
+  font-family: "Inter", sans-serif;
+}
+
+body {
+  font-family: "Inter", sans-serif;
+  background-color: #f8f9fa;
+  font-size: 14px;
+  font-weight: 400;
+}
+
+h1,
+h2,
+h3,
+h4,
+h5,
+h6 {
+  font-weight: 600;
+}
+
+input,
+select,
+textarea,
+button {
+  font-family: "Inter", sans-serif;
+}
+
+/* Force Inter on the ODB page header box reused by atem pages */
+.headerH1 {
+  font-family: "Inter", sans-serif !important;
+  font-weight: 600 !important;
+}
+
+/* Keep Inter consistent inside the atem container */
+.edm-container,
+.edm-container * {
+  font-family: "Inter", sans-serif;
+}
+
+/* ---------------------------------------------------------------
+   Navigation Bar
+--------------------------------------------------------------- */
+.edm-nav {
+  background-color: #ffffff;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(19, 92, 170, 0.1);
+  padding: 0.5rem 1rem;
+}
+
+.edm-nav .navbar-nav {
+  gap: 0.5rem;
+}
+
+.edm-nav .nav-link {
+  display: inline-flex;
+  align-items: center;
+  height: 38px;
+  font-size: 14px;
+  font-weight: 500;
+  color: #6c757d;
+  padding: 0 1rem;
+  border-radius: 6px;
+  transition: all 0.2s ease;
+}
+
+.edm-nav .nav-link:hover {
+  color: #0d6efd;
+  background-color: rgba(13, 110, 253, 0.1);
+}
+
+.edm-nav .nav-link.active {
+  color: #0d6efd;
+  background-color: rgba(13, 110, 253, 0.1);
+  font-weight: 600;
+}
+
+/* "New ATEM" navbar button - Alpro Blue (matches the ATEM header background) */
+.edm-nav .edm-btn-new {
+  height: 38px;
+  font-size: 14px;
+  font-weight: 500;
+  padding: 0 1rem;
+  border-radius: 6px;
+  line-height: 1;
+  white-space: nowrap;
+  background: linear-gradient(90deg, #003b73, #0a5aa8);
+  border: none;
+  color: #ffffff;
+  box-shadow: 0 2px 6px rgba(0, 59, 115, 0.25);
+}
+
+.edm-nav .edm-btn-new:hover,
+.edm-nav .edm-btn-new:focus {
+  background: linear-gradient(90deg, #00305f, #094f93);
+  color: #ffffff;
+  box-shadow: 0 3px 9px rgba(0, 59, 115, 0.35);
+}
+
+.edm-nav .edm-btn-new .bi {
+  font-size: 14px;
+  line-height: 1;
+}
+
+/* On mobile the navbar stacks vertically; let the button sit inline-left */
+@media (max-width: 991.98px) {
+  .edm-nav .edm-btn-new {
+    margin-bottom: 0.5rem;
+  }
+}
+
+/* Grouped dropdowns (GetResponse-parity nav) */
+.edm-nav .nav-link.dropdown-toggle {
+  gap: 0.35rem;
+}
+
+.edm-nav .dropdown-menu {
+  border: 1px solid rgba(19, 92, 170, 0.12);
+  border-radius: 8px;
+  box-shadow: 0 6px 20px rgba(19, 92, 170, 0.14);
+  padding: 0.35rem;
+  margin-top: 0.35rem;
+  font-size: 14px;
+}
+
+.edm-nav .dropdown-item {
+  border-radius: 6px;
+  padding: 0.45rem 0.75rem;
+  font-weight: 500;
+  color: #6c757d;
+}
+
+.edm-nav .dropdown-item:hover,
+.edm-nav .dropdown-item:focus {
+  color: #0d6efd;
+  background-color: rgba(13, 110, 253, 0.1);
+}
+
+.edm-nav .dropdown-item.active {
+  color: #0d6efd;
+  background-color: rgba(13, 110, 253, 0.1);
+  font-weight: 600;
+}
+
+/* "Coming from GetResponse?" one-time orientation panel */
+.edm-gr-help {
+  position: relative;
+  max-width: 1320px;
+  margin: 0 auto 1rem;
+  background-color: #ffffff;
+  border: 1px solid rgba(19, 92, 170, 0.15);
+  border-left: 4px solid #0d6efd;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(19, 92, 170, 0.1);
+  padding: 1rem 1.25rem;
+  font-size: 13px;
+  color: #6c757d;
+}
+
+.edm-gr-help-close {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.75rem;
+  border: none;
+  background: transparent;
+  font-size: 20px;
+  line-height: 1;
+  color: #adb5bd;
+  cursor: pointer;
+}
+
+.edm-gr-help-close:hover {
+  color: #6c757d;
+}
+
+.edm-gr-help-title {
+  font-weight: 600;
+  color: #212529;
+  margin-bottom: 0.5rem;
+}
+
+.edm-gr-help-list {
+  margin: 0;
+  padding-left: 1.1rem;
+  columns: 2;
+  column-gap: 2rem;
+}
+
+.edm-gr-help-list li {
+  margin-bottom: 0.2rem;
+  break-inside: avoid;
+}
+
+.edm-gr-help-note {
+  margin-top: 0.6rem;
+  padding-top: 0.5rem;
+  border-top: 1px solid rgba(19, 92, 170, 0.1);
+}
+
+@media (max-width: 767.98px) {
+  .edm-gr-help-list {
+    columns: 1;
+  }
+}
+
+/* ---------------------------------------------------------------
+   Main Container - ODB Integration
+--------------------------------------------------------------- */
+.edm-container {
+  display: flex;
+  flex-direction: column;
+  padding: 15px 25px 35px 15px;
+  background-color: white;
+  border-radius: 8px;
+  box-shadow: 0 2px 10px rgba(19, 92, 170, 0.1);
+}
+
+/* Page header title (title only, left aligned) */
+.edm-page-title {
+  font-size: 18px;
+  font-weight: 600;
+  color: #212529;
+  text-align: left;
+  margin-bottom: 0;
+}
+
+/* ---------------------------------------------------------------
+   Cards (title only)
+--------------------------------------------------------------- */
+.edm-card {
+  background-color: #ffffff;
+  border-radius: 10px;
+  padding: 1.25rem;
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.08);
+  border: 1px solid #e9ecef;
+  transition:
+    box-shadow 0.2s ease,
+    transform 0.2s ease;
+}
+
+.edm-card:hover {
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.edm-card-title {
+  font-size: 15px;
+  font-weight: 600;
+  color: #212529;
+  text-align: left;
+  margin: 0;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e9ecef;
+}
+
+/* ---------------------------------------------------------------
+   Shared form / button styles (match consultcall for future content)
+--------------------------------------------------------------- */
+.btn {
+  font-size: 14px;
+  font-weight: 500;
+}
+
+.btn-primary {
+  background-color: #0d6efd;
+  border-color: #0d6efd;
+  border-radius: 6px;
+}
+
+.btn-primary:hover {
+  background-color: #0b5ed7;
+  border-color: #0a58ca;
+}
+
+.btn-secondary {
+  border-radius: 6px;
+}
+
+.btn-outline-primary {
+  color: #0d6efd;
+  border-color: #0d6efd;
+  border-radius: 6px;
+}
+
+.btn-outline-primary:hover {
+  background-color: #0d6efd;
+  color: #fff;
+}
+
+.btn-outline-secondary {
+  color: #6c757d;
+  border-color: #6c757d;
+  border-radius: 6px;
+}
+
+.btn-outline-secondary:hover {
+  background-color: #6c757d;
+  color: #fff;
+}
+
+.form-label {
+  font-weight: 500;
+  font-size: 12px;
+  color: #495057;
+  text-align: left;
+  display: block;
+}
+.form-check-label {
+  font-size: 12px;
+  color: #495057;
+}
+
+.form-control,
+.form-select {
+  border-radius: 6px;
+  border-color: #ced4da;
+  font-size: 14px;
+  font-weight: 400;
+  height: 38px;
+  padding: 0.375rem 0.75rem;
+}
+
+/* Keep room for the dropdown chevron (Bootstrap reserves 2.25rem on the right)
+   and truncate long option labels with an ellipsis instead of letting the text
+   overflow across the arrow. */
+.form-select:not([size]),
+.form-select[size="1"] {
+  padding-right: 2.25rem;
+  text-overflow: ellipsis;
+}
+
+/* Multi-row list boxes (e.g. the department picker uses size="6") must grow to
+   fit their rows rather than being clamped to the single-line control height. */
+.form-select[size]:not([size="1"]) {
+  height: auto;
+  padding-right: 0.75rem;
+}
+
+.form-control::placeholder {
+  font-size: 14px;
+  font-weight: 400;
+  color: #adb5bd;
+}
+
+.form-control:focus,
+.form-select:focus {
+  border-color: #86b7fe;
+  box-shadow: 0 0 0 0.25rem rgba(13, 110, 253, 0.25);
+}
+
+/* ---------------------------------------------------------------
+   Create form - bento layout
+--------------------------------------------------------------- */
+.edm-bento {
+  display: grid;
+  grid-template-columns: repeat(12, 1fr);
+  gap: 1rem;
+  /* Stretch so the left ATEM Details card matches the right column height. */
+  align-items: stretch;
+}
+
+.edm-bento-item {
+  grid-column: span 12;
+  min-width: 0;
+}
+
+.edm-span-8 {
+  grid-column: span 8;
+}
+
+.edm-span-4 {
+  grid-column: span 4;
+}
+
+.edm-span-6 {
+  grid-column: span 6;
+}
+
+/* Right column: lay the stacked cards vertically and let the last card grow so
+   the column bottom always aligns with the taller ATEM Details card. */
+.edm-bento-item.edm-span-4 {
+  display: flex;
+  flex-direction: column;
+}
+
+.edm-bento-item.edm-span-4 > .edm-card:last-child {
+  flex: 1 1 auto;
+}
+
+.edm-span-12 {
+  grid-column: span 12;
+}
+
+.edm-hidden {
+  display: none !important;
+}
+
+/* Staff Type selector (create.php) */
+.edm-staff-type-options {
+  display: flex;
+  gap: 0.5rem;
+  margin-top: 0.5rem;
+}
+
+.edm-staff-type-btn {
+  flex: 0 0 auto;
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 4px;
+  padding: 0.2rem 0.5rem;
+  background-color: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 4px;
+  font-size: 12px;
+  font-weight: 500;
+  color: #495057;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease,
+    color 0.15s ease;
+}
+
+.edm-staff-type-btn .bi {
+  font-size: 12px;
+}
+
+/* Legacy common/css/page.css sets span { font-size: 15px; font-family: Arial },
+   which overrides the label span's size/family independent of the button's own
+   font-size. Pin it back to match the surrounding form labels. */
+.edm-staff-type-label {
+  font-family: "Inter", sans-serif;
+  font-size: 12px;
+}
+
+.edm-staff-type-btn:hover {
+  border-color: #86b7fe;
+}
+
+.edm-staff-type-btn.active {
+  background-color: #e7f1ff;
+  border-color: #0d6efd;
+  color: #0d6efd;
+}
+
+.edm-req {
+  color: #dc3545;
+  /* The legacy common/css/page.css sets span { font-size: 15px }, which inflates
+       this asterisk and the label's line height, pushing fields with a required
+       marker lower than their row neighbours. Pin it to the label size. */
+  font-size: 12px;
+  line-height: 1;
+  vertical-align: baseline;
+}
+
+/* Left-align everything inside the create form by default */
+.edm-container,
+.edm-container h1,
+.edm-container h2,
+.edm-container h3,
+.edm-container h4,
+.edm-container h5,
+.edm-container h6,
+.edm-container p,
+.edm-container label,
+.edm-container span,
+.edm-container div,
+.edm-container .form-label,
+.edm-container .form-control,
+.edm-container .form-select,
+.edm-container .form-check-label {
+  text-align: left;
+}
+
+/* Card title with leading icon */
+.edm-card-title {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.edm-card-title .bi {
+  color: #0a5aa8;
+  font-size: 16px;
+}
+
+.edm-card-hint {
+  font-size: 12px;
+  color: #6c757d;
+  margin: 6px 0 0;
+}
+
+/* record_state pill. NOTE: do not use the Bootstrap .badge class here - the
+   legacy common/css/page.css defines .badge as an absolutely-positioned
+   notification dot, which would hijack it. Use a dedicated .edm-pill. */
+.edm-pill {
+  display: inline-block;
+  font-size: 12px;
+  font-weight: 600;
+  padding: 3px 10px;
+  border-radius: 12px;
+  line-height: 1.4;
+  color: #ffffff;
+  vertical-align: middle;
+  white-space: nowrap;
+}
+
+.edm-page-title .edm-pill {
+  margin-left: 8px;
+}
+
+.edm-pill-draft {
+  background-color: #6c757d;
+}
+
+.edm-pill-created {
+  background-color: #198754;
+}
+
+.edm-pill-active {
+  background-color: #0d6efd;
+}
+
+.edm-pill-red {
+  background-color: #dc3545;
+}
+
+.edm-pill-yellow {
+  background-color: #ffc107;
+  color: #212529;
+}
+
+.edm-pill-green {
+  background-color: #198754;
+}
+
+/* Progress update cards */
+.edm-progress-item {
+  border: 1px solid #dee2e6;
+  border-left: 4px solid #dee2e6;
+  border-radius: 6px;
+  padding: 12px 16px;
+  background: #fff;
+}
+
+.edm-progress-item-red {
+  border-left-color: #dc3545;
+}
+.edm-progress-item-yellow {
+  border-left-color: #ffc107;
+}
+.edm-progress-item-green {
+  border-left-color: #198754;
+}
+
+.edm-progress-form-item {
+  grid-column: 1 / -1;
+  background: #f8f9fa;
+}
+
+#edm-progress-wrap {
+  margin-top: 12px;
+}
+
+.edm-progress-grid {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 10px;
+}
+
+@media (max-width: 900px) {
+  .edm-progress-grid {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+@media (max-width: 540px) {
+  .edm-progress-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.edm-progress-item-header {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.edm-progress-item-num {
+  font-size: 12px;
+  font-weight: 700;
+  color: #6c757d;
+  min-width: 18px;
+}
+
+.edm-progress-item-dates {
+  font-size: 13px;
+  font-weight: 500;
+  color: #343a40;
+}
+
+.edm-progress-item-actions {
+  margin-left: auto;
+  display: flex;
+  gap: 6px;
+}
+
+.edm-progress-item-remark {
+  font-size: 13px;
+  color: #495057;
+  margin-top: 8px;
+  padding-top: 8px;
+  padding-bottom: 6px;
+  border-top: 1px solid #f0f0f0;
+  white-space: pre-wrap;
+  line-height: 1.5;
+}
+
+.edm-progress-item-creator {
+  font-size: 12px;
+  color: #6c757d;
+  margin-top: 6px;
+}
+
+.edm-progress-form-grid {
+  display: grid;
+  grid-template-columns: 1fr 1fr auto;
+  gap: 12px;
+  align-items: end;
+}
+
+@media (max-width: 600px) {
+  .edm-progress-form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+.edm-progress-form-actions {
+  margin-top: 12px;
+  display: flex;
+  gap: 8px;
+}
+
+/* Status toggle button group */
+.edm-status-btn-group {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.edm-status-btn {
+  padding: 4px 14px;
+  border-radius: 20px;
+  border: 2px solid;
+  font-size: 12px;
+  font-weight: 600;
+  cursor: pointer;
+  background: transparent;
+  line-height: 1.4;
+  transition:
+    background-color 0.12s,
+    color 0.12s;
+}
+
+.edm-status-btn-red {
+  border-color: #dc3545;
+  color: #dc3545;
+}
+.edm-status-btn-red.edm-status-btn-on {
+  background-color: #dc3545;
+  color: #fff;
+}
+
+.edm-status-btn-yellow {
+  border-color: #e6ac00;
+  color: #856404;
+}
+.edm-status-btn-yellow.edm-status-btn-on {
+  background-color: #ffc107;
+  color: #212529;
+  border-color: #ffc107;
+}
+
+.edm-status-btn-green {
+  border-color: #198754;
+  color: #198754;
+}
+.edm-status-btn-green.edm-status-btn-on {
+  background-color: #198754;
+  color: #fff;
+}
+
+/* ---------------------------------------------------------------
+   Audit Log
+--------------------------------------------------------------- */
+#edm-audit-card .edm-card-title {
+  font-size: 13px;
+}
+#edm-audit-card .edm-card-hint {
+  font-size: 11px;
+  margin-bottom: 10px;
+}
+
+#edm-audit-card .edm-audit-meta {
+  display: flex;
+  gap: 24px;
+  flex-wrap: wrap;
+  font-size: 12px;
+  color: #495057;
+}
+
+#edm-audit-card .edm-audit-meta-item {
+  font-size: 12px;
+}
+
+#edm-audit-card .edm-audit-meta-item strong {
+  color: #212529;
+  font-size: 12px;
+}
+
+.edm-audit-log {
+  max-height: 420px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+}
+
+#edm-audit-card .edm-audit-entry {
+  display: flex;
+  gap: 10px;
+  padding: 8px 0;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 12px;
+}
+
+#edm-audit-card .edm-audit-entry:last-child {
+  border-bottom: none;
+}
+
+.edm-audit-icon {
+  flex-shrink: 0;
+  width: 24px;
+  height: 24px;
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 11px;
+  background: #f0f0f0;
+  color: #495057;
+}
+
+.edm-audit-created .edm-audit-icon {
+  background: #d1e7dd;
+  color: #0a3622;
+}
+.edm-audit-status_changed .edm-audit-icon {
+  background: #cfe2ff;
+  color: #084298;
+}
+.edm-audit-updated .edm-audit-icon {
+  background: #fff3cd;
+  color: #664d03;
+}
+.edm-audit-arci_added .edm-audit-icon {
+  background: #d1e7dd;
+  color: #0a3622;
+}
+.edm-audit-arci_removed .edm-audit-icon {
+  background: #f8d7da;
+  color: #58151c;
+}
+.edm-audit-attachment_added .edm-audit-icon {
+  background: #e2d9f3;
+  color: #3d0a91;
+}
+
+#edm-audit-card .edm-audit-body {
+  flex: 1;
+  font-size: 12px;
+}
+
+#edm-audit-card .edm-audit-header {
+  color: #6c757d;
+  margin-bottom: 3px;
+  font-size: 12px;
+}
+
+#edm-audit-card .edm-audit-header span {
+  font-size: 12px;
+}
+
+#edm-audit-card .edm-audit-header strong,
+#edm-audit-card strong {
+  color: #212529;
+  font-size: 12px;
+}
+
+#edm-audit-card .edm-audit-changes {
+  margin: 4px 0 0;
+  padding-left: 16px;
+  list-style: disc;
+  color: #495057;
+  font-size: 12px;
+}
+
+#edm-audit-card .edm-audit-changes li {
+  margin-bottom: 2px;
+  font-size: 12px;
+}
+
+#edm-audit-card .edm-audit-summary {
+  color: #495057;
+  font-size: 12px;
+}
+
+/* ---------------------------------------------------------------
+   ATEM listing
+--------------------------------------------------------------- */
+.edm-view-tbl {
+  margin-bottom: 0;
+}
+
+.edm-view-tbl th {
+  font-size: 13px;
+  font-weight: 600;
+  color: #495057;
+  white-space: nowrap;
+  text-align: left;
+  border-bottom: 2px solid #e9ecef;
+}
+
+.edm-view-tbl td {
+  font-size: 13px;
+  color: #212529;
+  vertical-align: middle;
+  text-align: left;
+}
+
+.edm-view-tbl tbody tr:nth-child(odd) {
+  background-color: #fbfcfe;
+}
+
+.edm-view-tbl tbody tr:hover {
+  background-color: #eef6ff;
+}
+
+.edm-sortable {
+  cursor: pointer;
+  user-select: none;
+  white-space: nowrap;
+}
+
+.edm-sortable::after {
+  content: '\2195';
+  margin-left: 5px;
+  font-size: 11px;
+  color: #ced4da;
+  vertical-align: middle;
+}
+
+.edm-sortable.edm-sort-asc::after {
+  content: '\2191';
+  color: #0d6efd;
+}
+
+.edm-sortable.edm-sort-desc::after {
+  content: '\2193';
+  color: #0d6efd;
+}
+
+.edm-sortable:hover {
+  color: #0a5aa8;
+}
+
+.edm-view-tbl th[data-col="title"] {
+  width: 320px;
+}
+
+.edm-view-tbl th[data-col="issuer_name"] {
+  width: 150px;
+}
+
+.edm-view-tbl th[data-col="start_date"],
+.edm-view-tbl th[data-col="end_date"],
+.edm-view-tbl th[data-col="closure_date"] {
+  width: 110px;
+}
+
+.edm-id {
+  font-family: monospace;
+  font-size: 12px;
+  color: #0a5aa8;
+  background: #eef3f9;
+  border-radius: 4px;
+  padding: 2px 6px;
+  white-space: nowrap;
+}
+
+.edm-view-actions {
+  white-space: nowrap;
+  text-align: center;
+}
+
+/* Filter bar: keep the controls at the table font size */
+.edm-filter .form-select,
+.edm-filter .form-control,
+.edm-filter .btn {
+  font-size: 13px;
+}
+
+/* Pager */
+.edm-pager {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  flex-wrap: wrap;
+  gap: 16px;
+  margin-top: 12px;
+}
+
+.edm-pager-bar {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+.edm-pager-btn {
+  border: 1px solid #ced4da;
+  background: #ffffff;
+  color: #495057;
+  font-size: 13px;
+  border-radius: 6px;
+  padding: 4px 10px;
+  cursor: pointer;
+}
+
+.edm-pager-btn:hover:not(:disabled) {
+  background: #eef6ff;
+  border-color: #0a5aa8;
+  color: #0a5aa8;
+}
+
+.edm-pager-btn.active {
+  background: #0a5aa8;
+  border-color: #0a5aa8;
+  color: #ffffff;
+}
+
+.edm-pager-btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.edm-pager-gap {
+  padding: 0 4px;
+  color: #adb5bd;
+}
+
+.edm-pager-left {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 13px;
+  color: #495057;
+}
+
+.edm-perpage-select {
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  font-size: 13px;
+  padding: 3px 8px;
+  background: #fff;
+  cursor: pointer;
+}
+
+/* ---------------------------------------------------------------
+   Dashboard stat cards
+--------------------------------------------------------------- */
+/* Card itself becomes a column flex container so the value always sits
+   right after the (fixed-height) title, and the label can be pinned to
+   the bottom via margin-top:auto - regardless of how many lines the
+   title or the label wrap to. Combined with Bootstrap's h-100 (stretch
+   in a row g-3), every card in a row ends up the same height too. */
+.edm-dash-stat,
+.edm-dash-stat-outlet {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Fixed to exactly 2 lines' worth of height (line-height 1.5 x 2, plus
+   the title's own padding-bottom/border) so a 1-line title ("Suspended")
+   and a 2-line title ("Complete + Excellence") reserve identical space -
+   the value below always starts at the same Y regardless of title length. */
+.edm-dash-stat .edm-card-title,
+.edm-dash-stat-outlet .edm-card-title {
+  min-height: calc(2 * 1.5em + 10px + 1px);
+  align-items: flex-start;
+  flex-shrink: 0;
+  /* Override Bootstrap's mb-1 (0.25rem) so the gap below the divider
+     matches the title's own 10px padding-bottom above it. */
+  margin-bottom: 10px;
+}
+
+.edm-dash-stat .edm-stat-label,
+.edm-dash-stat-outlet .edm-stat-label {
+  margin-top: auto;
+  padding-top: 0.25rem;
+}
+
+.edm-stat-value {
+  padding-top: 10px;
+  font-size: 2rem;
+  font-weight: 700;
+  line-height: 1.1;
+}
+
+.edm-stat-value--blue   { color: #0d6efd; }
+.edm-stat-value--green  { color: #198754; }
+.edm-stat-value--red    { color: #dc3545; }
+.edm-stat-value--orange { color: #fd7e14; }
+
+.edm-stat-label {
+  font-size: 0.8rem;
+  color: #6c757d;
+  margin-top: 0.25rem;
+}
+
+/* ---------------------------------------------------------------
+   Dashboard closure bar chart
+--------------------------------------------------------------- */
+.edm-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.edm-bar-label {
+  width: 90px;
+  font-size: 0.85rem;
+  font-weight: 500;
+  flex-shrink: 0;
+}
+
+.edm-bar-track {
+  flex: 1;
+  background: #e9ecef;
+  border-radius: 4px;
+  height: 20px;
+  overflow: hidden;
+}
+
+.edm-bar-fill {
+  height: 100%;
+  border-radius: 4px;
+  transition: width 0.6s ease;
+}
+
+.edm-bar-count {
+  width: 35px;
+  text-align: right;
+  font-size: 0.85rem;
+  font-weight: 600;
+  flex-shrink: 0;
+}
+
+.edm-pager-info {
+  font-size: 12px;
+  color: #6c757d;
+}
+
+/* Reset button matches the small search input height */
+.edm-reset-btn {
+  height: 31px;
+}
+
+/* Issuer/Department are always non-editable display fields */
+#edm-issuer[readonly],
+#edm-department[readonly] {
+  background-color: #e9ecef;
+  opacity: 1;
+}
+
+/* Edit/View read-mode: grey disabled + readonly fields and the Quill editor */
+.edm-mode-read input[disabled],
+.edm-mode-read select[disabled],
+.edm-mode-read input[readonly],
+.edm-mode-read textarea[disabled] {
+  background-color: #e9ecef;
+  opacity: 1;
+}
+
+.edm-mode-read .ql-toolbar {
+  display: none;
+}
+
+.edm-mode-read #edm-description-editor.ql-container {
+  background-color: #e9ecef;
+  border-radius: 4px;
+}
+
+#edm-description-editor.ql-container.ql-disabled {
+  background-color: #e9ecef;
+  border-radius: 4px;
+}
+
+/* Suspended card, Issuer view: Title and Description stay editable even though
+   the rest of the card is read-only, so restore the toolbar and normal
+   background for the description editor here. */
+.edm-mode-read.edm-suspended-desc-edit .ql-toolbar {
+  display: block;
+}
+
+.edm-mode-read.edm-suspended-desc-edit #edm-description-editor.ql-container {
+  background-color: #fff;
+}
+
+.edm-mode-read.edm-suspended-desc-edit #edm-description-editor.ql-container.ql-disabled {
+  background-color: #fff;
+}
+
+/* Page intro line under the ODB header title */
+.edm-page-hint {
+  font-size: 13px;
+  color: #6c757d;
+  margin-top: 4px;
+  text-align: left;
+}
+
+/* Incentive panel */
+.edm-incentive {
+  margin-top: 14px;
+}
+
+.edm-incentive-total-block {
+  background: linear-gradient(90deg, #003b73, #0a5aa8);
+  border-radius: 10px;
+  padding: 14px 16px;
+  color: #ffffff;
+}
+
+.edm-incentive-total-label {
+  font-size: 11px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.4px;
+  color: rgba(255, 255, 255, 0.85);
+}
+
+.edm-incentive-total-amount {
+  font-size: 26px;
+  font-weight: 700;
+  line-height: 1.1;
+  margin-top: 2px;
+  color: #ffffff;
+}
+
+.edm-incentive-breakdown {
+  display: grid;
+  grid-template-columns: 1fr 1fr 1fr;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.edm-incentive-stat {
+  background-color: #f8f9fa;
+  border: 1px solid #eef0f2;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+.edm-incentive-stat-label {
+  display: block;
+  font-size: 11px;
+  color: #6c757d;
+}
+
+.edm-incentive-stat-value {
+  display: block;
+  font-size: 15px;
+  font-weight: 700;
+  color: #212529;
+  margin-top: 2px;
+}
+
+.edm-incentive-note {
+  margin-top: 12px;
+  font-size: 12px;
+  color: #6c757d;
+  background-color: #fff8f0;
+  border: 1px solid #ffe7c2;
+  border-radius: 8px;
+  padding: 8px 10px;
+}
+
+/* ARCI */
+.edm-arci-add {
+  background-color: #f8f9fa;
+  border-radius: 8px;
+  padding: 12px;
+  margin: 12px 0 16px;
+}
+
+.edm-arci-add-grid {
+  display: grid;
+  grid-template-columns: 1fr 1.5fr 2fr;
+  gap: 12px;
+  /* Stretch columns so the Department list and Staff list bottoms align with
+       the Add Selected button. */
+  align-items: stretch;
+}
+
+.edm-arci-add-grid > div {
+  display: flex;
+  flex-direction: column;
+}
+
+/* Department list box fills its column down to the Add Selected button. */
+#arci-dept-select {
+  flex: 1 1 auto;
+  height: auto;
+  min-height: 120px;
+  padding: 4px;
+}
+
+#arci-dept-select option {
+  padding: 6px 8px;
+}
+
+.edm-arci-staff-list {
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  padding: 8px;
+  /* Fixed height with scroll: a department can have hundreds of staff, so the
+       list keeps a steady height and scrolls instead of growing to fit all. */
+  height: 240px;
+  overflow-y: auto;
+  background-color: #fff;
+}
+
+.edm-arci-staff-item {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 3px 0;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.edm-arci-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 12px;
+  margin-top: 8px;
+}
+
+.edm-arci-col {
+  border: 1px solid #e9ecef;
+  border-radius: 8px;
+  min-width: 0;
+  overflow: hidden;
+}
+
+.edm-arci-col-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 10px;
+  background-color: #f8f9fa;
+  border-bottom: 1px solid #e9ecef;
+  font-size: 13px;
+}
+
+.edm-arci-members {
+  padding: 8px 10px;
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  min-height: 90px;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.edm-arci-member {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 6px;
+  background-color: #f8f9fa;
+  border-radius: 6px;
+  padding: 6px 8px;
+}
+
+.edm-arci-member-info {
+  flex: 1;
+  min-width: 0;
+}
+
+.edm-arci-member-dept {
+  font-size: 11px;
+  color: #6c757d;
+}
+
+.edm-arci-member-name {
+  font-size: 13px;
+  font-weight: 500;
+  color: #212529;
+  word-break: break-word;
+}
+
+.edm-arci-remove {
+  color: #dc3545;
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.edm-arci-empty {
+  font-size: 12px;
+  color: #adb5bd;
+  font-style: italic;
+  text-align: center;
+  padding: 12px 0;
+}
+
+.edm-arci-incentivised {
+  display: flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 11px;
+  color: #6c757d;
+  cursor: pointer;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.edm-arci-incentivised input[type="checkbox"] {
+  width: 13px;
+  height: 13px;
+  cursor: pointer;
+}
+
+.edm-arci-incentivised-badge {
+  display: inline-block;
+  font-size: 10px;
+  color: #198754;
+  border: 1px solid #198754;
+  border-radius: 3px;
+  padding: 1px 4px;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+/* Extension fields helper */
+.edm-ext-field {
+  transition: opacity 0.15s ease;
+}
+
+/* Outlet tagging picker (create.php outlet-staff flow) */
+.edm-outlet-picker {
+  position: relative;
+}
+
+.edm-outlet-picker-btn {
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  height: 38px;
+  padding: 0.375rem 0.75rem;
+  font-size: 14px;
+  color: #495057;
+  background-color: #fff;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+}
+
+.edm-outlet-picker-btn:hover,
+.edm-outlet-picker-btn:focus {
+  border-color: #86b7fe;
+  outline: none;
+}
+
+.edm-outlet-picker-dropdown {
+  display: none;
+  position: absolute;
+  z-index: 20;
+  top: 100%;
+  left: 0;
+  right: 0;
+  margin-top: 4px;
+  background-color: #fff;
+  border: 1px solid #ced4da;
+  border-radius: 6px;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
+.edm-outlet-picker-dropdown.open {
+  display: block;
+}
+
+.edm-outlet-picker-search-wrap {
+  padding: 6px 6px 4px;
+}
+
+.edm-outlet-picker-search {
+  width: 100%;
+  box-sizing: border-box;
+  font-size: 13px;
+  border: 1px solid #dee2e6;
+  border-radius: 4px;
+  padding: 4px 8px;
+  outline: none;
+}
+
+.edm-outlet-picker-search:focus {
+  border-color: #86b7fe;
+}
+
+.edm-outlet-picker-list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 200px;
+  overflow-y: auto;
+}
+
+.edm-outlet-picker-list li {
+  padding: 6px 10px;
+  font-size: 13px;
+  cursor: pointer;
+}
+
+.edm-outlet-picker-list li:hover {
+  background-color: #f8f9fa;
+}
+
+.edm-outlet-picker-list li.selected {
+  background-color: #e7f1ff;
+  color: #0d6efd;
+}
+
+.edm-outlet-picker-list li.hidden {
+  display: none;
+}
+
+.edm-outlet-picker-empty {
+  padding: 8px 10px;
+  font-size: 12px;
+  color: #6c757d;
+}
+
+.edm-outlet-tags {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+}
+
+.edm-outlet-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  background-color: #f8f9fa;
+  border: 1px solid #e9ecef;
+  border-radius: 20px;
+  padding: 4px 10px;
+  font-size: 12px;
+  color: #495057;
+}
+
+.edm-outlet-tag-remove {
+  color: #dc3545;
+  font-weight: 700;
+  line-height: 1;
+  cursor: pointer;
+}
+
+/* Incentive approval radio group in Timeline card */
+#tl-incentive-approval-wrap .form-check-label,
+#tl-incentive-approval-wrap .form-check-label span {
+  font-size: 12px;
+  color: #495057;
+}
+#tl-incentive-approval-wrap .form-check-input[type="radio"] {
+  width: 14px;
+  height: 14px;
+  border: 1px solid #adb5bd;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* Timeline save reminder */
+.edm-tl-reminder {
+  font-size: 12px;
+  color: #856404;
+  background-color: #fff3cd;
+  border: 1px solid #ffc107;
+  border-radius: 4px;
+  padding: 6px 10px;
+}
+
+/* Two-click confirm state for the ARCI Delete All button */
+.edm-arci-clear-confirm {
+  color: #dc3545;
+  border-color: #dc3545;
+}
+
+/* Armed state for an inline two-click remove control (the 'x' -> "confirm?") */
+.edm-confirm-x {
+  color: #dc3545;
+  font-weight: 600;
+  font-size: 11px;
+}
+
+/* Quill RTE for the ATEM Description - matches the iidas editor styling */
+.ql-container {
+  font-family: Arial, sans-serif;
+  font-size: 14px;
+  border: 1px solid #ccc;
+  border-radius: 0 0 4px 4px;
+  background: #fff;
+}
+
+/* Fixed height so the editor scrolls internally instead of growing the card.
+   Pinned to the id (specificity 1,1,0) because Quill core's .ql-container
+   { height: 100% } loads after style.css and would otherwise win. */
+#edm-description-editor.ql-container {
+  height: 350px;
+}
+
+.ql-editor {
+  overflow-y: auto;
+  padding: 12px;
+}
+
+.ql-toolbar {
+  border-top: 1px solid #ccc;
+  border-left: 1px solid #ccc;
+  border-right: 1px solid #ccc;
+  border-bottom: none;
+  border-radius: 4px 4px 0 0;
+  background: #fafafa;
+}
+
+/* Save bar */
+.edm-save-error-wrap {
+  display: flex;
+  justify-content: flex-end;
+  margin-top: 16px;
+}
+
+.edm-save-bar {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  margin-top: 8px;
+}
+
+/* Inline form error (small red text instead of system dialogs) */
+.edm-form-error {
+  font-size: 12px;
+  color: #dc3545;
+  margin-top: 6px;
+  min-height: 0;
+}
+
+/* Attachment dropzone */
+.edm-dropzone {
+  border: 2px dashed #ced4da;
+  border-radius: 8px;
+  padding: 16px;
+  text-align: center;
+  background-color: #f9fafb;
+  cursor: pointer;
+  transition:
+    border-color 0.15s ease,
+    background-color 0.15s ease;
+  margin-top: 12px;
+}
+
+.edm-dropzone:hover,
+.edm-dropzone-active {
+  border-color: #0a5aa8;
+  background-color: #f0f7ff;
+}
+
+.edm-dropzone-text {
+  font-size: 13px;
+  color: #495057;
+}
+
+.edm-dropzone-text a {
+  color: #0a5aa8;
+  text-decoration: underline;
+}
+
+.edm-dropzone-hint {
+  display: block;
+  margin-top: 4px;
+  font-size: 11px;
+  color: #adb5bd;
+}
+
+/* Staged file rows and submitted attachment rows */
+.edm-file-list {
+  margin-top: 8px;
+}
+
+.edm-file-row,
+.edm-attachment-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  background-color: #f8f9fa;
+  border-radius: 6px;
+  padding: 6px 8px;
+  margin-bottom: 6px;
+}
+
+.edm-file-name {
+  font-size: 13px;
+  color: #212529;
+  word-break: break-word;
+}
+
+.edm-file-size {
+  font-size: 11px;
+  color: #6c757d;
+  margin-left: auto;
+  margin-right: 6px;
+  white-space: nowrap;
+}
+
+.edm-file-remove {
+  color: #dc3545;
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+.edm-reference-outcome-badge {
+  font-size: 11px;
+  padding: 2px 8px;
+  border-radius: 12px;
+  border: 1px solid #ced4da;
+  color: #6c757d;
+  cursor: pointer;
+  white-space: nowrap;
+  flex-shrink: 0;
+  background-color: transparent;
+}
+
+.edm-reference-outcome-badge:hover {
+  background-color: #e9ecef;
+}
+
+.edm-reference-outcome-badge.edm-reference-outcome-active {
+  background-color: #0d6efd;
+  border-color: #0d6efd;
+  color: #fff;
+}
+
+.edm-reference-outcome-badge.edm-reference-outcome-active:hover {
+  background-color: #0b5ed7;
+}
+
+.edm-reference-outcome-badge.edm-reference-outcome-disabled {
+  cursor: default;
+  pointer-events: none;
+}
+
+/* Reference link rows */
+.edm-reflink-list {
+  margin-top: 4px;
+}
+
+.edm-reflink-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  padding: 5px 0;
+}
+
+.edm-reflink-row .edm-reference-outcome-badge {
+  margin-left: auto;
+}
+
+/* Navbar notification bell. Dedicated ids/classes (#edm-notif-badge, .edm-notif-*)
+   NOT #badge/.badge/#myDropdown - those are dead legacy ids/classes rendered on
+   every page by common/lock_adv.php + common/css/page.css (see .edm-pill note above). */
+.edm-notif-dropdown .nav-link {
+  position: relative;
+}
+
+.edm-notif-badge {
+  position: absolute;
+  top: 2px;
+  right: -4px;
+  background: #dc3545;
+  color: #fff;
+  font-size: 10px;
+  font-weight: 700;
+  line-height: 1;
+  padding: 3px 5px;
+  border-radius: 10px;
+  min-width: 16px;
+  text-align: center;
+}
+
+.edm-notif-menu {
+  width: 320px;
+  max-height: 420px;
+  overflow-y: auto;
+  padding: 0;
+}
+
+.edm-notif-menu-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding: 8px 12px;
+  border-bottom: 1px solid #f0f0f0;
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.edm-notif-list {
+  max-height: 340px;
+  overflow-y: auto;
+}
+
+.edm-notif-item {
+  padding: 8px 12px;
+  border-bottom: 1px solid #f5f5f5;
+  cursor: pointer;
+  font-size: 12px;
+}
+
+.edm-notif-item:hover {
+  background: #f8f9fa;
+}
+
+.edm-notif-item-unread {
+  background: #eef5ff;
+}
+
+.edm-notif-item-snippet {
+  font-size: 12px;
+}
+
+.edm-notif-item-time {
+  color: #6c757d;
+  font-size: 11px;
+  margin-top: 2px;
+}
+
+.edm-notif-empty {
+  padding: 16px 12px;
+  color: #6c757d;
+  font-size: 12px;
+  text-align: center;
+}
+
+/* Chat section on edit.php */
+.edm-chat-wrap {
+  max-height: 360px;
+  overflow-y: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.edm-chat-bubble {
+  border: 1px solid #eee;
+  border-radius: 8px;
+  padding: 8px 12px;
+  background: #f8f9fa;
+  max-width: 80%;
+}
+
+.edm-chat-bubble-mine {
+  align-self: flex-end;
+  background: #eef5ff;
+}
+
+.edm-chat-bubble-header {
+  font-size: 12px;
+  color: #495057;
+  display: flex;
+  justify-content: space-between;
+  gap: 10px;
+}
+
+.edm-chat-bubble-time {
+  font-size: 12px;
+  color: #6c757d;
+  font-weight: 400;
+}
+
+.edm-chat-bubble-body {
+  font-size: 13px;
+  margin-top: 4px;
+  white-space: pre-wrap;
+}
+
+.edm-chat-composer {
+  margin-top: 12px;
+}
+
+.edm-chat-composer-actions {
+  margin-top: 8px;
+  display: flex;
+  justify-content: flex-end;
+}
+
+.edm-chat-bubble-actions {
+  margin-top: 6px;
+  display: flex;
+  gap: 12px;
+}
+
+.edm-chat-bubble-actions .btn-link {
+  font-size: 12px;
+  text-decoration: none;
+}
+
+.edm-chat-bubble-actions .btn-link:hover {
+  text-decoration: underline;
+}
+
+.edm-chat-edit-actions {
+  margin-top: 6px;
+  display: flex;
+  gap: 6px;
+  justify-content: flex-end;
+}
+
+/* Card header with a right-aligned action button (e.g. Add Reference Link) */
+.edm-card-title-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  padding-bottom: 10px;
+  border-bottom: 1px solid #e9ecef;
+}
+
+.edm-card-title-row .edm-card-title {
+  border-bottom: none;
+  padding-bottom: 0;
+}
+
+/* Ordered list of reference links */
+.edm-reflink-ol {
+  margin: 8px 0 0;
+  padding-left: 22px;
+}
+
+.edm-reflink-ol li {
+  padding: 2px 0;
+}
+
+.edm-reflink-row a {
+  color: #0a5aa8;
+  text-decoration: underline;
+  font-weight: 500;
+  font-size: 13px;
+  word-break: break-word;
+}
+
+.edm-reflink-remove {
+  color: #dc3545;
+  font-weight: 700;
+  font-size: 16px;
+  line-height: 1;
+  cursor: pointer;
+  flex-shrink: 0;
+}
+
+/* Empty state for attachment / reference link lists */
+.edm-empty-state {
+  font-size: 12px;
+  color: #adb5bd;
+  font-style: italic;
+  padding: 6px 0;
+}
+
+/* ---------------------------------------------------------------
+   Responsive Adjustments
+--------------------------------------------------------------- */
+@media (max-width: 991.98px) {
+  .edm-span-8,
+  .edm-span-4,
+  .edm-span-6 {
+    grid-column: span 12;
+  }
+
+  .edm-arci-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .edm-arci-add-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 768px) {
+  .edm-card {
+    padding: 1rem;
+  }
+
+  .edm-container {
+    padding: 10px 15px 25px 10px;
+  }
+
+  .edm-arci-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+/* ---------------------------------------------------------------
+   Searchable select ("select2-lite") — used by the Issuer filter on
+   view.php and the Staff filter on index.php.
+--------------------------------------------------------------- */
+.vf-issuer-wrap { position: relative; }
+.vf-s2-selection {
+    display: flex;
+    align-items: center;
+    width: 100%;
+    padding-left: 0.5rem;
+    padding-right: 2.25rem;
+    font-size: 0.875rem;
+    font-weight: 400;
+    color: #212529;
+    background-color: #fff;
+    background-image: url("data:image/svg+xml,%3csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3e%3cpath fill='none' stroke='%23343a40' stroke-linecap='round' stroke-linejoin='round' stroke-width='2' d='m2 5 6 6 6-6'/%3e%3c/svg%3e");
+    background-repeat: no-repeat;
+    background-position: right 0.75rem center;
+    background-size: 16px 12px;
+    border: var(--bs-border-width) solid var(--bs-border-color);
+    border-radius: var(--bs-border-radius-sm);
+    cursor: pointer;
+    user-select: none;
+    outline: none;
+    box-sizing: border-box;
+    overflow: hidden;
+    white-space: nowrap;
+    text-overflow: ellipsis;
+    font-family: 'Inter', sans-serif;
+}
+.vf-s2-selection:focus,
+.vf-s2-selection:hover { outline: none; box-shadow: none; border-color: var(--bs-border-color); }
+.vf-s2-dropdown {
+    position: absolute;
+    top: calc(100% + 2px);
+    left: 0;
+    right: 0;
+    background: #fff;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    box-shadow: 0 4px 12px rgba(0,0,0,.1);
+    z-index: 9999;
+    display: none;
+}
+.vf-s2-dropdown.open { display: block; }
+.vf-s2-search-wrap { padding: 6px 6px 4px; }
+.vf-s2-search {
+    width: 100%;
+    box-sizing: border-box;
+    font-size: 12px;
+    font-family: 'Inter', sans-serif;
+    border: 1px solid #dee2e6;
+    border-radius: 4px;
+    padding: 4px 8px;
+    outline: none;
+}
+.vf-s2-search:focus { border-color: #86b7fe; }
+.vf-s2-list {
+    list-style: none;
+    margin: 0;
+    padding: 0;
+    max-height: 200px;
+    overflow-y: auto;
+}
+.vf-s2-list li {
+    padding: 6px 10px;
+    font-size: 12px;
+    font-family: 'Inter', sans-serif;
+    cursor: pointer;
+}
+.vf-s2-list li:hover,
+.vf-s2-list li.active { background: #0d6efd; color: #fff; }
+.vf-s2-list li.hidden { display: none; }
+.vf-s2-empty { padding: 8px 10px; font-size: 12px; color: #6c757d; font-family: 'Inter', sans-serif; }
+
+.edm-view-tabs {
+    border-bottom: 1px solid #e9ecef;
+    gap: 28px;
+}
+.edm-view-tabs .nav-link {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 10px 2px 12px;
+    margin-bottom: -1px;
+    border: none;
+    border-bottom: 3px solid transparent;
+    border-radius: 0;
+    background: none;
+    color: #6c757d;
+    font-size: 13px;
+    font-weight: 500;
+    transition: color .15s ease, border-color .15s ease;
+}
+.edm-view-tabs .nav-link:hover {
+    color: #495057;
+    border-color: transparent;
+    isolation: auto;
+}
+.edm-view-tabs .nav-link.active {
+    background: none;
+}
+.edm-view-tabs .nav-link.edm-tab-color-hq.active {
+    color: #fd7e14;
+    border-color: #fd7e14;
+}
+.edm-view-tabs .nav-link.edm-tab-color-outlet.active {
+    color: #0A5AA8;
+    border-color: #0A5AA8;
+}
+.edm-view-tabs .nav-link.edm-tab-color-payout.active {
+    color: #6f42c1;
+    border-color: #6f42c1;
+}
+.edm-view-tabs .nav-link.edm-tab-color-atem.active {
+    color: #0d6efd;
+    border-color: #0d6efd;
+}
+.edm-view-tabs .nav-link.edm-tab-color-okr.active {
+    color: #20c997;
+    border-color: #20c997;
+}
+.edm-view-tabs .nav-link i {
+    font-size: 15px;
+}
+.edm-tab-count {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 26px;
+    padding: 1px 9px;
+    border-radius: 999px;
+    font-size: 12px;
+    font-weight: 600;
+    background: #f1f3f5;
+    color: #6c757d;
+}
+.edm-view-tabs .nav-link.edm-tab-color-hq.active .edm-tab-count {
+    background: #fff1e6;
+    color: #fd7e14;
+}
+.edm-view-tabs .nav-link.edm-tab-color-outlet.active .edm-tab-count {
+    background: #e6eef7;
+    color: #0A5AA8;
+}
+.edm-view-tabs .nav-link.edm-tab-color-payout.active .edm-tab-count {
+    background: #f0e9fa;
+    color: #6f42c1;
+}
