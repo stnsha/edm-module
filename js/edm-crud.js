@@ -229,7 +229,7 @@
             }
             return '<div class="mb-3">' +
                 '<label class="form-label" for="edm-f-' + f.name + '">' + esc(f.label) +
-                    (f.required ? '' : ' <span class="text-muted edm-optional">(optional)</span>') + '</label>' +
+                    (f.required ? ' <span class="text-danger" aria-hidden="true">*</span>' : '') + '</label>' +
                 fieldControl(f) +
                 (f.help ? '<div class="form-text">' + esc(f.help) + '</div>' : '') +
             '</div>';
@@ -295,7 +295,17 @@
             if (qf) { qf.root.innerHTML = row && row[f.name] != null ? row[f.name] : ''; }
             return;
         }
-        el.value = row && row[f.name] != null ? row[f.name] : (f.default !== undefined ? f.default : '');
+        if (row && row[f.name] != null) {
+            el.value = row[f.name];
+            return;
+        }
+        if (f.default !== undefined) {
+            el.value = f.default;
+            return;
+        }
+        // A <select> with no explicit default: fall back to its first option
+        // rather than '', which matches no <option> and leaves it blank/unset.
+        el.value = (f.type === 'select' && el.options.length) ? el.options[0].value : '';
     }
 
     function getValue(f) {

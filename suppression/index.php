@@ -28,7 +28,7 @@ window.EDM_CRUD_CONFIG = {
     ],
     fields: [
         { name: 'email', label: 'Email', type: 'email', required: true },
-        { name: 'reason', label: 'Reason', type: 'select', options: [
+        { name: 'reason', label: 'Reason', type: 'select', required: true, options: [
             { value: 'manual', label: 'Manual' },
             { value: 'unsubscribed', label: 'Unsubscribed' },
             { value: 'hard_bounce', label: 'Hard bounce' },

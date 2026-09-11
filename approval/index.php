@@ -34,7 +34,7 @@ edm_crud_screen(array(
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body">
-                <label class="form-label" for="edm-decide-comment">Comment (optional)</label>
+                <label class="form-label" for="edm-decide-comment">Comment</label>
                 <textarea class="form-control" id="edm-decide-comment" rows="3"></textarea>
                 <div id="edm-decide-error" class="text-danger small mt-2" hidden></div>
             </div>
@@ -105,8 +105,8 @@ edm_crud_screen(array(
             { key: 'created_at', label: 'Raised' }
         ],
         fields: [
-            { name: 'campaign_id', label: 'Newsletter', type: 'select', options: <?php echo json_encode($edm_campaign_opts); ?> },
-            { name: 'step', label: 'Approval step (1-8)', type: 'number', default: 1 },
+            { name: 'campaign_id', label: 'Newsletter', type: 'select', required: true, options: <?php echo json_encode($edm_campaign_opts); ?> },
+            { name: 'step', label: 'Approval step (1-8)', type: 'number', required: true, default: 1 },
             { name: 'comment', label: 'Note', type: 'text' }
         ]
     };

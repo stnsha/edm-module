@@ -24,7 +24,7 @@ window.EDM_CRUD_CONFIG = {
     fields: [
         { name: 'name', label: 'Name', type: 'text', required: true },
         { name: 'description', label: 'Description', type: 'text' },
-        { name: 'trigger', label: 'Trigger', type: 'select', options: [
+        { name: 'trigger', label: 'Trigger', type: 'select', required: true, options: [
             { value: 'new_member', label: 'New member registration' },
             { value: 'birthday', label: 'Birthday (DOB match)' },
             { value: 'inactivity', label: 'No activity for 90 days' },

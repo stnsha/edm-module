@@ -61,15 +61,15 @@ $page_js = EDM_BASE . 'settings/senders.js';
                 <div class="modal-body">
                     <input type="hidden" id="edm-sender-id">
                     <div class="mb-3">
-                        <label class="form-label" for="edm-sender-from-name">From name</label>
+                        <label class="form-label" for="edm-sender-from-name">From name <span class="text-danger" aria-hidden="true">*</span></label>
                         <input type="text" class="form-control" id="edm-sender-from-name" maxlength="255" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="edm-sender-email">Email</label>
+                        <label class="form-label" for="edm-sender-email">Email <span class="text-danger" aria-hidden="true">*</span></label>
                         <input type="email" class="form-control" id="edm-sender-email" maxlength="255" required>
                     </div>
                     <div class="mb-3">
-                        <label class="form-label" for="edm-sender-reply-to">Reply-to <span class="text-muted edm-optional">(optional)</span></label>
+                        <label class="form-label" for="edm-sender-reply-to">Reply-to</label>
                         <input type="email" class="form-control" id="edm-sender-reply-to" maxlength="255">
                     </div>
                     <div class="form-check">

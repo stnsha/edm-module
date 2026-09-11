@@ -37,7 +37,7 @@ $page_js = EDM_BASE . 'calendar/calendar.js';
                 <div class="modal-body">
                     <input type="hidden" id="edm-cal-id">
                     <div class="mb-3">
-                        <label class="form-label" for="edm-cal-date">Date</label>
+                        <label class="form-label" for="edm-cal-date">Date <span class="text-danger" aria-hidden="true">*</span></label>
                         <input type="date" class="form-control" id="edm-cal-date" required>
                     </div>
                     <div class="mb-3">

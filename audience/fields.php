@@ -22,7 +22,7 @@ window.EDM_CRUD_CONFIG = {
     ],
     fields: [
         { name: 'label', label: 'Label', type: 'text', required: true },
-        { name: 'type', label: 'Type', type: 'select', options: ['text', 'number', 'date', 'boolean', 'select'] },
+        { name: 'type', label: 'Type', type: 'select', required: true, options: ['text', 'number', 'date', 'boolean', 'select'] },
         { name: 'options', label: 'Options (one per line, for select type)', type: 'textarea', help: 'Ignored unless Type is select.' }
     ]
 };

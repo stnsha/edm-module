@@ -24,7 +24,7 @@ window.EDM_CRUD_CONFIG = {
     ],
     fields: [
         { name: 'name', label: 'Name', type: 'text', required: true },
-        { name: 'offset_days', label: 'Offset in days from trigger', type: 'number', default: 0 },
+        { name: 'offset_days', label: 'Offset in days from trigger', type: 'number', required: true, default: 0 },
         { name: 'subject', label: 'Subject', type: 'text' },
         { name: 'status', label: 'Status', type: 'select', options: ['draft', 'active', 'paused'] }
     ]
