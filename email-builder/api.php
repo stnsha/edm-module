@@ -21,7 +21,10 @@ $campaignId = isset($_GET['campaign']) ? (int)$_GET['campaign'] : (isset($input[
 
 $response = array('success' => false, 'message' => 'Unknown action');
 
-if (!$campaignId) {
+if ($action === 'campaigns_list') {
+    // Picker for the bare (no ?campaign=) landing page.
+    $response = edmApiResult(getApiDataWithJWT('edm/campaigns', null, 'GET', $staff_id), 'Failed to load newsletters');
+} elseif (!$campaignId) {
     $response = array('success' => false, 'message' => 'A campaign id is required');
 } elseif ($action === 'load') {
     $campaign = edmApiResult(getApiDataWithJWT('edm/campaigns/' . $campaignId, null, 'GET', $staff_id), 'Failed to load newsletter');
