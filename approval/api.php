@@ -34,8 +34,8 @@ if (preg_match('/^approvals_(list|create|delete)$/', (string)$action, $m)) {
 
 } elseif ($action === 'approvals_decide') {
     $id = edmReqId($input);
-    $status = isset($input['status']) ? $input['status'] : '';
-    if (!$id || !in_array($status, array('approved', 'rejected'), true)) {
+    $status = isset($input['status']) ? (int)$input['status'] : 0;
+    if (!$id || !in_array($status, array(2, 3), true)) {
         $response = array('success' => false, 'message' => 'Approval id and a valid decision are required');
     } else {
         $payload = array(

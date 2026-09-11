@@ -15,7 +15,11 @@ window.EDM_CRUD_CONFIG = {
     api: 'automation/api.php',
     entity: 'workflow',
     actions: { list: 'workflows_list', create: 'workflows_create', update: 'workflows_update', 'delete': 'workflows_delete' },
-    badges: { status: { draft: 'edm-pill-secondary', active: 'edm-pill-success', paused: 'edm-pill-warning' } },
+    badges: { status: {
+        1: { cls: 'edm-pill-secondary', label: 'Draft' },
+        2: { cls: 'edm-pill-success', label: 'Active' },
+        3: { cls: 'edm-pill-warning', label: 'Paused' }
+    } },
     columns: [
         { key: 'name', label: 'Name' },
         { key: 'trigger', label: 'Trigger' },
@@ -32,7 +36,9 @@ window.EDM_CRUD_CONFIG = {
             { value: 'soft_bounce', label: 'Soft bounce detected' },
             { value: 'manual', label: 'Manual' }
         ] },
-        { name: 'status', label: 'Status', type: 'select', options: ['draft', 'active', 'paused'] }
+        { name: 'status', label: 'Status', type: 'select', options: [
+            { value: 1, label: 'Draft' }, { value: 2, label: 'Active' }, { value: 3, label: 'Paused' }
+        ] }
     ]
 };
 </script>

@@ -31,9 +31,15 @@ $page_js = EDM_BASE . 'email-builder/email-builder.js';
     var BASE = window.EDM_MODULE_BASE || '/odb/edm/';
     var rowsEl = document.getElementById('edm-eb-picker-rows');
     var badges = {
-        draft: 'edm-pill-secondary', pending_submission: 'edm-pill-info', under_bpt_review: 'edm-pill-info',
-        content_revision: 'edm-pill-warning', audience_validation: 'edm-pill-info', scheduled: 'edm-pill-primary',
-        sending: 'edm-pill-primary', completed: 'edm-pill-success', archived: 'edm-pill-dark'
+        1: { cls: 'edm-pill-secondary', label: 'Draft' },
+        2: { cls: 'edm-pill-info', label: 'Pending submission' },
+        3: { cls: 'edm-pill-info', label: 'Under BPT review' },
+        4: { cls: 'edm-pill-warning', label: 'Content revision' },
+        5: { cls: 'edm-pill-info', label: 'Audience validation' },
+        6: { cls: 'edm-pill-primary', label: 'Scheduled' },
+        7: { cls: 'edm-pill-primary', label: 'Sending' },
+        8: { cls: 'edm-pill-success', label: 'Completed' },
+        9: { cls: 'edm-pill-dark', label: 'Archived' }
     };
     function esc(v) {
         return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
@@ -53,7 +59,7 @@ $page_js = EDM_BASE . 'email-builder/email-builder.js';
                     '<td class="text-muted">' + (i + 1) + '</td>' +
                     '<td>' + esc(r.name) + '</td>' +
                     '<td>' + (r.subject ? esc(r.subject) : '<span class="text-muted">-</span>') + '</td>' +
-                    '<td><span class="edm-pill ' + (badges[r.status] || 'edm-pill-secondary') + '">' + esc(r.status) + '</span></td>' +
+                    '<td><span class="edm-pill ' + ((badges[r.status] && badges[r.status].cls) || 'edm-pill-secondary') + '">' + esc((badges[r.status] && badges[r.status].label) || r.status) + '</span></td>' +
                     '<td class="text-end"><a class="btn btn-sm btn-outline-primary" href="' + esc(BASE + 'email-builder/index.php?campaign=' + r.id) + '">Design</a></td>' +
                 '</tr>';
             }).join('');

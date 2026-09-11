@@ -14,7 +14,9 @@
  *   idKey:   'id',
  *   actions: { list, create, update, delete },   // api.php action names
  *   columns: [ { key, label, type } ],   // type: text|bool|count|badge
- *   badges:  { status: { verified:'edm-pill-success', ... } },  // for type:badge -
+ *   badges:  { status: { 2: { cls:'edm-pill-success', label:'Verified' }, ... } },  // for type:badge -
+ *            // key is the raw status value (int); value is {cls,label} or a
+ *            // plain class string (label then falls back to the raw value) -
  *            // always edm-pill-* (secondary|success|danger|warning|info|primary|dark),
  *            // NEVER Bootstrap's .badge/text-bg-* - a legacy common/css/page.css
  *            // rule hijacks .badge as an absolutely-positioned notification dot
@@ -89,7 +91,10 @@
         if (col.type === 'count') { return v == null ? '0' : esc(v); }
         if (col.type === 'badge') {
             var map = (cfg.badges && cfg.badges[col.key]) || {};
-            return '<span class="edm-pill ' + (map[v] || 'edm-pill-secondary') + '">' + esc(v) + '</span>';
+            var entry = map[v];
+            var cls = (entry && entry.cls) || (typeof entry === 'string' ? entry : 'edm-pill-secondary');
+            var label = (entry && entry.label) || (typeof entry === 'string' ? v : v);
+            return '<span class="edm-pill ' + cls + '">' + esc(label) + '</span>';
         }
         return v == null || v === '' ? '<span class="text-muted">-</span>' : esc(v);
     }

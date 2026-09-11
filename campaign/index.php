@@ -39,14 +39,20 @@ window.EDM_CRUD_CONFIG = {
     entity: 'newsletter',
     actions: { list: 'campaigns_list', create: 'campaigns_create', update: 'campaigns_update', 'delete': 'campaigns_delete' },
     badges: { status: {
-        draft: 'edm-pill-secondary', pending_submission: 'edm-pill-info', under_bpt_review: 'edm-pill-info',
-        content_revision: 'edm-pill-warning', audience_validation: 'edm-pill-info', scheduled: 'edm-pill-primary',
-        sending: 'edm-pill-primary', completed: 'edm-pill-success', archived: 'edm-pill-dark'
+        1: { cls: 'edm-pill-secondary', label: 'Draft' },
+        2: { cls: 'edm-pill-info', label: 'Pending submission' },
+        3: { cls: 'edm-pill-info', label: 'Under BPT review' },
+        4: { cls: 'edm-pill-warning', label: 'Content revision' },
+        5: { cls: 'edm-pill-info', label: 'Audience validation' },
+        6: { cls: 'edm-pill-primary', label: 'Scheduled' },
+        7: { cls: 'edm-pill-primary', label: 'Sending' },
+        8: { cls: 'edm-pill-success', label: 'Completed' },
+        9: { cls: 'edm-pill-dark', label: 'Archived' }
     } },
     rowActions: [
         { label: 'Design', className: 'btn-outline-primary', link: function (r) { return 'email-builder/index.php?campaign=' + r.id; } },
         { label: 'Submit', className: 'btn-outline-success', action: 'campaigns_submit', confirm: 'Submit this newsletter for review?',
-            visible: function (r) { return r.status === 'draft' || r.status === 'content_revision'; } }
+            visible: function (r) { return r.status === 1 || r.status === 4; } }
     ],
     columns: [
         { key: 'name', label: 'Name' },

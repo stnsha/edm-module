@@ -23,6 +23,11 @@
     var deskBtn   = document.getElementById('edm-eb-desktop');
     var mobBtn    = document.getElementById('edm-eb-mobile');
 
+    var STATUS_LABELS = {
+        1: 'Draft', 2: 'Pending submission', 3: 'Under BPT review', 4: 'Content revision',
+        5: 'Audience validation', 6: 'Scheduled', 7: 'Sending', 8: 'Completed', 9: 'Archived'
+    };
+
     var quill = new Quill('#edm-eb-quill', {
         theme: 'snow',
         modules: {
@@ -93,7 +98,7 @@
         if (!res.success) { showAlert(res.message); return; }
         var c = res.data || {};
         nameEl.textContent = c.name || ('Newsletter #' + CID);
-        subEl.textContent = (c.subject ? 'Subject: ' + c.subject + '  -  ' : '') + 'Status: ' + (c.status || 'draft');
+        subEl.textContent = (c.subject ? 'Subject: ' + c.subject + '  -  ' : '') + 'Status: ' + (STATUS_LABELS[c.status] || 'Draft');
         if (c.content && c.content.html != null) { setContent(c.content.html); }
     });
 

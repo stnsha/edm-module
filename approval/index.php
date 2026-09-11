@@ -60,11 +60,11 @@ edm_crud_screen(array(
     function decide(row, status, reload) {
         if (!decideModal) { decideModal = new bootstrap.Modal(decideModalEl); }
         pendingDecide = { row: row, status: status, reload: reload };
-        decideTitle.textContent = (status === 'approved' ? 'Approve' : 'Reject') + ' review';
+        decideTitle.textContent = (status === 2 ? 'Approve' : 'Reject') + ' review';
         decideComment.value = '';
         decideError.hidden = true;
-        decideConfirm.className = 'btn btn-sm ' + (status === 'approved' ? 'btn-success' : 'btn-danger');
-        decideConfirm.textContent = status === 'approved' ? 'Approve' : 'Reject';
+        decideConfirm.className = 'btn btn-sm ' + (status === 2 ? 'btn-success' : 'btn-danger');
+        decideConfirm.textContent = status === 2 ? 'Approve' : 'Reject';
         decideModal.show();
     }
 
@@ -91,10 +91,14 @@ edm_crud_screen(array(
         entity: 'review',
         noEdit: true,
         actions: { list: 'approvals_list', create: 'approvals_create', update: 'approvals_update', 'delete': 'approvals_delete' },
-        badges: { status: { pending: 'edm-pill-warning', approved: 'edm-pill-success', rejected: 'edm-pill-danger' } },
+        badges: { status: {
+            1: { cls: 'edm-pill-warning', label: 'Pending' },
+            2: { cls: 'edm-pill-success', label: 'Approved' },
+            3: { cls: 'edm-pill-danger', label: 'Rejected' }
+        } },
         rowActions: [
-            { label: 'Approve', className: 'btn-outline-success', visible: function (row) { return row.status === 'pending'; }, handler: function (row, reload) { decide(row, 'approved', reload); } },
-            { label: 'Reject', className: 'btn-outline-danger', visible: function (row) { return row.status === 'pending'; }, handler: function (row, reload) { decide(row, 'rejected', reload); } }
+            { label: 'Approve', className: 'btn-outline-success', visible: function (row) { return row.status === 1; }, handler: function (row, reload) { decide(row, 2, reload); } },
+            { label: 'Reject', className: 'btn-outline-danger', visible: function (row) { return row.status === 1; }, handler: function (row, reload) { decide(row, 3, reload); } }
         ],
         columns: [
             { key: 'campaign_name', label: 'Newsletter' },

@@ -31,11 +31,13 @@
     // Never Bootstrap's .badge/text-bg-* here - a legacy common/css/page.css
     // rule hijacks .badge as an absolutely-positioned notification dot (see
     // the .edm-pill note in css/style.css). Use edm-pill-* instead.
+    // Status is stored as an integer, never a word: 1=pending, 2=verified, 3=failed.
     var STATUS = {
-        verified: { label: 'Verified', cls: 'edm-pill-success' },
-        pending:  { label: 'Pending',  cls: 'edm-pill-secondary' },
-        failed:   { label: 'Failed',   cls: 'edm-pill-danger' }
+        1: { label: 'Pending',  cls: 'edm-pill-secondary' },
+        2: { label: 'Verified', cls: 'edm-pill-success' },
+        3: { label: 'Failed',   cls: 'edm-pill-danger' }
     };
+    var NEXT_STATUS = { 1: 2, 2: 3, 3: 1 };
 
     function esc(v) {
         return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
@@ -77,8 +79,9 @@
             return;
         }
         rowsEl.innerHTML = rows.map(function (s, i) {
-            var st = STATUS[s.status] || STATUS.pending;
-            var next = { pending: 'verified', verified: 'failed', failed: 'pending' }[s.status] || 'verified';
+            var st = STATUS[s.status] || STATUS[1];
+            var next = NEXT_STATUS[s.status] || 2;
+            var nextLabel = STATUS[next].label;
             return '' +
                 '<tr data-id="' + s.id + '">' +
                     '<td class="text-muted">' + (startIdx + i + 1) + '</td>' +
@@ -94,7 +97,7 @@
                             (s.is_default ? '' :
                                 '<button type="button" class="btn btn-sm btn-outline-secondary" data-act="default">Set default</button>') +
                             '<button type="button" class="btn btn-sm btn-outline-secondary" data-act="status" data-next="' + next + '">' +
-                                'Mark ' + next +
+                                'Mark ' + nextLabel +
                             '</button>' +
                             '<button type="button" class="btn btn-sm btn-outline-secondary edm-icon-btn" data-act="edit" title="Edit"><i class="bi bi-pencil"></i></button>' +
                             '<button type="button" class="btn btn-sm btn-outline-danger edm-icon-btn" data-act="delete" title="Delete"><i class="bi bi-trash"></i></button>' +
@@ -250,7 +253,7 @@
         }
 
         if (act === 'status') {
-            var next = btn.getAttribute('data-next');
+            var next = parseInt(btn.getAttribute('data-next'), 10);
             call('senders_verify', 'POST', { id: id, status: next }).then(function (res) {
                 if (!res.success) { showAlert(firstError(res)); return; }
                 load();

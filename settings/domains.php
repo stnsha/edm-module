@@ -22,9 +22,9 @@ window.EDM_CRUD_CONFIG = {
     entity: 'domain',
     actions: { list: 'domains_list', create: 'domains_create', update: 'domains_update', 'delete': 'domains_delete' },
     badges: {
-        dkim_status:  { pending: 'edm-pill-secondary', verified: 'edm-pill-success', failed: 'edm-pill-danger' },
-        spf_status:   { pending: 'edm-pill-secondary', verified: 'edm-pill-success', failed: 'edm-pill-danger' },
-        dmarc_status: { pending: 'edm-pill-secondary', verified: 'edm-pill-success', failed: 'edm-pill-danger' }
+        dkim_status:  { 1: { cls: 'edm-pill-secondary', label: 'Pending' }, 2: { cls: 'edm-pill-success', label: 'Verified' }, 3: { cls: 'edm-pill-danger', label: 'Failed' } },
+        spf_status:   { 1: { cls: 'edm-pill-secondary', label: 'Pending' }, 2: { cls: 'edm-pill-success', label: 'Verified' }, 3: { cls: 'edm-pill-danger', label: 'Failed' } },
+        dmarc_status: { 1: { cls: 'edm-pill-secondary', label: 'Pending' }, 2: { cls: 'edm-pill-success', label: 'Verified' }, 3: { cls: 'edm-pill-danger', label: 'Failed' } }
     },
     columns: [
         { key: 'domain', label: 'Domain' },
@@ -35,9 +35,9 @@ window.EDM_CRUD_CONFIG = {
     ],
     fields: [
         { name: 'domain', label: 'Domain', type: 'text', required: true },
-        { name: 'dkim_status', label: 'DKIM status', type: 'select', options: ['pending', 'verified', 'failed'] },
-        { name: 'spf_status', label: 'SPF status', type: 'select', options: ['pending', 'verified', 'failed'] },
-        { name: 'dmarc_status', label: 'DMARC status', type: 'select', options: ['pending', 'verified', 'failed'] },
+        { name: 'dkim_status', label: 'DKIM status', type: 'select', options: [{ value: 1, label: 'Pending' }, { value: 2, label: 'Verified' }, { value: 3, label: 'Failed' }] },
+        { name: 'spf_status', label: 'SPF status', type: 'select', options: [{ value: 1, label: 'Pending' }, { value: 2, label: 'Verified' }, { value: 3, label: 'Failed' }] },
+        { name: 'dmarc_status', label: 'DMARC status', type: 'select', options: [{ value: 1, label: 'Pending' }, { value: 2, label: 'Verified' }, { value: 3, label: 'Failed' }] },
         { name: 'is_active', label: 'Active', type: 'checkbox', default: true }
     ]
 };

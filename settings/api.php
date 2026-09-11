@@ -49,8 +49,8 @@ if (preg_match('/^senders_(list|create|update|delete)$/', (string)$action, $m)) 
 
 } elseif ($action === 'senders_verify') {
     $id = edmReqId($input);
-    $status = isset($input['status']) ? $input['status'] : '';
-    if (!$id || !in_array($status, array('pending', 'verified', 'failed'), true)) {
+    $status = isset($input['status']) ? (int)$input['status'] : 0;
+    if (!$id || !in_array($status, array(1, 2, 3), true)) {
         $response = array('success' => false, 'message' => 'Sender id and a valid status are required');
     } else {
         $response = edmApiResult(

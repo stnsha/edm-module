@@ -15,7 +15,11 @@ window.EDM_CRUD_CONFIG = {
     api: 'automation/api.php',
     entity: 'autoresponder',
     actions: { list: 'autoresponders_list', create: 'autoresponders_create', update: 'autoresponders_update', 'delete': 'autoresponders_delete' },
-    badges: { status: { draft: 'edm-pill-secondary', active: 'edm-pill-success', paused: 'edm-pill-warning' } },
+    badges: { status: {
+        1: { cls: 'edm-pill-secondary', label: 'Draft' },
+        2: { cls: 'edm-pill-success', label: 'Active' },
+        3: { cls: 'edm-pill-warning', label: 'Paused' }
+    } },
     columns: [
         { key: 'name', label: 'Name' },
         { key: 'offset_days', label: 'Offset (days)' },
@@ -26,7 +30,9 @@ window.EDM_CRUD_CONFIG = {
         { name: 'name', label: 'Name', type: 'text', required: true },
         { name: 'offset_days', label: 'Offset in days from trigger', type: 'number', required: true, default: 0 },
         { name: 'subject', label: 'Subject', type: 'text' },
-        { name: 'status', label: 'Status', type: 'select', options: ['draft', 'active', 'paused'] }
+        { name: 'status', label: 'Status', type: 'select', options: [
+            { value: 1, label: 'Draft' }, { value: 2, label: 'Active' }, { value: 3, label: 'Paused' }
+        ] }
     ]
 };
 </script>
