@@ -23,7 +23,7 @@ window.EDM_CRUD_CONFIG = {
     actions: { list: 'domains_list', create: 'domains_create', update: 'domains_update', 'delete': 'domains_delete' },
     rowActions: [
         { label: function (r) { return r.is_active ? 'Set inactive' : 'Set active'; },
-          className: 'btn-outline-secondary',
+          className: function (r) { return r.is_active ? 'btn-outline-danger' : 'btn-outline-success'; },
           body: function (r) { return { is_active: !r.is_active }; },
           action: 'domains_update', method: 'PUT' }
     ],

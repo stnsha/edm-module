@@ -534,7 +534,7 @@ button {
    notification dot, which would hijack it. Use a dedicated .edm-pill. */
 .edm-pill {
   display: inline-block;
-  font-size: 12px;
+  font-size: 13px;
   font-weight: 600;
   padding: 3px 10px;
   border-radius: 12px;
