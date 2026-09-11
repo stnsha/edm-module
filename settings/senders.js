@@ -259,10 +259,11 @@
         }
 
         if (act === 'delete') {
-            if (!window.confirm('Delete this sender?')) { return; }
-            call('senders_delete', 'DELETE', { id: id }).then(function (res) {
-                if (!res.success) { showAlert(firstError(res)); return; }
-                load();
+            window.edmConfirm('Delete this sender?', function () {
+                call('senders_delete', 'DELETE', { id: id }).then(function (res) {
+                    if (!res.success) { showAlert(firstError(res)); return; }
+                    load();
+                });
             });
         }
     });

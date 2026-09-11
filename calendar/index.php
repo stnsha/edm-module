@@ -63,6 +63,7 @@ $page_js = EDM_BASE . 'calendar/calendar.js';
         </div>
     </div>
 </div>
+<script src="<?php echo EDM_BASE; ?>js/edm-confirm.js"></script>
 <?php
 include __DIR__ . '/../footer.php';
 ?>

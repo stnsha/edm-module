@@ -101,6 +101,7 @@
         }
         rowsEl.innerHTML = rows.map(function (row, i) {
             var extra = (cfg.rowActions || []).map(function (a, ai) {
+                if (a.visible && !a.visible(row)) { return ''; }
                 if (a.link) {
                     return '<a class="btn btn-sm ' + (a.className || 'btn-outline-secondary') + '" href="' +
                         esc(BASE + a.link(row)) + '">' + esc(a.label) + '</a>';
@@ -370,24 +371,27 @@
         if (act === 'custom' && row) {
             var a = (cfg.rowActions || [])[parseInt(btn.getAttribute('data-i'), 10)];
             if (!a) { return; }
-            if (a.confirm && !window.confirm(a.confirm)) { return; }
-            if (a.handler) { a.handler(row, load); return; }
-            var body = {};
-            body[idKey] = /^\d+$/.test(id) ? parseInt(id, 10) : id;
-            call(a.action, a.method || 'POST', body).then(function (res) {
-                if (!res.success) { showAlert(firstError(res)); return; }
-                load();
-            });
+            var runCustom = function () {
+                if (a.handler) { a.handler(row, load); return; }
+                var body = {};
+                body[idKey] = /^\d+$/.test(id) ? parseInt(id, 10) : id;
+                call(a.action, a.method || 'POST', body).then(function (res) {
+                    if (!res.success) { showAlert(firstError(res)); return; }
+                    load();
+                });
+            };
+            if (a.confirm) { window.edmConfirm(a.confirm, runCustom); } else { runCustom(); }
             return;
         }
 
         if (act === 'delete') {
-            if (!window.confirm('Delete this ' + (cfg.entity || 'item') + '?')) { return; }
-            var payload = {};
-            payload[idKey] = /^\d+$/.test(id) ? parseInt(id, 10) : id;
-            call(cfg.actions['delete'], 'DELETE', payload).then(function (res) {
-                if (!res.success) { showAlert(firstError(res)); return; }
-                load();
+            window.edmConfirm('Delete this ' + (cfg.entity || 'item') + '?', function () {
+                var payload = {};
+                payload[idKey] = /^\d+$/.test(id) ? parseInt(id, 10) : id;
+                call(cfg.actions['delete'], 'DELETE', payload).then(function (res) {
+                    if (!res.success) { showAlert(firstError(res)); return; }
+                    load();
+                });
             });
         }
     });

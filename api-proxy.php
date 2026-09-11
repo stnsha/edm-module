@@ -92,6 +92,22 @@ if (!function_exists('edmCrud')) {
     }
 }
 
+if (!function_exists('edmTrim')) {
+    /**
+     * Null-safe trim(). PHP 8.2 deprecates passing null to trim() (and every
+     * other formerly-implicit-nullable string param) - the notice is printed
+     * inline and corrupts the JSON response, which the browser then reports
+     * as "Could not reach the server" even though the request succeeded. Use
+     * this wherever a value is trimmed inline outside edmPick().
+     * @param mixed $v
+     * @return mixed
+     */
+    function edmTrim($v)
+    {
+        return is_string($v) ? trim($v) : $v;
+    }
+}
+
 if (!function_exists('edmPick')) {
     /**
      * Copy a whitelist of keys from $input, trimming strings and mapping '' to

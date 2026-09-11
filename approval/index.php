@@ -26,21 +26,66 @@ edm_crud_screen(array(
     'columns' => array('Newsletter', 'Step', 'Status', 'Reviewer', 'Comment', 'Raised'),
 ));
 ?>
+<div class="modal fade" id="edm-decide-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="edm-decide-title">Decision</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label" for="edm-decide-comment">Comment (optional)</label>
+                <textarea class="form-control" id="edm-decide-comment" rows="3"></textarea>
+                <div id="edm-decide-error" class="text-danger small mt-2" hidden></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <button type="button" class="btn btn-sm" id="edm-decide-confirm">Confirm</button>
+            </div>
+        </div>
+    </div>
+</div>
 <script>
 (function () {
     var BASE = window.EDM_MODULE_BASE || '/odb/edm/';
+
+    var decideModalEl  = document.getElementById('edm-decide-modal');
+    var decideModal    = null; // lazy - bootstrap.bundle loads in footer.php, after this script
+    var decideTitle    = document.getElementById('edm-decide-title');
+    var decideComment  = document.getElementById('edm-decide-comment');
+    var decideError    = document.getElementById('edm-decide-error');
+    var decideConfirm  = document.getElementById('edm-decide-confirm');
+    var pendingDecide  = null;
+
     function decide(row, status, reload) {
-        var comment = window.prompt((status === 'approved' ? 'Approve' : 'Reject') + ' - comment (optional):', '');
-        if (comment === null) { return; }
+        if (!decideModal) { decideModal = new bootstrap.Modal(decideModalEl); }
+        pendingDecide = { row: row, status: status, reload: reload };
+        decideTitle.textContent = (status === 'approved' ? 'Approve' : 'Reject') + ' review';
+        decideComment.value = '';
+        decideError.hidden = true;
+        decideConfirm.className = 'btn btn-sm ' + (status === 'approved' ? 'btn-success' : 'btn-danger');
+        decideConfirm.textContent = status === 'approved' ? 'Approve' : 'Reject';
+        decideModal.show();
+    }
+
+    decideConfirm.addEventListener('click', function () {
+        if (!pendingDecide) { return; }
+        var p = pendingDecide;
+        decideError.hidden = true;
         fetch(BASE + 'approval/api.php?action=approvals_decide', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify({ id: row.id, status: status, comment: comment })
+            body: JSON.stringify({ id: p.row.id, status: p.status, comment: decideComment.value })
         }).then(function (r) { return r.json(); }).then(function (res) {
-            if (!res.success) { window.alert(res.message || 'Failed.'); return; }
-            reload();
+            if (!res.success) { decideError.textContent = res.message || 'Failed.'; decideError.hidden = false; return; }
+            decideModal.hide();
+            p.reload();
+        }).catch(function () {
+            decideError.textContent = 'Could not reach the server.';
+            decideError.hidden = false;
         });
-    }
+    });
+
     window.EDM_CRUD_CONFIG = {
         api: 'approval/api.php',
         entity: 'review',
@@ -48,8 +93,8 @@ edm_crud_screen(array(
         actions: { list: 'approvals_list', create: 'approvals_create', update: 'approvals_update', 'delete': 'approvals_delete' },
         badges: { status: { pending: 'edm-pill-warning', approved: 'edm-pill-success', rejected: 'edm-pill-danger' } },
         rowActions: [
-            { label: 'Approve', className: 'btn-outline-success', handler: function (row, reload) { decide(row, 'approved', reload); } },
-            { label: 'Reject', className: 'btn-outline-danger', handler: function (row, reload) { decide(row, 'rejected', reload); } }
+            { label: 'Approve', className: 'btn-outline-success', visible: function (row) { return row.status === 'pending'; }, handler: function (row, reload) { decide(row, 'approved', reload); } },
+            { label: 'Reject', className: 'btn-outline-danger', visible: function (row) { return row.status === 'pending'; }, handler: function (row, reload) { decide(row, 'rejected', reload); } }
         ],
         columns: [
             { key: 'campaign_name', label: 'Newsletter' },

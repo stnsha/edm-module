@@ -144,10 +144,12 @@
     });
 
     delBtn.addEventListener('click', function () {
-        if (!idEl.value || !window.confirm('Delete this slot?')) { return; }
-        call('slots_delete', 'DELETE', { id: parseInt(idEl.value, 10) }).then(function (res) {
-            if (!res.success) { errEl.textContent = res.message || 'Failed to delete.'; errEl.hidden = false; return; }
-            modal.hide(); load();
+        if (!idEl.value) { return; }
+        window.edmConfirm('Delete this slot?', function () {
+            call('slots_delete', 'DELETE', { id: parseInt(idEl.value, 10) }).then(function (res) {
+                if (!res.success) { errEl.textContent = res.message || 'Failed to delete.'; errEl.hidden = false; return; }
+                modal.hide(); load();
+            });
         });
     });
 

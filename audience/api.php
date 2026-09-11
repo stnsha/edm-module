@@ -6,18 +6,12 @@
  */
 define('API_JWT_INCLUDED', true);
 require __DIR__ . '/../api-jwt.php';
+require __DIR__ . '/../api-proxy.php';
 
 header('Content-Type: application/json');
 
-$input = json_decode(file_get_contents('php://input'), true);
-if (!is_array($input)) {
-    $input = array();
-}
-$action = isset($_GET['action'])
-    ? $_GET['action']
-    : (isset($_POST['action'])
-        ? $_POST['action']
-        : (isset($input['action']) ? $input['action'] : null));
+$input  = edmReadBody();
+$action = edmResolveAction($input);
 
 if (!$staff_id) {
     echo json_encode(array(
@@ -26,78 +20,6 @@ if (!$staff_id) {
         'message' => 'Staff ID is required. Please ensure you are logged in.'
     ));
     exit;
-}
-
-/**
- * Normalise a getApiDataWithJWT() result for the browser.
- * @param array $result
- * @param string $failMessage
- * @return array
- */
-function edmApiResult($result, $failMessage)
-{
-    $httpCode = isset($result['httpCode']) ? (int)$result['httpCode'] : 0;
-    $decoded  = json_decode(isset($result['response']) ? $result['response'] : '', true);
-
-    if ($httpCode >= 200 && $httpCode < 300) {
-        return array(
-            'success' => true,
-            'data'    => (is_array($decoded) && array_key_exists('data', $decoded)) ? $decoded['data'] : $decoded
-        );
-    }
-
-    return array(
-        'success'  => false,
-        'message'  => (is_array($decoded) && isset($decoded['message'])) ? $decoded['message'] : $failMessage,
-        'errors'   => (is_array($decoded) && isset($decoded['errors'])) ? $decoded['errors'] : null,
-        'httpCode' => $httpCode
-    );
-}
-
-/**
- * Record id from query string or JSON body.
- * @param array $input
- * @return int
- */
-function edmReqId($input)
-{
-    if (isset($_GET['id'])) {
-        return (int)$_GET['id'];
-    }
-    return isset($input['id']) ? (int)$input['id'] : 0;
-}
-
-/**
- * Generic CRUD dispatch against an edm-api resource.
- * @param string $verb list|create|update|delete
- * @param string $resource edm-api path segment, e.g. 'edm/lists'
- * @param array $payload body for create / update
- * @param array $input request body (for id)
- * @param int $staff_id
- * @param string $label human label for error messages
- * @return array
- */
-function edmCrud($verb, $resource, $payload, $input, $staff_id, $label)
-{
-    switch ($verb) {
-        case 'list':
-            return edmApiResult(getApiDataWithJWT($resource, null, 'GET', $staff_id), 'Failed to load ' . $label);
-        case 'create':
-            return edmApiResult(getApiDataWithJWT($resource, $payload, 'POST', $staff_id), 'Failed to create ' . $label);
-        case 'update':
-            $id = edmReqId($input);
-            if (!$id) {
-                return array('success' => false, 'message' => 'Record id is required');
-            }
-            return edmApiResult(getApiDataWithJWT($resource . '/' . $id, $payload, 'PUT', $staff_id), 'Failed to update ' . $label);
-        case 'delete':
-            $id = edmReqId($input);
-            if (!$id) {
-                return array('success' => false, 'message' => 'Record id is required');
-            }
-            return edmApiResult(getApiDataWithJWT($resource . '/' . $id, null, 'DELETE', $staff_id), 'Failed to delete ' . $label);
-    }
-    return array('success' => false, 'message' => 'Unknown action');
 }
 
 /**
@@ -114,16 +36,6 @@ function edmLines($value)
     return array_values(array_filter(array_map('trim', $parts), 'strlen'));
 }
 
-$staffInfo = null;
-function edmStaffName($staff_id)
-{
-    global $staffInfo;
-    if ($staffInfo === null) {
-        $staffInfo = getStaffAuthData($staff_id);
-    }
-    return $staffInfo ? $staffInfo['staff_name'] : null;
-}
-
 $response = array('success' => false, 'message' => 'Unknown action');
 
 if (preg_match('/^(lists|segments|tags|fields)_(list|create|update|delete)$/', (string)$action, $m)) {
@@ -133,10 +45,10 @@ if (preg_match('/^(lists|segments|tags|fields)_(list|create|update|delete)$/', (
     if ($group === 'lists') {
         $payload = array();
         if (array_key_exists('name', $input)) {
-            $payload['name'] = trim($input['name']);
+            $payload['name'] = edmTrim($input['name']);
         }
         if (array_key_exists('description', $input)) {
-            $payload['description'] = ($input['description'] === '') ? null : trim($input['description']);
+            $payload['description'] = ($input['description'] === '') ? null : edmTrim($input['description']);
         }
         if (array_key_exists('is_active', $input)) {
             $payload['is_active'] = !empty($input['is_active']);
@@ -150,10 +62,10 @@ if (preg_match('/^(lists|segments|tags|fields)_(list|create|update|delete)$/', (
     } elseif ($group === 'segments') {
         $payload = array();
         if (array_key_exists('name', $input)) {
-            $payload['name'] = trim($input['name']);
+            $payload['name'] = edmTrim($input['name']);
         }
         if (array_key_exists('description', $input)) {
-            $payload['description'] = ($input['description'] === '') ? null : trim($input['description']);
+            $payload['description'] = ($input['description'] === '') ? null : edmTrim($input['description']);
         }
         if (array_key_exists('definition', $input) && is_array($input['definition'])) {
             $payload['definition'] = array(
@@ -172,7 +84,7 @@ if (preg_match('/^(lists|segments|tags|fields)_(list|create|update|delete)$/', (
         $payload = array();
         foreach (array('name', 'color', 'description') as $f) {
             if (array_key_exists($f, $input)) {
-                $payload[$f] = ($input[$f] === '') ? null : trim($input[$f]);
+                $payload[$f] = ($input[$f] === '') ? null : edmTrim($input[$f]);
             }
         }
         $response = edmCrud($verb, 'edm/tags', $payload, $input, $staff_id, 'tag');
@@ -180,10 +92,10 @@ if (preg_match('/^(lists|segments|tags|fields)_(list|create|update|delete)$/', (
     } elseif ($group === 'fields') {
         $payload = array();
         if (array_key_exists('label', $input)) {
-            $payload['label'] = trim($input['label']);
+            $payload['label'] = edmTrim($input['label']);
         }
         if (array_key_exists('type', $input)) {
-            $payload['type'] = trim($input['type']);
+            $payload['type'] = edmTrim($input['type']);
         }
         if (array_key_exists('options', $input)) {
             $lines = edmLines($input['options']);

@@ -28,7 +28,7 @@ if (preg_match('/^approvals_(list|create|delete)$/', (string)$action, $m)) {
         $payload['step'] = (int)$input['step'];
     }
     if (array_key_exists('comment', $input)) {
-        $payload['comment'] = ($input['comment'] === '') ? null : trim($input['comment']);
+        $payload['comment'] = ($input['comment'] === '') ? null : edmTrim($input['comment']);
     }
     $response = edmCrud($verb, 'edm/approvals', $payload, $input, $staff_id, 'approval');
 
@@ -40,7 +40,7 @@ if (preg_match('/^approvals_(list|create|delete)$/', (string)$action, $m)) {
     } else {
         $payload = array(
             'status'        => $status,
-            'comment'       => isset($input['comment']) && $input['comment'] !== '' ? trim($input['comment']) : null,
+            'comment'       => isset($input['comment']) && $input['comment'] !== '' ? edmTrim($input['comment']) : null,
             'reviewer_id'   => $staff_id,
             'reviewer_name' => edmStaffName($staff_id)
         );

@@ -45,7 +45,8 @@ window.EDM_CRUD_CONFIG = {
     } },
     rowActions: [
         { label: 'Design', className: 'btn-outline-primary', link: function (r) { return 'email-builder/index.php?campaign=' + r.id; } },
-        { label: 'Submit', className: 'btn-outline-success', action: 'campaigns_submit', confirm: 'Submit this newsletter for review?' }
+        { label: 'Submit', className: 'btn-outline-success', action: 'campaigns_submit', confirm: 'Submit this newsletter for review?',
+            visible: function (r) { return r.status === 'draft' || r.status === 'content_revision'; } }
     ],
     columns: [
         { key: 'name', label: 'Name' },
