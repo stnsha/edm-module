@@ -1,35 +1,26 @@
 <?php
 /**
- * Reporting Dashboard page API. Per-page action router (project rule: one page,
- * one folder). Shared JWT transport lives in edm/api-jwt.php - included with
- * API_JWT_INCLUDED so only the helper functions load. Endpoints are added per
- * feature and must be mirrored in edm-api.
+ * Reporting Dashboard page API. Proxies to edm-api edm/reporting/overview over
+ * JWT.
  */
 define('API_JWT_INCLUDED', true);
 require __DIR__ . '/../api-jwt.php';
+require __DIR__ . '/../api-proxy.php';
 
 header('Content-Type: application/json');
 
-$input  = json_decode(file_get_contents('php://input'), true);
-$action = isset($_GET['action'])
-    ? $_GET['action']
-    : (isset($_POST['action'])
-        ? $_POST['action']
-        : (isset($input['action']) ? $input['action'] : null));
+$input  = edmReadBody();
+$action = edmResolveAction($input);
 
 if (!$staff_id) {
-    echo json_encode(array(
-        'success' => false,
-        'error'   => 'No staff ID available for authentication',
-        'message' => 'Staff ID is required. Please ensure you are logged in.'
-    ));
+    echo json_encode(array('success' => false, 'message' => 'Staff ID is required. Please ensure you are logged in.'));
     exit;
 }
 
 $response = array('success' => false, 'message' => 'Unknown action');
 
-switch ($action) {
-    // Actions added per feature.
+if ($action === 'overview') {
+    $response = edmApiResult(getApiDataWithJWT('edm/reporting/overview', null, 'GET', $staff_id), 'Failed to load reporting');
 }
 
 echo json_encode($response);

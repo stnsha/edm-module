@@ -221,6 +221,13 @@ button {
   box-shadow: 0 2px 10px rgba(19, 92, 170, 0.1);
 }
 
+/* Flex items default to min-width:auto, so a wide child (e.g. a table with
+   long badge/text content) refuses to shrink and pushes the whole page past
+   the viewport instead of scrolling inside its own .table-responsive. */
+.edm-container > * {
+  min-width: 0;
+}
+
 /* Page header title (title only, left aligned) */
 .edm-page-title {
   font-size: 18px;
@@ -303,12 +310,42 @@ button {
   color: #fff;
 }
 
+/* Icon-only row actions (list table Action column: edit / delete) */
+.edm-icon-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 32px;
+  height: 32px;
+  padding: 0;
+  font-size: 14px;
+  line-height: 1;
+}
+
+/* Quill rich-text editor (https://quilljs.com) - email creator body, template
+   HTML field. Quill's own snow theme provides toolbar/border chrome; only the
+   editable area's height needs setting per context. */
+#edm-eb-quill .ql-editor {
+  min-height: 45vh;
+  font-size: 14px;
+}
+
+.edm-quill-field .ql-editor {
+  min-height: 200px;
+  font-size: 14px;
+}
+
 .form-label {
   font-weight: 500;
   font-size: 12px;
   color: #495057;
   text-align: left;
   display: block;
+}
+
+.edm-optional {
+  font-size: 12px;
+  font-weight: 400;
 }
 .form-check-label {
   font-size: 12px;
@@ -538,6 +575,40 @@ button {
 
 .edm-pill-green {
   background-color: #198754;
+}
+
+/* Semantic aliases matching Bootstrap's text-bg-* names, for status/reason
+   pills built from data (edm-crud.js badges config, sender/campaign/approval
+   status, etc). Never use Bootstrap's .badge for these - see the note above
+   .edm-pill. */
+.edm-pill-secondary {
+  background-color: #6c757d;
+}
+
+.edm-pill-success {
+  background-color: #198754;
+}
+
+.edm-pill-danger {
+  background-color: #dc3545;
+}
+
+.edm-pill-warning {
+  background-color: #ffc107;
+  color: #212529;
+}
+
+.edm-pill-info {
+  background-color: #0dcaf0;
+  color: #212529;
+}
+
+.edm-pill-primary {
+  background-color: #0d6efd;
+}
+
+.edm-pill-dark {
+  background-color: #212529;
 }
 
 /* Progress update cards */

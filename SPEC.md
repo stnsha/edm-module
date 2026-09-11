@@ -241,16 +241,24 @@ GetResponse's legacy meaning and the top source of confusion. The container is a
 
 ## Data model
 
-Schema is inventoried here; each table gets its own SQL file in `sql/`, written
-when its screen is built (never one combined dump).
+`edm-api` owns all `edm_*` data. The frontend never queries these tables
+directly - each page's `api.php` is a thin JWT client that calls
+`getApiDataWithJWT('edm/...')`, and every endpoint is built on `edm-api` too
+(local `C:\laragon\www\edm-api` + production `C:\xampp\htdocs\edm-api`).
+
+Schema is inventoried here; each table gets its own SQL file in `edm/sql/` (the
+canonical DDL) mirrored by a Laravel migration in
+`edm-api/database/migrations/`, written when its screen is built (never one
+combined dump). The `edm-api` database is `edm_local` on localhost.
 
 Ownership boundaries:
 
 - Customer Data Warehouse (external, not ours): all contact PII, purchase
-  history, LOFRA / RFM scores. This module queries it, never owns it.
-- `edm-api` (Laravel, BI DB): SES delivery-event ingestion via SNS / SQS.
-- This module's DB (odb MySQL, `mysqli` / `$conn` from `common/index_adv.php`):
-  everything below.
+  history, LOFRA / RFM scores. `edm-api` queries it, never owns it.
+- `edm-api` (Laravel): all `edm_*` tables below, plus SES delivery-event
+  ingestion via SNS / SQS.
+- The odb MySQL (`$conn` from `common/index_adv.php`) holds only `staff.edm`
+  (the access tier) - no `edm_*` tables.
 
 | Module      | Tables                                                                                                                                          | Phase |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |

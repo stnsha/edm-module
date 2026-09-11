@@ -91,9 +91,14 @@ if ((int)$edm_permission === 0 && !$_is_superadmin) {
 
         <div class="row mb-4">
             <div class="col-12 d-flex align-items-start justify-content-between flex-wrap gap-2">
-                <h1 class="edm-page-title mb-0">
-                    <?php echo htmlspecialchars($page_title); ?><?php echo isset($page_title_badge) ? ' ' . $page_title_badge : ''; ?>
-                </h1>
+                <div>
+                    <h1 class="edm-page-title mb-0">
+                        <?php echo htmlspecialchars($page_title); ?><?php echo isset($page_title_badge) ? ' ' . $page_title_badge : ''; ?>
+                    </h1>
+                    <?php if (!empty($page_subtitle)): ?>
+                    <p class="text-muted small mb-0 mt-1"><?php echo htmlspecialchars($page_subtitle); ?></p>
+                    <?php endif; ?>
+                </div>
                 <?php if (!empty($page_title_actions)): ?>
                 <div><?php echo $page_title_actions; ?></div>
                 <?php endif; ?>
