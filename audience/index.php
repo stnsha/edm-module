@@ -15,11 +15,17 @@ window.EDM_CRUD_CONFIG = {
     api: 'audience/api.php',
     entity: 'list',
     actions: { list: 'lists_list', create: 'lists_create', update: 'lists_update', 'delete': 'lists_delete' },
+    rowActions: [
+        { label: function (r) { return r.is_active ? 'Set inactive' : 'Set active'; },
+          className: 'btn-outline-secondary',
+          body: function (r) { return { is_active: !r.is_active }; },
+          action: 'lists_update', method: 'PUT' }
+    ],
     columns: [
         { key: 'name', label: 'Name' },
         { key: 'description', label: 'Description' },
         { key: 'members_count', label: 'Members', type: 'count' },
-        { key: 'is_active', label: 'Active', type: 'bool' }
+        { key: 'is_active', label: 'Active', type: 'bool', trueLabel: 'Active', falseLabel: 'Inactive' }
     ],
     fields: [
         { name: 'name', label: 'Name', type: 'text', required: true },

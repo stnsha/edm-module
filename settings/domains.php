@@ -21,6 +21,12 @@ window.EDM_CRUD_CONFIG = {
     api: 'settings/api.php',
     entity: 'domain',
     actions: { list: 'domains_list', create: 'domains_create', update: 'domains_update', 'delete': 'domains_delete' },
+    rowActions: [
+        { label: function (r) { return r.is_active ? 'Set inactive' : 'Set active'; },
+          className: 'btn-outline-secondary',
+          body: function (r) { return { is_active: !r.is_active }; },
+          action: 'domains_update', method: 'PUT' }
+    ],
     badges: {
         dkim_status:  { 1: { cls: 'edm-pill-secondary', label: 'Pending' }, 2: { cls: 'edm-pill-success', label: 'Verified' }, 3: { cls: 'edm-pill-danger', label: 'Failed' } },
         spf_status:   { 1: { cls: 'edm-pill-secondary', label: 'Pending' }, 2: { cls: 'edm-pill-success', label: 'Verified' }, 3: { cls: 'edm-pill-danger', label: 'Failed' } },
@@ -31,7 +37,7 @@ window.EDM_CRUD_CONFIG = {
         { key: 'dkim_status', label: 'DKIM', type: 'badge' },
         { key: 'spf_status', label: 'SPF', type: 'badge' },
         { key: 'dmarc_status', label: 'DMARC', type: 'badge' },
-        { key: 'is_active', label: 'Active', type: 'bool' }
+        { key: 'is_active', label: 'Active', type: 'bool', trueLabel: 'Active', falseLabel: 'Inactive' }
     ],
     fields: [
         { name: 'domain', label: 'Domain', type: 'text', required: true },

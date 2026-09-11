@@ -86,7 +86,8 @@
     function cell(row, col) {
         var v = row[col.key];
         if (col.type === 'bool') {
-            return v ? '<span class="edm-pill edm-pill-success">Yes</span>' : '<span class="edm-pill edm-pill-secondary">No</span>';
+            var onLabel = col.trueLabel || 'Yes', offLabel = col.falseLabel || 'No';
+            return v ? '<span class="edm-pill edm-pill-success">' + esc(onLabel) + '</span>' : '<span class="edm-pill edm-pill-secondary">' + esc(offLabel) + '</span>';
         }
         if (col.type === 'count') { return v == null ? '0' : esc(v); }
         if (col.type === 'badge') {
@@ -107,12 +108,14 @@
         rowsEl.innerHTML = rows.map(function (row, i) {
             var extra = (cfg.rowActions || []).map(function (a, ai) {
                 if (a.visible && !a.visible(row)) { return ''; }
+                var label = typeof a.label === 'function' ? a.label(row) : a.label;
+                var className = typeof a.className === 'function' ? a.className(row) : a.className;
                 if (a.link) {
-                    return '<a class="btn btn-sm ' + (a.className || 'btn-outline-secondary') + '" href="' +
-                        esc(BASE + a.link(row)) + '">' + esc(a.label) + '</a>';
+                    return '<a class="btn btn-sm ' + (className || 'btn-outline-secondary') + '" href="' +
+                        esc(BASE + a.link(row)) + '">' + esc(label) + '</a>';
                 }
-                return '<button type="button" class="btn btn-sm ' + (a.className || 'btn-outline-secondary') +
-                    '" data-act="custom" data-i="' + ai + '">' + esc(a.label) + '</button>';
+                return '<button type="button" class="btn btn-sm ' + (className || 'btn-outline-secondary') +
+                    '" data-act="custom" data-i="' + ai + '">' + esc(label) + '</button>';
             }).join('');
             return '<tr data-id="' + esc(row[idKey]) + '">' +
                 '<td class="text-muted">' + (startIdx + i + 1) + '</td>' +
@@ -388,7 +391,7 @@
             if (!a) { return; }
             var runCustom = function () {
                 if (a.handler) { a.handler(row, load); return; }
-                var body = {};
+                var body = a.body ? a.body(row) : {};
                 body[idKey] = /^\d+$/.test(id) ? parseInt(id, 10) : id;
                 call(a.action, a.method || 'POST', body).then(function (res) {
                     if (!res.success) { showAlert(firstError(res)); return; }
