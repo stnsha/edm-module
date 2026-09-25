@@ -1,6 +1,11 @@
--- Table `edm_suppressions` for the EDM module. Data owned by edm-api.
--- Canonical DDL; mirrors edm-api/database/migrations/2026_09_08_000009_create_edm_suppressions_table.php.
--- Applied to the edm-api database (local: edm_local).
+-- Table `edm_suppressions` (EDM module, odb database).
+-- Suppression list (never email these addresses).
+-- Drops and recreates the table (development: existing rows are lost).
+-- Datetime columns hold Asia/Kuala_Lumpur local time. deleted_at = soft delete (NULL = active).
+
+SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS `edm_suppressions`;
+SET FOREIGN_KEY_CHECKS = 1;
 
 CREATE TABLE `edm_suppressions` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -10,8 +15,9 @@ CREATE TABLE `edm_suppressions` (
   `note` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `created_by` int unsigned DEFAULT NULL,
   `created_by_name` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT NULL,
-  `updated_at` timestamp NULL DEFAULT NULL,
+  `created_at` datetime NULL DEFAULT NULL,
+  `updated_at` datetime NULL DEFAULT NULL,
+  `deleted_at` datetime NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `edm_suppressions_email_unique` (`email`)
+  KEY `edm_suppressions_email_index` (`email`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

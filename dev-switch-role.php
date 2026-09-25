@@ -47,10 +47,6 @@ if ($role_input === 'clear') {
     }
 }
 
-// Clear cached JWT so the next request gets a fresh token
-unset($_SESSION['edm_jwt_token']);
-unset($_SESSION['edm_jwt_expires']);
-
 // This file doesn't include header.php, so compute the module base locally
 // the same way EDM_BASE does, keeping the fallback redirect on this module's
 // actual folder ('edm').

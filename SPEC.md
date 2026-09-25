@@ -11,7 +11,7 @@ POS / Membership  ->  Customer Data Warehouse  ->  CRM Segmentation
   ->  Automation Engine  ->  Amazon SES (send)  ->  Reporting (SES events via SNS/SQS -> BI DB)
 ```
 
-- SES API: campaign dispatch + bounce/complaint webhook receiver (edm-api).
+- SES API: campaign dispatch + bounce/complaint webhook receiver (to be built in `edm/app/`).
 - Customer Data Warehouse: external, owned by BI. Source for all segmentation and
   personalisation. This app queries it, does not own it.
 - Reporting: consume SES delivery events (SNS/SQS), store in BI database.
@@ -54,7 +54,7 @@ with superadmin / BPT override.
 
 Phase 1 folders are scaffolded as empty-card stubs plus an `api.php` router
 skeleton. Real screens and endpoints are filled in per feature; every endpoint
-change is mirrored in `edm-api` (see CLAUDE.md "API coupling").
+change goes through the module's MVC layer (see CLAUDE.md "MVC layer").
 
 ## Campaign status flow (9)
 
@@ -151,7 +151,7 @@ exit conditions, per-journey analytics.
 
 ## Open questions (from spec section 14 - unresolved)
 
-Authentication: SSO vs standalone (current: standalone JWT via odb session).
+Authentication: SSO vs standalone (current: the odb session, resolved by `Edm\Core\Auth`).
 Hosting: spec prefers AWS-native; current is Laragon / XAMPP on-prem.
 Data refresh: real-time CDC from POS / membership vs scheduled batch.
 RFM recalculation: automated monthly job vs manual BI trigger.
@@ -180,8 +180,8 @@ decoupled via the `$edm_nav` map in `navbar.php`.
 | Contacts > Custom fields | `audience/fields.php`            | Audience Builder     | build |
 | Contacts > Tags & scoring | `audience/tags.php`             | Audience Builder     | build |
 | Contacts > Suppression lists | `suppression/index.php`       | Suppression Centre   | build |
-| Email marketing > Newsletters | `campaign/index.php`         | Campaign Management  | build |
-| Email marketing > Email creator | `email-builder/index.php`  | Email Builder        | build |
+| Newsletters             | `campaign/index.php`             | Campaign Management  | build |
+| (no menu entry; via Newsletters > Design) | `email-builder/index.php` | Email Builder | build |
 | Automation > Workflows   | `automation/index.php`           | Automation Builder   | build |
 | Automation > Autoresponders | `automation/autoresponders.php` | Automation Builder | build |
 | Calendar                | `calendar/index.php`             | Campaign Calendar    | view  |
@@ -241,24 +241,21 @@ GetResponse's legacy meaning and the top source of confusion. The container is a
 
 ## Data model
 
-`edm-api` owns all `edm_*` data. The frontend never queries these tables
-directly - each page's `api.php` is a thin JWT client that calls
-`getApiDataWithJWT('edm/...')`, and every endpoint is built on `edm-api` too
-(local `C:\laragon\www\edm-api` + production `C:\xampp\htdocs\edm-api`).
+All `edm_*` data lives in the odb MySQL database and is read / written by the
+module's own MVC layer (`edm/app/`, see CLAUDE.md) through odb's `$conn`. Each
+page's `api.php` dispatches to a controller; there is no separate API service.
 
-Schema is inventoried here; each table gets its own SQL file in `edm/sql/` (the
-canonical DDL) mirrored by a Laravel migration in
-`edm-api/database/migrations/`, written when its screen is built (never one
-combined dump). The `edm-api` database is `edm_local` on localhost.
+Schema: one SQL file per table in `edm/sql/` plus `edm/sql/edm_master.sql`
+(every table, dependency order, re-runnable). Every table has `created_at`,
+`updated_at` and `deleted_at` (soft delete).
 
 Ownership boundaries:
 
 - Customer Data Warehouse (external, not ours): all contact PII, purchase
-  history, LOFRA / RFM scores. `edm-api` queries it, never owns it.
-- `edm-api` (Laravel): all `edm_*` tables below, plus SES delivery-event
-  ingestion via SNS / SQS.
-- The odb MySQL (`$conn` from `common/index_adv.php`) holds only `staff.edm`
-  (the access tier) - no `edm_*` tables.
+  history, LOFRA / RFM scores. The module queries it, never owns it.
+- The odb MySQL (`$conn` from `common/index_adv.php`): all `edm_*` tables below
+  plus `staff.edm` (the access tier). SES delivery-event ingestion (SNS / SQS)
+  will write here too.
 
 | Module      | Tables                                                                                                                                          | Phase |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |

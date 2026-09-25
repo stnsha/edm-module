@@ -1,6 +1,11 @@
--- Table `edm_calendar_slots` for the EDM module. Data owned by edm-api.
--- Canonical DDL; mirrors edm-api/database/migrations/2026_09_08_000019_create_edm_calendar_slots_table.php.
--- Applied to the edm-api database (local: edm_local).
+-- Table `edm_calendar_slots` (EDM module, odb database).
+-- Campaign calendar slots.
+-- Drops and recreates the table (development: existing rows are lost).
+-- Datetime columns hold Asia/Kuala_Lumpur local time. deleted_at = soft delete (NULL = active).
+
+SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS `edm_calendar_slots`;
+SET FOREIGN_KEY_CHECKS = 1;
 
 CREATE TABLE `edm_calendar_slots` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -9,8 +14,9 @@ CREATE TABLE `edm_calendar_slots` (
   `category` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `campaign_id` bigint unsigned DEFAULT NULL,
   `note` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT NULL,
-  `updated_at` timestamp NULL DEFAULT NULL,
+  `created_at` datetime NULL DEFAULT NULL,
+  `updated_at` datetime NULL DEFAULT NULL,
+  `deleted_at` datetime NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `edm_calendar_slots_slot_date_index` (`slot_date`),
   KEY `edm_calendar_slots_campaign_id_foreign` (`campaign_id`),

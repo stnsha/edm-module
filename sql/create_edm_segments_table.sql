@@ -1,6 +1,11 @@
--- Table `edm_segments` for the EDM module. Data owned by edm-api.
--- Canonical DDL; mirrors edm-api/database/migrations/2026_09_08_000005_create_edm_segments_table.php.
--- Applied to the edm-api database (local: edm_local).
+-- Table `edm_segments` (EDM module, odb database).
+-- Saved AND/OR segment definitions (definition = {match, rules}).
+-- Drops and recreates the table (development: existing rows are lost).
+-- Datetime columns hold Asia/Kuala_Lumpur local time. deleted_at = soft delete (NULL = active).
+
+SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS `edm_segments`;
+SET FOREIGN_KEY_CHECKS = 1;
 
 CREATE TABLE `edm_segments` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -10,8 +15,9 @@ CREATE TABLE `edm_segments` (
   `list_id` bigint unsigned DEFAULT NULL,
   `created_by` int unsigned DEFAULT NULL,
   `created_by_name` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT NULL,
-  `updated_at` timestamp NULL DEFAULT NULL,
+  `created_at` datetime NULL DEFAULT NULL,
+  `updated_at` datetime NULL DEFAULT NULL,
+  `deleted_at` datetime NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `edm_segments_list_id_foreign` (`list_id`),
   CONSTRAINT `edm_segments_list_id_foreign` FOREIGN KEY (`list_id`) REFERENCES `edm_lists` (`id`) ON DELETE SET NULL

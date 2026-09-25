@@ -21,8 +21,8 @@ if (empty($edm_can_build)) {
         <li><strong>Search / Segments</strong> &rarr; <em>Contacts &rsaquo; Segments</em></li>
         <li><strong>Custom fields</strong> &rarr; <em>Contacts &rsaquo; Custom fields</em></li>
         <li><strong>Suppression / Blacklist</strong> &rarr; <em>Contacts &rsaquo; Suppression lists</em></li>
-        <li><strong>Newsletters</strong> &rarr; <em>Email marketing &rsaquo; Newsletters</em></li>
-        <li><strong>Email editor</strong> &rarr; <em>Email marketing &rsaquo; Email creator</em></li>
+        <li><strong>Newsletters</strong> &rarr; <em>Newsletters</em></li>
+        <li><strong>Email editor</strong> &rarr; <em>Newsletters &rsaquo; Edit</em></li>
         <li><strong>Autoresponders / Marketing Automation</strong> &rarr; <em>Automation</em></li>
         <li><strong>Calendar</strong> &rarr; <em>Calendar</em></li>
         <li><strong>Statistics</strong> &rarr; <em>Statistics</em></li>

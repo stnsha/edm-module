@@ -22,7 +22,19 @@
  *            // rule hijacks .badge as an absolutely-positioned notification dot
  *            // (see the .edm-pill note in css/style.css).
  *   fields:  [ { name, label, type, required, default, options, help } ]
- *            // type: text|textarea|number|email|checkbox|select|date|rules
+ *            // type: text|textarea|number|email|checkbox|select|date|datetime|rules
+ *            // datetime: <input type="datetime-local">; the API's
+ *            // 'd-m-Y H:i:s' value is converted for the input only.
+ *   columns[].value: optional function (row) -> text, for a derived or
+ *            // nested value (e.g. row.list.name); escaped like a text cell.
+ *   canEdit / canDelete: optional function (row) -> bool, hides the
+ *            // row's Edit / Delete button when false.
+ *   actionMenu: optional bool - render the row's actions (Edit, then
+ *            // rowActions, then Delete) as a vertical-ellipsis dropdown instead of
+ *            // a row of buttons (GetResponse style; see campaign/index.php).
+ *   saveAndGo: optional { label, icon, link: function (savedRow) -> path }
+ *            // adds a second submit button to the modal that saves, then
+ *            // navigates to BASE + link(savedRow) instead of closing.
  * }
  */
 (function () {
@@ -84,7 +96,7 @@
     // ---- table ----
 
     function cell(row, col) {
-        var v = row[col.key];
+        var v = col.value ? col.value(row) : row[col.key];
         if (col.type === 'bool') {
             var onLabel = col.trueLabel || 'Yes', offLabel = col.falseLabel || 'No';
             return v ? '<span class="edm-pill edm-pill-success">' + esc(onLabel) + '</span>' : '<span class="edm-pill edm-pill-secondary">' + esc(offLabel) + '</span>';
@@ -106,6 +118,13 @@
             return;
         }
         rowsEl.innerHTML = rows.map(function (row, i) {
+            if (cfg.actionMenu) {
+                return '<tr data-id="' + esc(row[idKey]) + '">' +
+                    '<td class="text-muted">' + (startIdx + i + 1) + '</td>' +
+                    cfg.columns.map(function (col) { return '<td>' + cell(row, col) + '</td>'; }).join('') +
+                    '<td class="text-end">' + actionMenu(row) + '</td>' +
+                '</tr>';
+            }
             var extra = (cfg.rowActions || []).map(function (a, ai) {
                 if (a.visible && !a.visible(row)) { return ''; }
                 var label = typeof a.label === 'function' ? a.label(row) : a.label;
@@ -122,11 +141,42 @@
                 cfg.columns.map(function (col) { return '<td>' + cell(row, col) + '</td>'; }).join('') +
                 '<td class="text-end"><div class="d-flex justify-content-end align-items-center gap-2">' +
                     extra +
-                    (cfg.noEdit ? '' : '<button type="button" class="btn btn-sm btn-outline-secondary edm-icon-btn" data-act="edit" title="Edit"><i class="bi bi-pencil"></i></button>') +
-                    (cfg.noDelete ? '' : '<button type="button" class="btn btn-sm btn-outline-danger edm-icon-btn" data-act="delete" title="Delete"><i class="bi bi-trash"></i></button>') +
+                    (cfg.noEdit || (cfg.canEdit && !cfg.canEdit(row)) ? '' : '<button type="button" class="btn btn-sm btn-outline-secondary edm-icon-btn" data-act="edit" title="Edit"><i class="bi bi-pencil"></i></button>') +
+                    (cfg.noDelete || (cfg.canDelete && !cfg.canDelete(row)) ? '' : '<button type="button" class="btn btn-sm btn-outline-danger edm-icon-btn" data-act="delete" title="Delete"><i class="bi bi-trash"></i></button>') +
                 '</div></td>' +
             '</tr>';
         }).join('');
+    }
+
+    // Vertical-ellipsis dropdown holding every row action. Items reuse the
+    // data-act / data-i attributes, so the rowsEl click handler serves both
+    // layouts. Fixed popper strategy keeps the menu from being clipped by
+    // .table-responsive.
+    function actionMenu(row) {
+        var items = [];
+        if (!cfg.noEdit && !(cfg.canEdit && !cfg.canEdit(row))) {
+            items.push('<li><button type="button" class="dropdown-item" data-act="edit">Edit</button></li>');
+        }
+        items = items.concat((cfg.rowActions || []).map(function (a, ai) {
+            if (a.visible && !a.visible(row)) { return ''; }
+            var label = typeof a.label === 'function' ? a.label(row) : a.label;
+            if (a.link) {
+                return '<li><a class="dropdown-item" href="' + esc(BASE + a.link(row)) + '">' + esc(label) + '</a></li>';
+            }
+            return '<li><button type="button" class="dropdown-item" data-act="custom" data-i="' + ai + '">' + esc(label) + '</button></li>';
+        }));
+        if (!cfg.noDelete && !(cfg.canDelete && !cfg.canDelete(row))) {
+            items.push('<li><hr class="dropdown-divider"></li>' +
+                '<li><button type="button" class="dropdown-item text-danger" data-act="delete">Delete</button></li>');
+        }
+        var html = items.join('');
+        if (!html) { return ''; }
+        return '<div class="dropdown">' +
+            '<button type="button" class="edm-row-kebab" data-bs-toggle="dropdown" aria-expanded="false"' +
+                ' data-bs-popper-config=\'{"strategy":"fixed"}\' aria-label="Actions" title="Actions">' +
+                '<i class="bi bi-three-dots-vertical"></i></button>' +
+            '<ul class="dropdown-menu dropdown-menu-end edm-row-menu">' + html + '</ul>' +
+        '</div>';
     }
 
     function pageBtn(p) {
@@ -226,6 +276,9 @@
                 '<button type="button" class="btn btn-sm btn-outline-secondary edm-rules-add">Add condition</button>' +
             '</div>';
         }
+        if (f.type === 'datetime') {
+            return '<input type="datetime-local" class="form-control" id="' + id + '">';
+        }
         var t = (f.type === 'email' || f.type === 'number' || f.type === 'date') ? f.type : 'text';
         return '<input type="' + t + '" class="form-control" id="' + id + '">';
     }
@@ -303,6 +356,12 @@
             if (qf) { qf.root.innerHTML = row && row[f.name] != null ? row[f.name] : ''; }
             return;
         }
+        if (f.type === 'datetime') {
+            // API gives 'd-m-Y H:i:s'; datetime-local wants 'Y-m-dTH:i'.
+            var m = /^(\d{2})-(\d{2})-(\d{4}) (\d{2}):(\d{2})/.exec((row && row[f.name]) || '');
+            el.value = m ? m[3] + '-' + m[2] + '-' + m[1] + 'T' + m[4] + ':' + m[5] : '';
+            return;
+        }
         if (row && row[f.name] != null) {
             el.value = row[f.name];
             return;
@@ -350,10 +409,23 @@
 
     if (addBtn) { addBtn.addEventListener('click', function () { openModal(null); }); }
 
+    var goBtn = null;
+    if (cfg.saveAndGo) {
+        goBtn = document.createElement('button');
+        goBtn.type = 'submit';
+        goBtn.className = 'btn btn-primary btn-sm';
+        goBtn.setAttribute('data-go', '1');
+        goBtn.innerHTML = (cfg.saveAndGo.icon ? '<i class="bi ' + esc(cfg.saveAndGo.icon) + '"></i> ' : '') + esc(cfg.saveAndGo.label);
+        saveBtn.className = 'btn btn-outline-primary btn-sm';
+        saveBtn.parentNode.appendChild(goBtn);
+    }
+
     formEl.addEventListener('submit', function (e) {
         e.preventDefault();
+        var go = !!(goBtn && e.submitter === goBtn);
         errEl.hidden = true;
         saveBtn.disabled = true;
+        if (goBtn) { goBtn.disabled = true; }
 
         var id = document.getElementById('edm-crud-id').value;
         var payload = {};
@@ -367,11 +439,19 @@
 
         call(action, method, payload).then(function (res) {
             saveBtn.disabled = false;
+            if (goBtn) { goBtn.disabled = false; }
             if (!res.success) { errEl.textContent = firstError(res); errEl.hidden = false; return; }
+            if (go) {
+                var saved = res.data || {};
+                if (saved[idKey] == null) { saved[idKey] = payload[idKey]; }
+                window.location.href = BASE + cfg.saveAndGo.link(saved);
+                return;
+            }
             modal.hide();
             load();
         }).catch(function () {
             saveBtn.disabled = false;
+            if (goBtn) { goBtn.disabled = false; }
             errEl.textContent = 'Could not reach the server.'; errEl.hidden = false;
         });
     });
@@ -413,6 +493,9 @@
             });
         }
     });
+
+    // Lets a page's own extra UI (e.g. Files > Upload image) refresh the list.
+    window.edmCrudReload = load;
 
     buildForm();
     load();

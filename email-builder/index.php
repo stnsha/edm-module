@@ -3,8 +3,10 @@ $page_title  = 'Email creator';
 $campaign_id = isset($_GET['campaign']) ? (int)$_GET['campaign'] : 0;
 if (!$campaign_id) {
     $page_subtitle = 'Pick a newsletter to design.';
+} else {
+    // The editor bar below carries the newsletter name instead.
+    $page_hide_title = true;
 }
-$extra_css = '<link href="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.snow.css" rel="stylesheet">';
 require __DIR__ . '/../partials.php';
 include __DIR__ . '/../header.php';
 $page_js = EDM_BASE . 'email-builder/email-builder.js';
@@ -51,7 +53,7 @@ $page_js = EDM_BASE . 'email-builder/email-builder.js';
         .then(function (res) {
             var rows = (res.success && res.data) || [];
             if (!rows.length) {
-                rowsEl.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No newsletters yet - create one under Email marketing &rsaquo; Newsletters.</td></tr>';
+                rowsEl.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No newsletters yet - create one under Newsletters.</td></tr>';
                 return;
             }
             rowsEl.innerHTML = rows.map(function (r, i) {
@@ -70,41 +72,108 @@ $page_js = EDM_BASE . 'email-builder/email-builder.js';
 })();
 </script>
 <?php else: ?>
-<div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
-    <div>
-        <h2 class="h5 mb-1" id="edm-eb-name">Newsletter</h2>
-        <p class="text-muted small mb-0" id="edm-eb-sub">Loading...</p>
-    </div>
-    <div class="btn-toolbar gap-2">
-        <div class="btn-group btn-group-sm" role="group">
-            <button type="button" class="btn btn-outline-secondary active" id="edm-eb-desktop">Desktop</button>
-            <button type="button" class="btn btn-outline-secondary" id="edm-eb-mobile">Mobile</button>
+<div class="edm-eb-bar">
+    <a class="edm-eb-back" href="<?php echo EDM_BASE; ?>campaign/index.php" title="Back to newsletters" aria-label="Back to newsletters">
+        <i class="bi bi-arrow-left"></i>
+    </a>
+    <div class="edm-eb-heading">
+        <div class="edm-eb-title-row">
+            <h1 class="edm-page-title mb-0 text-truncate" id="edm-eb-name">Loading...</h1>
         </div>
-        <button type="button" class="btn btn-sm btn-primary" id="edm-eb-save">Save</button>
+    </div>
+    <div class="edm-eb-actions">
+        <div class="edm-eb-buttons">
+            <span class="edm-pill edm-pill-secondary" id="edm-eb-status" hidden></span>
+            <button type="button" class="btn btn-outline-primary" id="edm-eb-save" disabled title="Save (Ctrl+S)">
+                <i class="bi bi-floppy me-1"></i>Save
+            </button>
+            <button type="button" class="btn btn-success" id="edm-eb-submit" hidden title="Save, then submit for review">
+                <i class="bi bi-send me-1"></i>Submit
+            </button>
+        </div>
+        <span class="edm-eb-state" id="edm-eb-state"></span>
     </div>
 </div>
 
 <div id="edm-eb-alert" class="alert alert-danger py-2 px-3 small" hidden></div>
-<div id="edm-eb-saved" class="alert alert-success py-2 px-3 small" hidden>Saved.</div>
 
-<div class="row g-3" data-campaign="<?php echo (int)$campaign_id; ?>">
-    <div class="col-lg-6">
-        <label class="form-label small text-muted">Content</label>
-        <div id="edm-eb-quill"></div>
-        <div class="form-text">
-            Variables: <code>{{FirstName}}</code> <code>{{LastName}}</code> <code>{{MemberCode}}</code>
-            <code>{{VoucherCode}}</code> <code>{{UnsubscribeLink}}</code> - type them directly, they resolve at send
-            time. Drag-and-drop blocks are a later feature.
+<?php
+require __DIR__ . '/../app/bootstrap.php';
+
+// Active Contacts > Custom fields are the personalisation variables ({{key}}).
+$edm_custom_vars = array();
+foreach (\Edm\Models\CustomField::where('`is_active` = 1') as $row) {
+    if (!empty($row['key'])) {
+        $edm_custom_vars[] = array('token' => '{{' . $row['key'] . '}}', 'label' => $row['label'] ?: $row['key']);
+    }
+}
+
+// Images in the Files library, offered in the editor's Image block.
+$edm_assets = array();
+foreach (\Edm\Models\Asset::where('`type` = ?', array('image')) as $row) {
+    $edm_assets[] = array('id' => (int)$row['id'], 'name' => $row['name'], 'url' => $row['url']);
+}
+
+// Sender / list options for the settings panel.
+$edm_senders = array();
+foreach (\Edm\Models\Sender::all() as $row) {
+    $edm_senders[] = array('id' => (int)$row['id'], 'label' => $row['from_name'] . ' <' . $row['email'] . '>');
+}
+$edm_lists = array();
+foreach (\Edm\Models\ContactList::all() as $row) {
+    $edm_lists[] = array('id' => (int)$row['id'], 'label' => $row['name']);
+}
+?>
+<script>
+window.EDM_EB_CUSTOM_VARS = <?php echo json_encode($edm_custom_vars); ?>;
+window.EDM_EB_ASSETS = <?php echo json_encode($edm_assets); ?>;
+</script>
+
+<!-- Newsletter settings (same fields as the Newsletters create form). Saved
+     together with the design by the Save button / Ctrl+S. -->
+<form class="edm-eb-settings" id="edm-eb-settings" autocomplete="off" onsubmit="return false;">
+    <div class="row g-3">
+        <div class="col-md-4">
+            <label class="form-label" for="edm-eb-f-name">Name <span class="text-danger" aria-hidden="true">*</span></label>
+            <input type="text" class="form-control" id="edm-eb-f-name" maxlength="255" required>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label" for="edm-eb-f-sender">Sender</label>
+            <select class="form-select" id="edm-eb-f-sender">
+                <option value="">(none)</option>
+                <?php foreach ($edm_senders as $o): ?>
+                <option value="<?php echo $o['id']; ?>"><?php echo htmlspecialchars($o['label']); ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <div class="col-md-4">
+            <label class="form-label" for="edm-eb-f-list">Recipient list</label>
+            <select class="form-select" id="edm-eb-f-list">
+                <option value="">(none)</option>
+                <?php foreach ($edm_lists as $o): ?>
+                <option value="<?php echo $o['id']; ?>"><?php echo htmlspecialchars($o['label']); ?></option>
+                <?php endforeach; ?>
+            </select>
+        </div>
+        <div class="col-md-8">
+            <label class="form-label" for="edm-eb-f-subject">Subject line</label>
+            <input type="text" class="form-control" id="edm-eb-f-subject" maxlength="255">
+        </div>
+        <div class="col-md-4">
+            <label class="form-label" for="edm-eb-f-scheduled">Scheduled send</label>
+            <input type="datetime-local" class="form-control" id="edm-eb-f-scheduled">
         </div>
     </div>
-    <div class="col-lg-6">
-        <label class="form-label small text-muted">Preview</label>
-        <div class="border rounded p-2 bg-light" style="overflow:auto;">
-            <iframe id="edm-eb-preview" title="Preview" style="width:100%; height:60vh; border:0; background:#fff;"></iframe>
-        </div>
-    </div>
+</form>
+
+<!-- EmailBuilder.js (usewaypoint/email-builder-js, MIT), prebuilt from
+     email-builder/editor-src into email-builder/editor. Talks to
+     email-builder.js over postMessage (see editor-src/src/bridge.ts). -->
+<div class="edm-eb-frame-wrap" data-campaign="<?php echo (int)$campaign_id; ?>">
+    <iframe id="edm-eb-frame" class="edm-eb-frame" title="Email creator"
+        src="<?php echo EDM_BASE; ?>email-builder/editor/index.html?v=<?php echo (int)@filemtime(__DIR__ . '/editor/index.html'); ?>"></iframe>
 </div>
-<script src="https://cdn.jsdelivr.net/npm/quill@2.0.3/dist/quill.js"></script>
+<script src="<?php echo EDM_BASE; ?>js/edm-confirm.js"></script>
 <?php endif; ?>
 <?php
 include __DIR__ . '/../footer.php';

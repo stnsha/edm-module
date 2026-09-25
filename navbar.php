@@ -88,8 +88,9 @@ $current_script = basename($_self);
  * Each entry:
  *   label - text shown in the bar
  *   gate  - 'build' (edm in 1,2,3), 'view' (edm >= 1), or 'super' (edm == 1)
- *   href  - single-link target relative to EDM_BASE; omit when 'items' is set
- *   items - dropdown children: array of (folder, file, label)
+ *   href    - single-link target relative to EDM_BASE; omit when 'items' is set
+ *   folders - optional extra folders that also mark a single link active
+ *   items   - dropdown children: array of (folder, file, label)
  */
 $edm_nav = array(
     array(
@@ -109,12 +110,12 @@ $edm_nav = array(
         ),
     ),
     array(
-        'label' => 'Email marketing',
-        'gate'  => 'build',
-        'items' => array(
-            array('folder' => 'campaign',      'file' => 'index.php', 'label' => 'Newsletters'),
-            array('folder' => 'email-builder', 'file' => 'index.php', 'label' => 'Email creator'),
-        ),
+        'label'   => 'Newsletters',
+        'gate'    => 'build',
+        'href'    => 'campaign/index.php',
+        // Email creator has no menu entry of its own; it is reached from the
+        // Newsletters list (Design button) and keeps this item highlighted.
+        'folders' => array('email-builder'),
     ),
     array(
         'label' => 'Automation',
@@ -203,7 +204,8 @@ $edm_gate_ok = array(
                 <?php
                     $_slash          = strpos($_item['href'], '/');
                     $_href_folder    = ($_slash !== false) ? substr($_item['href'], 0, $_slash) : $_item['href'];
-                    $_single_active  = ($current_dir === $_href_folder) ? 'active' : '';
+                    $_extra_folders  = isset($_item['folders']) ? $_item['folders'] : array();
+                    $_single_active  = ($current_dir === $_href_folder || in_array($current_dir, $_extra_folders, true)) ? 'active' : '';
                 ?>
                 <li class="nav-item">
                     <a class="nav-link <?php echo $_single_active; ?>"

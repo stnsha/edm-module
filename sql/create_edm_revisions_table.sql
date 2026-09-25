@@ -1,6 +1,11 @@
--- Table `edm_revisions` for the EDM module. Data owned by edm-api.
--- Canonical DDL; mirrors edm-api/database/migrations/2026_09_08_000018_create_edm_revisions_table.php.
--- Applied to the edm-api database (local: edm_local).
+-- Table `edm_revisions` (EDM module, odb database).
+-- Revision requests on a newsletter.
+-- Drops and recreates the table (development: existing rows are lost).
+-- Datetime columns hold Asia/Kuala_Lumpur local time. deleted_at = soft delete (NULL = active).
+
+SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS `edm_revisions`;
+SET FOREIGN_KEY_CHECKS = 1;
 
 CREATE TABLE `edm_revisions` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -8,8 +13,9 @@ CREATE TABLE `edm_revisions` (
   `note` varchar(1000) COLLATE utf8mb4_unicode_ci NOT NULL,
   `requested_by` int unsigned DEFAULT NULL,
   `requested_by_name` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT NULL,
-  `updated_at` timestamp NULL DEFAULT NULL,
+  `created_at` datetime NULL DEFAULT NULL,
+  `updated_at` datetime NULL DEFAULT NULL,
+  `deleted_at` datetime NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `edm_revisions_campaign_id_foreign` (`campaign_id`),
   CONSTRAINT `edm_revisions_campaign_id_foreign` FOREIGN KEY (`campaign_id`) REFERENCES `edm_campaigns` (`id`) ON DELETE CASCADE

@@ -1,17 +1,23 @@
--- Table `edm_approvals` for the EDM module. Data owned by edm-api.
--- Canonical DDL; mirrors edm-api/database/migrations/2026_09_08_000017_create_edm_approvals_table.php.
--- Applied to the edm-api database (local: edm_local).
+-- Table `edm_approvals` (EDM module, odb database).
+-- Approval steps per newsletter. status: 1=pending, 2=approved, 3=rejected.
+-- Drops and recreates the table (development: existing rows are lost).
+-- Datetime columns hold Asia/Kuala_Lumpur local time. deleted_at = soft delete (NULL = active).
+
+SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS `edm_approvals`;
+SET FOREIGN_KEY_CHECKS = 1;
 
 CREATE TABLE `edm_approvals` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `campaign_id` bigint unsigned NOT NULL,
   `step` tinyint unsigned NOT NULL DEFAULT '1',
-  `status` enum('pending','approved','rejected') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'pending',
+  `status` tinyint unsigned NOT NULL DEFAULT '1',
   `reviewer_id` int unsigned DEFAULT NULL,
   `reviewer_name` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `comment` varchar(1000) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `created_at` timestamp NULL DEFAULT NULL,
-  `updated_at` timestamp NULL DEFAULT NULL,
+  `created_at` datetime NULL DEFAULT NULL,
+  `updated_at` datetime NULL DEFAULT NULL,
+  `deleted_at` datetime NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `edm_approvals_campaign_id_step_index` (`campaign_id`,`step`),
   CONSTRAINT `edm_approvals_campaign_id_foreign` FOREIGN KEY (`campaign_id`) REFERENCES `edm_campaigns` (`id`) ON DELETE CASCADE

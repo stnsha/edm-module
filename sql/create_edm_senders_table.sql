@@ -1,20 +1,25 @@
--- Sender identities for the EDM module (GetResponse "From fields").
--- Data is owned by edm-api; this file is the canonical DDL and mirrors
--- edm-api/database/migrations/2026_09_08_000001_create_edm_senders_table.php.
--- Applied to the edm-api database (local: edm_local).
+-- Table `edm_senders` (EDM module, odb database).
+-- From-addresses. status: 1=pending, 2=verified, 3=failed.
+-- Drops and recreates the table (development: existing rows are lost).
+-- Datetime columns hold Asia/Kuala_Lumpur local time. deleted_at = soft delete (NULL = active).
+
+SET FOREIGN_KEY_CHECKS = 0;
+DROP TABLE IF EXISTS `edm_senders`;
+SET FOREIGN_KEY_CHECKS = 1;
 
 CREATE TABLE `edm_senders` (
-  `id` BIGINT UNSIGNED NOT NULL AUTO_INCREMENT,
-  `email` VARCHAR(255) NOT NULL,
-  `from_name` VARCHAR(255) NOT NULL,
-  `reply_to` VARCHAR(255) NULL,
-  `status` ENUM('pending','verified','failed') NOT NULL DEFAULT 'pending',
-  `verified_at` TIMESTAMP NULL,
-  `is_default` TINYINT(1) NOT NULL DEFAULT 0,
-  `created_by` INT UNSIGNED NULL,
-  `created_by_name` VARCHAR(150) NULL,
-  `created_at` TIMESTAMP NULL,
-  `updated_at` TIMESTAMP NULL,
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `from_name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `reply_to` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `status` tinyint unsigned NOT NULL DEFAULT '1',
+  `verified_at` datetime NULL DEFAULT NULL,
+  `is_default` tinyint(1) NOT NULL DEFAULT '0',
+  `created_by` int unsigned DEFAULT NULL,
+  `created_by_name` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` datetime NULL DEFAULT NULL,
+  `updated_at` datetime NULL DEFAULT NULL,
+  `deleted_at` datetime NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
-  UNIQUE KEY `edm_senders_email_unique` (`email`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4;
+  KEY `edm_senders_email_index` (`email`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

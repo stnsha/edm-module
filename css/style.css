@@ -2149,3 +2149,163 @@ button {
     background: #f0e9fa;
     color: #6f42c1;
 }
+
+/* ---------------------------------------------------------------
+   Newsletters (campaign/) - Preview modal
+--------------------------------------------------------------- */
+.edm-nl-preview-frame {
+    display: block;
+    width: 100%;
+    height: 75vh;
+    border: 0;
+    background: #fff;
+}
+
+/* ---------------------------------------------------------------
+   Email creator (email-builder/) - EmailBuilder.js iframe host
+--------------------------------------------------------------- */
+.edm-eb-frame-wrap {
+    border: 1px solid #dee2e6;
+    border-radius: 8px;
+    overflow: hidden;
+    background: #f2f5f7;
+}
+.edm-eb-frame {
+    display: block;
+    width: 100%;
+    height: calc(100vh - 160px);
+    min-height: 640px;
+    border: 0;
+}
+
+/* ---------------------------------------------------------------
+   Row action menu (js/edm-crud.js actionMenu: true)
+--------------------------------------------------------------- */
+.edm-row-kebab {
+    border: 0;
+    background: none;
+    padding: 4px 8px;
+    font-size: 18px;
+    line-height: 1;
+    color: #6c757d;
+    border-radius: 4px;
+}
+.edm-row-kebab:hover,
+.edm-row-kebab[aria-expanded="true"] {
+    background: #f1f3f5;
+    color: #212529;
+}
+.edm-row-menu .dropdown-item {
+    padding: 7px 18px;
+    font-size: 14px;
+}
+
+/* Email creator heading bar (replaces the page title row) */
+.edm-eb-bar {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    flex-wrap: wrap;
+    margin-bottom: 16px;
+    padding-bottom: 26px; /* room for the save status under the buttons */
+    border-bottom: 1px solid #e9ecef;
+}
+.edm-eb-back {
+    flex: 0 0 auto;
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 38px;
+    height: 38px;
+    border: 1px solid #dee2e6;
+    border-radius: 50%;
+    color: #495057;
+    font-size: 18px;
+    text-decoration: none;
+    background: #fff;
+}
+.edm-eb-back:hover {
+    background: #eef6ff;
+    border-color: #0d6efd;
+    color: #0d6efd;
+}
+.edm-eb-heading {
+    flex: 1 1 280px;
+    min-width: 0;
+}
+.edm-eb-title-row {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-width: 0;
+}
+.edm-eb-meta {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px 18px;
+    margin-top: 4px;
+    font-size: 13px;
+    color: #6c757d;
+}
+.edm-eb-meta .bi {
+    margin-right: 4px;
+}
+.edm-eb-actions {
+    position: relative; /* anchors .edm-eb-state below the buttons */
+    margin-left: auto;
+}
+.edm-eb-buttons {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.edm-eb-state {
+    /* Out of flow, so the button row alone decides the bar height and the
+       title, status pill and buttons share one centre line. */
+    position: absolute;
+    top: 100%;
+    right: 0;
+    margin-top: 4px;
+    font-size: 13px;
+    color: #6c757d;
+    white-space: nowrap;
+}
+.edm-eb-state .bi-circle-fill {
+    font-size: 8px;
+    vertical-align: middle;
+    margin-right: 2px;
+}
+
+/* Email creator settings panel (above the builder) */
+.edm-eb-settings {
+    margin-bottom: 16px;
+    padding: 16px;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    background: #fbfcfe;
+}
+.edm-eb-settings .form-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 4px;
+}
+
+/* Field help text under inputs in the edm-crud add / edit modal
+   (e.g. Custom fields > Options: "Ignored unless Type is select."). */
+#edm-crud-form .form-text {
+    font-size: 12px;
+}
+
+/* Files > Upload image: preview of the chosen file */
+.edm-asset-preview {
+    padding: 8px;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    background: #f8f9fa;
+    text-align: center;
+}
+.edm-asset-preview img {
+    max-width: 100%;
+    max-height: 220px;
+}

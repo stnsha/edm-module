@@ -5,16 +5,11 @@ require __DIR__ . '/../partials.php';
 $page_title_actions = edm_title_button('Raise review');
 include __DIR__ . '/../header.php';
 
-define('API_JWT_INCLUDED', true);
-require __DIR__ . '/../api-jwt.php';
-require __DIR__ . '/../api-proxy.php';
+require __DIR__ . '/../app/bootstrap.php';
 
 $edm_campaign_opts = array();
-$_c = edmApiResult(getApiDataWithJWT('edm/campaigns', null, 'GET', $staff_id), '');
-if (!empty($_c['success']) && is_array($_c['data'])) {
-    foreach ($_c['data'] as $row) {
-        $edm_campaign_opts[] = array('value' => $row['id'], 'label' => '#' . $row['id'] . ' ' . $row['name']);
-    }
+foreach (\Edm\Models\Campaign::all() as $row) {
+    $edm_campaign_opts[] = array('value' => $row['id'], 'label' => '#' . $row['id'] . ' ' . $row['name']);
 }
 if (!$edm_campaign_opts) {
     $edm_campaign_opts[] = array('value' => '', 'label' => '(no newsletters yet)');

@@ -26,3 +26,9 @@ yarn-error.log*
 Thumbs.db
 
 CLAUDE.md
+# Email creator editor build deps (build output in email-builder/editor/ is committed)
+/email-builder/editor-src/node_modules
+
+# Uploaded files (Files / Image block). The folder guard is tracked.
+/uploads/*
+!/uploads/.htaccess
