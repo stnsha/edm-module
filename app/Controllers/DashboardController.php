@@ -8,7 +8,7 @@ use Edm\Core\Controller;
 use Edm\Services\ReportingOverview;
 
 /**
- * Dashboard (dashboard/). Action: overview - the same snapshot as Statistics.
+ * Dashboard (dashboard/). Action: overview - KPI snapshot + newsletters by status.
  */
 final class DashboardController extends Controller
 {

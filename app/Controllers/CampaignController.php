@@ -11,6 +11,7 @@ use Edm\Models\CampaignContent;
 /**
  * Newsletters (campaign/). Actions:
  *   campaigns_list | campaigns_create | campaigns_update | campaigns_delete
+ *   (campaigns_create takes an optional template_id: its design is copied in)
  *   campaigns_submit    draft / revision -> pending submission
  *   campaigns_duplicate "Reuse" (same list) or copy to list_id
  *   campaigns_stop      scheduled -> draft, sending -> completed
@@ -20,11 +21,11 @@ final class CampaignController extends Controller
 {
     private const RULES = [
         'name'              => ['required', 'string', 'max:255'],
-        'subject'           => ['nullable', 'string', 'max:255'],
+        'subject'           => ['required', 'string', 'max:255'],
         'subject_b'         => ['nullable', 'string', 'max:255'],
         'preheader'         => ['nullable', 'string', 'max:255'],
-        'sender_id'         => ['nullable', 'integer', 'exists:edm_senders,id'],
-        'list_id'           => ['nullable', 'integer', 'exists:edm_lists,id'],
+        'sender_id'         => ['required', 'integer', 'exists:edm_senders,id'],
+        'list_id'           => ['required', 'integer', 'exists:edm_lists,id'],
         'segment_id'        => ['nullable', 'integer', 'exists:edm_segments,id'],
         'scheduled_at'      => ['nullable', 'date'],
         'requested_by'      => ['nullable', 'integer'],
@@ -33,11 +34,11 @@ final class CampaignController extends Controller
 
     private const UPDATE_RULES = [
         'name'         => ['sometimes', 'string', 'max:255'],
-        'subject'      => ['nullable', 'string', 'max:255'],
+        'subject'      => ['sometimes', 'required', 'string', 'max:255'],
         'subject_b'    => ['nullable', 'string', 'max:255'],
         'preheader'    => ['nullable', 'string', 'max:255'],
-        'sender_id'    => ['nullable', 'integer', 'exists:edm_senders,id'],
-        'list_id'      => ['nullable', 'integer', 'exists:edm_lists,id'],
+        'sender_id'    => ['sometimes', 'required', 'integer', 'exists:edm_senders,id'],
+        'list_id'      => ['sometimes', 'required', 'integer', 'exists:edm_lists,id'],
         'segment_id'   => ['nullable', 'integer', 'exists:edm_segments,id'],
         'scheduled_at' => ['nullable', 'date'],
         'status'       => ['sometimes', 'integer', 'in:1,2,3,4,5,6,7,8,9'],
@@ -50,7 +51,11 @@ final class CampaignController extends Controller
                 return Campaign::listing();
             case 'campaigns_create':
                 $data = $this->validator->validate($this->payload() + $this->stamp('requested_by'), self::RULES);
-                return Campaign::createDraft($data);
+                $template = $this->validator->validate(
+                    $this->request->ids(['template_id']),
+                    ['template_id' => ['sometimes', 'nullable', 'integer', 'exists:edm_templates,id']]
+                );
+                return Campaign::createDraft($data, $template['template_id'] ?? null);
             case 'campaigns_update':
                 $id = $this->requireId('Newsletter');
                 Campaign::findOrFail($id);

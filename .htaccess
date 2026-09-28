@@ -1,0 +1,11 @@
+# EDM module root. Secrets and server-side-only folders must never be served.
+
+# .env holds the AWS keys and EDM_APP_KEY; composer files list dependencies.
+<FilesMatch "^(\.env.*|composer\.(json|lock)|.*\.(md|sql|log|bat))$">
+    Require all denied
+</FilesMatch>
+
+# vendor/ (Composer packages), cron/ (CLI send job), logs/, sql/ and the
+# email-builder editor source are not web content.
+RedirectMatch 404 /(vendor|cron|logs|sql)(/|$)
+RedirectMatch 404 /email-builder/editor-src(/|$)

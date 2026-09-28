@@ -1,5 +1,5 @@
 -- Table `edm_templates` (EDM module, odb database).
--- Template library.
+-- Template library: html (rendered email) + editor_json (EmailBuilder.js block tree).
 -- Drops and recreates the table (development: existing rows are lost).
 -- Datetime columns hold Asia/Kuala_Lumpur local time. deleted_at = soft delete (NULL = active).
 
@@ -13,6 +13,7 @@ CREATE TABLE `edm_templates` (
   `category` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `thumbnail_url` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `html` longtext COLLATE utf8mb4_unicode_ci,
+  `editor_json` json DEFAULT NULL,
   `created_by` int unsigned DEFAULT NULL,
   `created_by_name` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `created_at` datetime NULL DEFAULT NULL,

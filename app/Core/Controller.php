@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Edm\Core;
 
+use Edm\Services\Ses\SesException;
 use mysqli_sql_exception;
 
 /**
@@ -18,6 +19,7 @@ use mysqli_sql_exception;
  *   handle() returns null     -> { success: true }
  *   ValidationException       -> 422 { success: false, message, errors }
  *   HttpException             -> its status { success: false, message }
+ *   SesException              -> 502 { success: false, message }
  * A handler with a different response shape calls Response::json() itself.
  */
 abstract class Controller
@@ -58,6 +60,8 @@ abstract class Controller
             Response::json(['success' => false, 'message' => $e->getMessage(), 'errors' => $e->errors()], 422);
         } catch (HttpException $e) {
             Response::json(['success' => false, 'message' => $e->getMessage()], $e->status());
+        } catch (SesException $e) {
+            Response::json(['success' => false, 'message' => $e->getMessage()], 502);
         } catch (mysqli_sql_exception $e) {
             error_log('[EDM] ' . static::class . ': ' . $e->getMessage());
             Response::json(['success' => false, 'message' => 'Database error. Please try again.'], 500);

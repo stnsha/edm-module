@@ -82,7 +82,7 @@ $current_script = basename($_self);
  *
  * The marketing team is moving off GetResponse; this menu mirrors its grouping
  * and wording so the layout stays familiar. Folder names on disk remain
- * spec-aligned (campaign/, audience/, reporting/, assets/ ...) - only the
+ * spec-aligned (campaign/, audience/, assets/ ...) - only the
  * display label is decoupled here, via this map.
  *
  * Each entry:
@@ -90,7 +90,9 @@ $current_script = basename($_self);
  *   gate  - 'build' (edm in 1,2,3), 'view' (edm >= 1), or 'super' (edm == 1)
  *   href    - single-link target relative to EDM_BASE; omit when 'items' is set
  *   folders - optional extra folders that also mark a single link active
- *   items   - dropdown children: array of (folder, file, label)
+ *   items   - dropdown children: array of (folder, file, label), plus optional
+ *             files   - other scripts in the same folder that mark it active
+ *             folders - other folders (any script) that mark it active
  */
 $edm_nav = array(
     array(
@@ -110,12 +112,17 @@ $edm_nav = array(
         ),
     ),
     array(
-        'label'   => 'Newsletters',
-        'gate'    => 'build',
-        'href'    => 'campaign/index.php',
-        // Email creator has no menu entry of its own; it is reached from the
-        // Newsletters list (Design button) and keeps this item highlighted.
-        'folders' => array('email-builder'),
+        'label' => 'Newsletters',
+        'gate'  => 'build',
+        'items' => array(
+            // Email creator has no menu entry of its own; it is reached from
+            // the Newsletters list (Design button) and keeps this highlighted.
+            array('folder' => 'campaign',  'file' => 'index.php', 'label' => 'All newsletters',
+                'folders' => array('email-builder')),
+            // Template editor (edit.php) is reached from the Templates list.
+            array('folder' => 'templates', 'file' => 'index.php', 'label' => 'Templates',
+                'files' => array('edit.php')),
+        ),
     ),
     array(
         'label' => 'Automation',
@@ -129,16 +136,6 @@ $edm_nav = array(
         'label' => 'Calendar',
         'gate'  => 'view',
         'href'  => 'calendar/index.php',
-    ),
-    array(
-        'label' => 'Statistics',
-        'gate'  => 'view',
-        'href'  => 'reporting/index.php',
-    ),
-    array(
-        'label' => 'Templates',
-        'gate'  => 'build',
-        'href'  => 'templates/index.php',
     ),
     array(
         'label' => 'Files',
@@ -158,7 +155,6 @@ $edm_nav = array(
             array('folder' => 'settings', 'file' => 'domains.php',      'label' => 'Sending domains'),
             array('folder' => 'settings', 'file' => 'users.php',        'label' => 'Users & permissions'),
             array('folder' => 'settings', 'file' => 'integrations.php', 'label' => 'Integrations & API'),
-            array('folder' => 'settings', 'file' => 'index.php',        'label' => 'General'),
         ),
     ),
 );
@@ -184,6 +180,9 @@ $edm_gate_ok = array(
                     $_child_folders = array();
                     foreach ($_item['items'] as $_c) {
                         $_child_folders[$_c['folder']] = true;
+                        foreach (isset($_c['folders']) ? $_c['folders'] : array() as $_f) {
+                            $_child_folders[$_f] = true;
+                        }
                     }
                     $_group_active = isset($_child_folders[$current_dir]) ? 'active' : '';
                 ?>
@@ -192,7 +191,11 @@ $edm_gate_ok = array(
                         data-bs-toggle="dropdown" aria-expanded="false"><?php echo htmlspecialchars($_item['label']); ?></a>
                     <ul class="dropdown-menu">
                         <?php foreach ($_item['items'] as $_c): ?>
-                        <?php $_child_active = ($current_dir === $_c['folder'] && $current_script === $_c['file']) ? 'active' : ''; ?>
+                        <?php
+                            $_child_files  = array_merge(array($_c['file']), isset($_c['files']) ? $_c['files'] : array());
+                            $_child_active = (($current_dir === $_c['folder'] && in_array($current_script, $_child_files, true))
+                                || in_array($current_dir, isset($_c['folders']) ? $_c['folders'] : array(), true)) ? 'active' : '';
+                        ?>
                         <li>
                             <a class="dropdown-item <?php echo $_child_active; ?>"
                                 href="<?php echo EDM_BASE . $_c['folder'] . '/' . $_c['file']; ?>"><?php echo htmlspecialchars($_c['label']); ?></a>

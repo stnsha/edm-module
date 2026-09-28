@@ -21,4 +21,19 @@ final class Suppression extends Model
     protected const CASTS = [];
 
     protected const ORDER = '`created_at` DESC, `id` DESC';
+
+    /** Add an address unless it is already suppressed (any reason). */
+    public static function suppress(string $email, string $reason, string $source, ?string $note = null): void
+    {
+        $email = strtolower(trim($email));
+        if ($email === '' || self::where('LOWER(`email`) = ?', [$email], null, 1) !== []) {
+            return;
+        }
+        self::create([
+            'email'  => $email,
+            'reason' => $reason,
+            'source' => $source,
+            'note'   => $note !== null ? mb_substr($note, 0, 255) : null,
+        ]);
+    }
 }

@@ -18,8 +18,9 @@ $page_js = EDM_BASE . 'settings/senders.js';
     <div>
         <p class="text-muted small mb-0">
             From-addresses available to newsletters. Each must be verified in Amazon SES
-            before it can send. SES verification is not wired yet - set the status manually
-            for now.
+            before it can send: Request verification makes SES email the address a link,
+            Check SES refreshes the status. A verified sending domain covers every
+            address on it.
         </p>
     </div>
     <button type="button" class="btn btn-primary btn-sm" id="edm-sender-add">

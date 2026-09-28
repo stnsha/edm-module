@@ -1,8 +1,9 @@
 /**
  * Settings > Senders.
  *
- * Talks to settings/api.php (senders_* actions), which proxies to edm-api
- * edm/senders over JWT. Data is owned by edm-api.
+ * Talks to settings/api.php: senders_* (CRUD) and ses_sender_check /
+ * ses_sender_request (status from Amazon SES; SES is the source of truth for
+ * Pending / Verified / Failed).
  */
 (function () {
     'use strict';
@@ -37,7 +38,6 @@
         2: { label: 'Verified', cls: 'edm-pill-success' },
         3: { label: 'Failed',   cls: 'edm-pill-danger' }
     };
-    var NEXT_STATUS = { 1: 2, 2: 3, 3: 1 };
 
     function esc(v) {
         return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
@@ -45,7 +45,8 @@
         });
     }
 
-    function showAlert(msg) {
+    function showAlert(msg, kind) {
+        alertEl.className = 'alert alert-' + (kind || 'danger') + ' py-2 px-3 small';
         alertEl.textContent = msg || 'Something went wrong.';
         alertEl.hidden = false;
     }
@@ -80,8 +81,6 @@
         }
         rowsEl.innerHTML = rows.map(function (s, i) {
             var st = STATUS[s.status] || STATUS[1];
-            var next = NEXT_STATUS[s.status] || 2;
-            var nextLabel = STATUS[next].label;
             return '' +
                 '<tr data-id="' + s.id + '">' +
                     '<td class="text-muted">' + (startIdx + i + 1) + '</td>' +
@@ -96,9 +95,9 @@
                         '<div class="d-flex justify-content-end align-items-center gap-2">' +
                             (s.is_default ? '' :
                                 '<button type="button" class="btn btn-sm btn-outline-secondary" data-act="default">Set default</button>') +
-                            '<button type="button" class="btn btn-sm btn-outline-secondary" data-act="status" data-next="' + next + '">' +
-                                'Mark ' + nextLabel +
-                            '</button>' +
+                            '<button type="button" class="btn btn-sm btn-outline-secondary" data-act="ses-check" title="Refresh the status from Amazon SES">Check SES</button>' +
+                            (s.status === 2 ? '' :
+                                '<button type="button" class="btn btn-sm btn-outline-primary" data-act="ses-request" title="Amazon SES emails this address a verification link">Request verification</button>') +
                             '<button type="button" class="btn btn-sm btn-outline-secondary edm-icon-btn" data-act="edit" title="Edit"><i class="bi bi-pencil"></i></button>' +
                             '<button type="button" class="btn btn-sm btn-outline-danger edm-icon-btn" data-act="delete" title="Delete"><i class="bi bi-trash"></i></button>' +
                         '</div>' +
@@ -252,11 +251,20 @@
             return;
         }
 
-        if (act === 'status') {
-            var next = parseInt(btn.getAttribute('data-next'), 10);
-            call('senders_verify', 'POST', { id: id, status: next }).then(function (res) {
+        if (act === 'ses-check' || act === 'ses-request') {
+            btn.disabled = true;
+            call(act === 'ses-check' ? 'ses_sender_check' : 'ses_sender_request', 'POST', { id: id }).then(function (res) {
+                btn.disabled = false;
                 if (!res.success) { showAlert(firstError(res)); return; }
+                var msg = res.data.message;
+                if (act === 'ses-request' && res.data.requested) {
+                    msg = 'Amazon SES has emailed a verification link to ' + res.data.sender.email + '. ' + msg;
+                }
                 load();
+                showAlert(msg, res.data.sender.status === 2 ? 'success' : 'info');
+            }).catch(function () {
+                btn.disabled = false;
+                showAlert('Could not reach the server.');
             });
             return;
         }

@@ -8,14 +8,18 @@ include __DIR__ . '/../header.php';
 // Server-side lookups for the sender / list selects.
 require __DIR__ . '/../app/bootstrap.php';
 
-$edm_sender_opts = array(array('value' => '', 'label' => '(none)'));
-$edm_list_opts   = array(array('value' => '', 'label' => '(none)'));
+$edm_sender_opts = array(array('value' => '', 'label' => 'Select a sender'));
+$edm_list_opts   = array(array('value' => '', 'label' => 'Select a list'));
 
 foreach (\Edm\Models\Sender::all() as $row) {
     $edm_sender_opts[] = array('value' => $row['id'], 'label' => $row['from_name'] . ' <' . $row['email'] . '>');
 }
 foreach (\Edm\Models\ContactList::all() as $row) {
     $edm_list_opts[] = array('value' => $row['id'], 'label' => $row['name']);
+}
+$edm_template_opts = array(array('value' => '', 'label' => 'Blank'));
+foreach (\Edm\Models\Template::options() as $row) {
+    $edm_template_opts[] = array('value' => $row['id'], 'label' => $row['name'] . ($row['category'] ? ' (' . $row['category'] . ')' : ''));
 }
 
 $page_js = EDM_BASE . 'js/edm-crud.js';
@@ -106,9 +110,11 @@ edm_crud_screen(array(
         ],
         fields: [
             { name: 'name', label: 'Name', type: 'text', required: true },
-            { name: 'sender_id', label: 'Sender', type: 'select', options: <?php echo json_encode($edm_sender_opts); ?> },
-            { name: 'list_id', label: 'Recipient list', type: 'select', options: <?php echo json_encode($edm_list_opts); ?> },
-            { name: 'subject', label: 'Subject line', type: 'text' },
+            { name: 'sender_id', label: 'Sender', type: 'select', required: true, options: <?php echo json_encode($edm_sender_opts); ?> },
+            { name: 'list_id', label: 'Recipient list', type: 'select', required: true, options: <?php echo json_encode($edm_list_opts); ?> },
+            { name: 'subject', label: 'Subject line', type: 'text', required: true },
+            { name: 'template_id', label: 'Template', type: 'select', options: <?php echo json_encode($edm_template_opts); ?>,
+                help: 'Starting design, copied into the new newsletter. Blank starts empty.' },
             { name: 'scheduled_at', label: 'Scheduled send', type: 'datetime' }
         ]
     };

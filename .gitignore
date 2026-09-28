@@ -13,10 +13,11 @@
 .env.local
 .env.*.local
 
-# Logs
+# Logs (cron/send.php writes logs/ses-send.log + its lock file)
 npm-debug.log*
 yarn-error.log*
 *.log
+/logs/*.lock
 
 # Editor / OS
 /.idea

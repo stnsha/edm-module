@@ -6,13 +6,11 @@ namespace Edm\Services;
 
 use Edm\Core\Database;
 use Edm\Models\Campaign;
+use Edm\Models\SendLog;
 
 /**
- * Statistics / Dashboard KPI snapshot.
- *
- * Delivery / open / click / bounce figures come from Amazon SES delivery
- * events (SNS / SQS), which are not wired yet - they are returned as zero
- * with a note.
+ * Dashboard KPI snapshot. Delivery / open / click / bounce figures come from
+ * edm_send_log, kept current by Amazon SES events (public/ses-webhook.php).
  */
 final class ReportingOverview
 {
@@ -40,16 +38,45 @@ final class ReportingOverview
                 'total'    => $this->count('edm_senders'),
                 'verified' => $this->count('edm_senders', '`status` = 2'), // 2 = verified
             ],
-            'delivery' => [
-                'note'               => 'Amazon SES event ingestion not wired yet.',
-                'delivery_rate'      => 0,
-                'open_rate'          => 0,
-                'click_rate'         => 0,
-                'bounce_rate'        => 0,
-                'unsubscribe_rate'   => 0,
-                'complaint_rate'     => 0,
-                'revenue_attributed' => 0,
-            ],
+            'delivery' => $this->delivery(),
+        ];
+    }
+
+    /**
+     * Platform delivery figures from edm_send_log (sent by the queue, updated
+     * by SES events). Delivery and bounce rates are over emails sent; open,
+     * click, complaint and unsubscribe rates over emails delivered.
+     *
+     * @return array<string, int|float>
+     */
+    private function delivery(): array
+    {
+        $r = $this->db->first(
+            'SELECT COUNT(*) AS sent,
+                    COUNT(`delivered_at`) AS delivered, COUNT(`opened_at`) AS opened,
+                    COUNT(`clicked_at`) AS clicked, COUNT(`bounced_at`) AS bounced,
+                    COUNT(`complained_at`) AS complained, COUNT(`unsubscribed_at`) AS unsubscribed
+               FROM `edm_send_log`
+              WHERE `deleted_at` IS NULL AND `status` IN (?, ?, ?, ?)',
+            [SendLog::SENT, SendLog::DELIVERED, SendLog::BOUNCED, SendLog::COMPLAINED]
+        ) ?? [];
+        $n = static fn (string $k): int => (int) ($r[$k] ?? 0);
+        $pct = static fn (int $part, int $whole, int $dp = 1): float => $whole > 0 ? round($part * 100 / $whole, $dp) : 0.0;
+
+        return [
+            'sent'             => $n('sent'),
+            'delivered'        => $n('delivered'),
+            'opened'           => $n('opened'),
+            'clicked'          => $n('clicked'),
+            'bounced'          => $n('bounced'),
+            'complained'       => $n('complained'),
+            'unsubscribed'     => $n('unsubscribed'),
+            'delivery_rate'    => $pct($n('delivered'), $n('sent')),
+            'bounce_rate'      => $pct($n('bounced'), $n('sent')),
+            'open_rate'        => $pct($n('opened'), $n('delivered')),
+            'click_rate'       => $pct($n('clicked'), $n('delivered')),
+            'complaint_rate'   => $pct($n('complained'), $n('delivered'), 2),
+            'unsubscribe_rate' => $pct($n('unsubscribed'), $n('delivered'), 2),
         ];
     }
 

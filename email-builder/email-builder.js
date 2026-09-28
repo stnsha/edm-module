@@ -33,6 +33,7 @@
     var stateEl = document.getElementById('edm-eb-state');
     var saveBtn = document.getElementById('edm-eb-save');
     var submitBtn = document.getElementById('edm-eb-submit');
+    var templateBtn = document.getElementById('edm-eb-template');
 
     // Same labels / pill colours as the Newsletters list (campaign/index.php).
     var STATUS = {
@@ -109,6 +110,8 @@
         });
         setDirty(false);
         saveBtn.disabled = false;
+        templateBtn.disabled = false;
+        document.getElementById('edm-eb-test').disabled = false;
     }
 
     function firstError(res) {
@@ -126,12 +129,41 @@
         return m ? m[3] + '-' + m[2] + '-' + m[1] + 'T' + m[4] + ':' + m[5] : '';
     }
 
+    // Calendar conflicts for the chosen send date (app/Services/
+    // ScheduleConflicts): a warning only, saving is never blocked.
+    var conflictsEl = document.getElementById('edm-eb-conflicts');
+    var conflictSeq = 0;
+
+    function checkConflicts() {
+        var v = f.scheduled.value;
+        var mine = ++conflictSeq;
+        if (!v) { conflictsEl.hidden = true; return; }
+        call('conflicts&date=' + encodeURIComponent(v)).then(function (res) {
+            if (mine !== conflictSeq) { return; } // a newer date was picked
+            var list = (res.success && res.data) || [];
+            if (!list.length) { conflictsEl.hidden = true; return; }
+            conflictsEl.innerHTML = '<i class="bi bi-exclamation-triangle-fill me-1"></i>Also on this day: ' +
+                list.map(function (x) {
+                    return esc((x.type === 'slot' ? 'Reserved: ' : '') + x.name);
+                }).join(', ') +
+                ' - <a href="' + BASE + 'calendar/index.php">Calendar</a>';
+            conflictsEl.hidden = false;
+        }).catch(function () { /* the warning is best-effort */ });
+    }
+
+    function esc(v) {
+        return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+
     function fillSettings(c) {
         f.name.value = c.name || '';
         f.sender.value = c.sender_id != null ? String(c.sender_id) : '';
         f.list.value = c.list_id != null ? String(c.list_id) : '';
         f.subject.value = c.subject || '';
         f.scheduled.value = toInputDate(c.scheduled_at);
+        checkConflicts();
     }
 
     function settingsPayload() {
@@ -149,6 +181,7 @@
         f[k].addEventListener('input', function () { setDirty(true); });
         f[k].addEventListener('change', function () { setDirty(true); });
     });
+    f.scheduled.addEventListener('change', checkConflicts);
     f.name.addEventListener('input', function () {
         nameEl.textContent = f.name.value.trim() || 'Untitled newsletter';
         nameEl.title = nameEl.textContent;
@@ -200,20 +233,45 @@
         afterSave = null;
         setState(dirty ? 'dirty' : '');
         showAlert(msg);
+        var failed = onSaveFailed;
+        onSaveFailed = null;
+        if (failed) { failed(msg); }
+    }
+    var onSaveFailed = null; // one-shot callback run when a save fails
+
+    // Required settings, checked in form order before anything is sent
+    // (the server enforces the same rules).
+    var REQUIRED = [
+        { el: f.name,    label: 'Name' },
+        { el: f.sender,  label: 'Sender' },
+        { el: f.list,    label: 'Recipient list' },
+        { el: f.subject, label: 'Subject line' }
+    ];
+
+    function missingField() {
+        for (var i = 0; i < REQUIRED.length; i++) {
+            if (!REQUIRED[i].el.value.trim()) { return REQUIRED[i]; }
+        }
+        return null;
     }
 
-    // One Save for both halves: settings first (validated by edm-api), then
+    // One Save for both halves: settings first (validated server-side), then
     // the design. A settings error stops before the design is written.
     function save() {
-        if (saveBtn.disabled || !f.name.value.trim()) {
-            // Could not start (still loading / already saving / no name):
-            // drop a pending Submit so its button does not stay stuck.
+        var missing = saveBtn.disabled ? null : missingField();
+        if (saveBtn.disabled || missing) {
+            // Could not start (still loading / already saving / a required
+            // field is empty): drop a pending Submit so its button does not
+            // stay stuck.
             afterSave = null;
             submitBtn.disabled = false;
-            if (!saveBtn.disabled) {
-                f.name.focus();
-                showAlert('Name is required.');
+            if (missing) {
+                missing.el.focus();
+                showAlert(missing.label + ' is required.');
             }
+            var failed = onSaveFailed;
+            onSaveFailed = null;
+            if (failed) { failed(missing ? missing.label + ' is required.' : 'another save is still running - try again.'); }
             return;
         }
         saveBtn.disabled = true;
@@ -234,6 +292,7 @@
                 setState('saved');
                 var next = afterSave;
                 afterSave = null;
+                onSaveFailed = null;
                 if (next) { next(); }
             }).catch(function () {
                 saveFailed('Could not reach the server.');
@@ -242,6 +301,101 @@
     }
 
     saveBtn.addEventListener('click', save);
+
+    // Send test: save everything, then one "[Test]" email of the saved design
+    // through SES (send_test). The last address used is remembered per browser.
+    var testBtn      = document.getElementById('edm-eb-test');
+    var testModalEl  = document.getElementById('edm-eb-test-modal');
+    var testForm     = document.getElementById('edm-eb-test-form');
+    var testTo       = document.getElementById('edm-eb-test-to');
+    var testSend     = document.getElementById('edm-eb-test-send');
+    var testResult   = document.getElementById('edm-eb-test-result');
+    var testModal    = null;
+    var TEST_TO_KEY  = 'edm-eb-test-to';
+
+    function testMessage(kind, text) {
+        testResult.className = 'alert alert-' + kind + ' py-2 px-3 small mt-3 mb-0';
+        testResult.textContent = text;
+        testResult.hidden = false;
+    }
+
+    testBtn.addEventListener('click', function () {
+        if (!testModal) { testModal = new bootstrap.Modal(testModalEl); }
+        try { testTo.value = testTo.value || window.localStorage.getItem(TEST_TO_KEY) || ''; } catch (err) { /* storage blocked */ }
+        testResult.hidden = true;
+        testModal.show();
+    });
+    testModalEl.addEventListener('shown.bs.modal', function () { testTo.focus(); });
+
+    testForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var to = testTo.value.trim();
+        if (!testTo.checkValidity() || !to) { testMessage('danger', 'Enter a valid email address.'); return; }
+        var missing = missingField();
+        if (missing) { testMessage('danger', missing.label + ' is required - fill it in above first.'); return; }
+        try { window.localStorage.setItem(TEST_TO_KEY, to); } catch (err) { /* storage blocked */ }
+
+        testSend.disabled = true;
+        testMessage('secondary', 'Saving...');
+        onSaveFailed = function (msg) {
+            testSend.disabled = false;
+            testMessage('danger', 'Not sent - the save failed: ' + msg);
+        };
+        afterSave = function () {
+            testMessage('secondary', 'Sending...');
+            call('send_test', 'POST', { to: to }).then(function (res) {
+                testSend.disabled = false;
+                if (!res.success) { testMessage('danger', firstError(res)); return; }
+                testMessage('success', 'Test sent to ' + res.data.to + '.');
+            }).catch(function () {
+                testSend.disabled = false;
+                testMessage('danger', 'Could not reach the server.');
+            });
+        };
+        save();
+    });
+
+    // Start from template: load a copy of a template into the editor. It
+    // only becomes the newsletter's body on the next Save.
+    var tplModalEl = document.getElementById('edm-eb-template-modal');
+    var tplSelect  = document.getElementById('edm-eb-template-select');
+    var tplApply   = document.getElementById('edm-eb-template-apply');
+    var tplError   = document.getElementById('edm-eb-template-error');
+    var tplModal   = null;
+
+    templateBtn.addEventListener('click', function () {
+        if (!tplModal) { tplModal = new bootstrap.Modal(tplModalEl); }
+        tplError.hidden = true;
+        tplModal.show();
+    });
+
+    if (tplApply) {
+        tplApply.addEventListener('click', function () {
+            tplApply.disabled = true;
+            tplError.hidden = true;
+            call('template_get&template=' + encodeURIComponent(tplSelect.value)).then(function (res) {
+                tplApply.disabled = false;
+                if (!res.success) {
+                    tplError.textContent = firstError(res);
+                    tplError.hidden = false;
+                    return;
+                }
+                toEditor({
+                    type: 'load',
+                    document: res.data.editor_json || null,
+                    html: res.data.html || '',
+                    variables: VARIABLES,
+                    assets: window.EDM_EB_ASSETS || []
+                });
+                setDirty(true);
+                tplModal.hide();
+            }).catch(function () {
+                tplApply.disabled = false;
+                tplError.textContent = 'Could not reach the server.';
+                tplError.hidden = false;
+            });
+        });
+    }
 
     // Only a draft (1) or content revision (4) can go to review.
     function setStatus(status) {

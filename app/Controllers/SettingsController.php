@@ -10,6 +10,9 @@ use Edm\Core\ValidationException;
 use Edm\Models\Sender;
 use Edm\Models\SendingDomain;
 use Edm\Models\Setting;
+use Edm\Services\Ses\IdentitySync;
+use Edm\Services\Ses\SesException;
+use Edm\Services\Ses\SesGateway;
 
 /**
  * Settings (settings/). Actions:
@@ -17,6 +20,7 @@ use Edm\Models\Setting;
  *   domains_(list|create|update|delete)
  *   (integrations|general)_(list|create|update|delete)   grouped key/value
  *   users_list, users_update                             staff.edm tier (superadmin only)
+ *   ses_status, ses_sender_check, ses_sender_request, ses_domain_check   Amazon SES
  */
 final class SettingsController extends Controller
 {
@@ -38,6 +42,54 @@ final class SettingsController extends Controller
         }
         if ($action === 'users_list' || $action === 'users_update') {
             return $this->users($action);
+        }
+        if (str_starts_with($action, 'ses_')) {
+            return $this->ses($action);
+        }
+        $this->unknown();
+    }
+
+    /**
+     * Amazon SES (settings tier only):
+     *   ses_status          .env summary + live account state (Integrations page)
+     *   ses_sender_check    sender status from SES (id)
+     *   ses_sender_request  send the AWS verification email to a sender (id)
+     *   ses_domain_check    register / check a domain, returns DNS records (id)
+     */
+    private function ses(string $action): array
+    {
+        if (!$this->auth->isSuperadmin && $this->auth->permission !== 1) {
+            throw new HttpException('Only EDM superadmins can manage Amazon SES.', 403);
+        }
+        $gateway = SesGateway::fromEnv();
+
+        switch ($action) {
+            case 'ses_status':
+                $c = $gateway->config;
+                $out = [
+                    'config' => [
+                        'region'            => $c->region,
+                        'credentials'       => $c->hasStaticCredentials() ? 'Access key ' . substr((string) $c->accessKeyId, 0, 4) . '...' . substr((string) $c->accessKeyId, -4) : 'AWS default credential chain',
+                        'configuration_set' => $c->configurationSet,
+                        'sns_topic_arn'     => $c->snsTopicArn,
+                        'public_url'        => $c->publicUrl,
+                        'missing'           => $c->missingForSending(),
+                    ],
+                    'account' => null,
+                    'error'   => null,
+                ];
+                try {
+                    $out['account'] = $gateway->account();
+                } catch (SesException $e) {
+                    $out['error'] = $e->getMessage();
+                }
+                return $out;
+            case 'ses_sender_check':
+                return (new IdentitySync($gateway))->checkSender($this->requireId('Sender'));
+            case 'ses_sender_request':
+                return (new IdentitySync($gateway))->requestSender($this->requireId('Sender'));
+            case 'ses_domain_check':
+                return (new IdentitySync($gateway))->checkDomain($this->requireId('Domain'));
         }
         $this->unknown();
     }

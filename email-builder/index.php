@@ -84,6 +84,12 @@ $page_js = EDM_BASE . 'email-builder/email-builder.js';
     <div class="edm-eb-actions">
         <div class="edm-eb-buttons">
             <span class="edm-pill edm-pill-secondary" id="edm-eb-status" hidden></span>
+            <button type="button" class="btn btn-outline-secondary" id="edm-eb-template" disabled title="Replace the design with a template">
+                <i class="bi bi-layout-text-window me-1"></i>Start from template
+            </button>
+            <button type="button" class="btn btn-outline-secondary" id="edm-eb-test" disabled title="Save, then send one test email through Amazon SES">
+                <i class="bi bi-envelope-paper me-1"></i>Send test
+            </button>
             <button type="button" class="btn btn-outline-primary" id="edm-eb-save" disabled title="Save (Ctrl+S)">
                 <i class="bi bi-floppy me-1"></i>Save
             </button>
@@ -123,6 +129,7 @@ $edm_lists = array();
 foreach (\Edm\Models\ContactList::all() as $row) {
     $edm_lists[] = array('id' => (int)$row['id'], 'label' => $row['name']);
 }
+$edm_templates = \Edm\Models\Template::options();
 ?>
 <script>
 window.EDM_EB_CUSTOM_VARS = <?php echo json_encode($edm_custom_vars); ?>;
@@ -138,30 +145,31 @@ window.EDM_EB_ASSETS = <?php echo json_encode($edm_assets); ?>;
             <input type="text" class="form-control" id="edm-eb-f-name" maxlength="255" required>
         </div>
         <div class="col-md-4">
-            <label class="form-label" for="edm-eb-f-sender">Sender</label>
-            <select class="form-select" id="edm-eb-f-sender">
-                <option value="">(none)</option>
+            <label class="form-label" for="edm-eb-f-sender">Sender <span class="text-danger" aria-hidden="true">*</span></label>
+            <select class="form-select" id="edm-eb-f-sender" required>
+                <option value="">Select a sender</option>
                 <?php foreach ($edm_senders as $o): ?>
                 <option value="<?php echo $o['id']; ?>"><?php echo htmlspecialchars($o['label']); ?></option>
                 <?php endforeach; ?>
             </select>
         </div>
         <div class="col-md-4">
-            <label class="form-label" for="edm-eb-f-list">Recipient list</label>
-            <select class="form-select" id="edm-eb-f-list">
-                <option value="">(none)</option>
+            <label class="form-label" for="edm-eb-f-list">Recipient list <span class="text-danger" aria-hidden="true">*</span></label>
+            <select class="form-select" id="edm-eb-f-list" required>
+                <option value="">Select a list</option>
                 <?php foreach ($edm_lists as $o): ?>
                 <option value="<?php echo $o['id']; ?>"><?php echo htmlspecialchars($o['label']); ?></option>
                 <?php endforeach; ?>
             </select>
         </div>
         <div class="col-md-8">
-            <label class="form-label" for="edm-eb-f-subject">Subject line</label>
-            <input type="text" class="form-control" id="edm-eb-f-subject" maxlength="255">
+            <label class="form-label" for="edm-eb-f-subject">Subject line <span class="text-danger" aria-hidden="true">*</span></label>
+            <input type="text" class="form-control" id="edm-eb-f-subject" maxlength="255" required>
         </div>
         <div class="col-md-4">
             <label class="form-label" for="edm-eb-f-scheduled">Scheduled send</label>
             <input type="datetime-local" class="form-control" id="edm-eb-f-scheduled">
+            <div class="form-text text-warning-emphasis" id="edm-eb-conflicts" hidden></div>
         </div>
     </div>
 </form>
@@ -172,6 +180,59 @@ window.EDM_EB_ASSETS = <?php echo json_encode($edm_assets); ?>;
 <div class="edm-eb-frame-wrap" data-campaign="<?php echo (int)$campaign_id; ?>">
     <iframe id="edm-eb-frame" class="edm-eb-frame" title="Email creator"
         src="<?php echo EDM_BASE; ?>email-builder/editor/index.html?v=<?php echo (int)@filemtime(__DIR__ . '/editor/index.html'); ?>"></iframe>
+</div>
+<!-- Start from template: replaces the editor's design with a copy of a
+     template. Nothing is written until Save. -->
+<div class="modal fade" id="edm-eb-template-modal" tabindex="-1" aria-labelledby="edm-eb-template-title" aria-hidden="true">
+    <div class="modal-dialog">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="edm-eb-template-title">Start from template</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <?php if ($edm_templates): ?>
+                <label class="form-label" for="edm-eb-template-select">Template</label>
+                <select class="form-select" id="edm-eb-template-select">
+                    <?php foreach ($edm_templates as $t): ?>
+                    <option value="<?php echo $t['id']; ?>"><?php echo htmlspecialchars($t['name'] . ($t['category'] ? ' (' . $t['category'] . ')' : '')); ?></option>
+                    <?php endforeach; ?>
+                </select>
+                <div class="form-text">The current design is replaced. Nothing is saved until you click Save.</div>
+                <?php else: ?>
+                <p class="text-muted mb-0">No templates yet - create one under Templates.</p>
+                <?php endif; ?>
+                <div class="alert alert-danger py-2 px-3 small mt-3 mb-0" id="edm-eb-template-error" hidden></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Cancel</button>
+                <?php if ($edm_templates): ?>
+                <button type="button" class="btn btn-primary btn-sm" id="edm-eb-template-apply">Use template</button>
+                <?php endif; ?>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Send test: saves, then sends one "[Test]" email of the design via SES. -->
+<div class="modal fade" id="edm-eb-test-modal" tabindex="-1" aria-labelledby="edm-eb-test-title" aria-hidden="true">
+    <div class="modal-dialog">
+        <form class="modal-content" id="edm-eb-test-form" novalidate>
+            <div class="modal-header">
+                <h5 class="modal-title" id="edm-eb-test-title">Send test email</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <label class="form-label" for="edm-eb-test-to">Send to <span class="text-danger" aria-hidden="true">*</span></label>
+                <input type="email" class="form-control" id="edm-eb-test-to" maxlength="255" required autocomplete="email">
+                <div class="form-text">The newsletter is saved first. While the SES account is in the sandbox, this address must be verified in SES too.</div>
+                <div class="alert py-2 px-3 small mt-3 mb-0" id="edm-eb-test-result" hidden></div>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+                <button type="submit" class="btn btn-primary btn-sm" id="edm-eb-test-send">Save and send test</button>
+            </div>
+        </form>
+    </div>
 </div>
 <script src="<?php echo EDM_BASE; ?>js/edm-confirm.js"></script>
 <?php endif; ?>

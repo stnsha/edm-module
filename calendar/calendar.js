@@ -1,7 +1,11 @@
 /**
- * Campaign Calendar. Month grid of calendar slots (edm/calendar-slots) with
- * scheduled newsletters (edm/campaigns) overlaid. Click a day to add a slot,
+ * Campaign Calendar. Month grid of calendar slots (edm_calendar_slots) with
+ * scheduled newsletters (edm_campaigns) overlaid. Click a day to add a slot,
  * click a slot chip to edit.
+ *
+ * A day with a conflict is flagged. Same rule as app/Services/
+ * ScheduleConflicts: two or more of { newsletters scheduled that day (not
+ * archived), slots that day not linked to one of those newsletters }.
  */
 (function () {
     'use strict';
@@ -37,6 +41,13 @@
     function iso(d) {
         return d.getFullYear() + '-' + ('0' + (d.getMonth() + 1)).slice(-2) + '-' + ('0' + d.getDate()).slice(-2);
     }
+    // The API sends display dates ('d-m-Y' / 'd-m-Y H:i:s'); the grid and the
+    // date input key by 'Y-m-d'.
+    function dayKey(v) {
+        var m = /^(\d{2})-(\d{2})-(\d{4})/.exec(v || '');
+        if (m) { return m[3] + '-' + m[2] + '-' + m[1]; }
+        return /^\d{4}-\d{2}-\d{2}/.test(v || '') ? v.slice(0, 10) : '';
+    }
     function call(action, method, body) {
         return fetch(API + '?action=' + action, {
             method: method || 'GET',
@@ -59,14 +70,18 @@
         titleEl.textContent = MONTHS[view.getMonth()] + ' ' + view.getFullYear();
         var b = monthBounds();
         var byDay = {};
-        (slots || []).forEach(function (s) {
-            var k = (s.slot_date || '').slice(0, 10);
-            (byDay[k] = byDay[k] || []).push({ type: 'slot', id: s.id, text: s.slot_label || s.category || 'slot' });
-        });
+        var sentOn = {}; // day -> { campaign id: true }, to skip a slot linked to its own newsletter
         (campaigns || []).forEach(function (c) {
-            if (!c.scheduled_at) { return; }
-            var k = c.scheduled_at.slice(0, 10);
-            (byDay[k] = byDay[k] || []).push({ type: 'campaign', text: c.name });
+            var k = dayKey(c.scheduled_at);
+            if (!k || c.status === 9) { return; } // archived
+            (byDay[k] = byDay[k] || []).push({ type: 'campaign', text: c.name, counts: true });
+            (sentOn[k] = sentOn[k] || {})[c.id] = true;
+        });
+        (slots || []).forEach(function (s) {
+            var k = dayKey(s.slot_date);
+            if (!k) { return; }
+            var own = s.campaign_id != null && sentOn[k] && sentOn[k][s.campaign_id];
+            (byDay[k] = byDay[k] || []).push({ type: 'slot', id: s.id, text: s.slot_label || s.category || 'slot', counts: !own });
         });
 
         var html = '';
@@ -76,14 +91,17 @@
             for (var i = 0; i < 7; i++) {
                 var k = iso(d);
                 var muted = d.getMonth() !== view.getMonth() ? ' text-muted bg-light' : '';
+                var clash = (byDay[k] || []).filter(function (x) { return x.counts; }).length > 1;
                 var chips = (byDay[k] || []).map(function (x) {
                     if (x.type === 'campaign') {
                         return '<span class="edm-pill edm-pill-primary d-block text-truncate mb-1">' + esc(x.text) + '</span>';
                     }
                     return '<span class="edm-pill edm-pill-secondary d-block text-truncate mb-1 edm-cal-chip" style="cursor:pointer" data-id="' + x.id + '">' + esc(x.text) + '</span>';
                 }).join('');
-                html += '<td class="edm-cal-cell' + muted + '" data-date="' + k + '" style="height:6.5rem; cursor:pointer; vertical-align:top;">' +
-                    '<div class="small fw-semibold mb-1">' + d.getDate() + '</div>' + chips + '</td>';
+                html += '<td class="edm-cal-cell' + muted + (clash ? ' edm-cal-conflict' : '') + '" data-date="' + k + '" style="height:6.5rem; cursor:pointer; vertical-align:top;">' +
+                    '<div class="small fw-semibold mb-1 d-flex justify-content-between">' + d.getDate() +
+                        (clash ? '<i class="bi bi-exclamation-triangle-fill text-warning" title="Conflict: more than one send or reservation on this day"></i>' : '') +
+                    '</div>' + chips + '</td>';
                 d.setDate(d.getDate() + 1);
             }
             html += '</tr>';
@@ -103,7 +121,7 @@
     function openModal(date, slot) {
         errEl.hidden = true;
         idEl.value    = slot ? slot.id : '';
-        dateEl.value  = slot ? (slot.slot_date || '').slice(0, 10) : date;
+        dateEl.value  = slot ? dayKey(slot.slot_date) : date;
         labelEl.value = slot ? (slot.slot_label || '') : '';
         catEl.value   = slot ? (slot.category || '') : '';
         noteEl.value  = slot ? (slot.note || '') : '';

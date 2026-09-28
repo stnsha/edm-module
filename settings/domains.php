@@ -1,6 +1,6 @@
 <?php
 $page_title = 'Sending domains';
-$page_subtitle = 'Domains used to send from, with DKIM / SPF / DMARC status. SES verification is not wired yet - set the status manually.';
+$page_subtitle = 'Domains used to send from. Check with SES registers the domain in Amazon SES, refreshes DKIM / SPF / DMARC and lists the DNS records to publish.';
 require __DIR__ . '/../partials.php';
 $page_title_actions = edm_title_button('Add domain');
 include __DIR__ . '/../header.php';
@@ -22,6 +22,7 @@ window.EDM_CRUD_CONFIG = {
     entity: 'domain',
     actions: { list: 'domains_list', create: 'domains_create', update: 'domains_update', 'delete': 'domains_delete' },
     rowActions: [
+        { label: 'Check with SES', className: 'btn-outline-primary', handler: function (r, reload) { edmDomainCheck(r, reload); } },
         { label: function (r) { return r.is_active ? 'Set inactive' : 'Set active'; },
           className: function (r) { return r.is_active ? 'btn-outline-danger' : 'btn-outline-success'; },
           body: function (r) { return { is_active: !r.is_active }; },
@@ -40,13 +41,69 @@ window.EDM_CRUD_CONFIG = {
         { key: 'is_active', label: 'Active', type: 'bool', trueLabel: 'Active', falseLabel: 'Inactive' }
     ],
     fields: [
-        { name: 'domain', label: 'Domain', type: 'text', required: true },
-        { name: 'dkim_status', label: 'DKIM status', type: 'select', options: [{ value: 1, label: 'Pending' }, { value: 2, label: 'Verified' }, { value: 3, label: 'Failed' }] },
-        { name: 'spf_status', label: 'SPF status', type: 'select', options: [{ value: 1, label: 'Pending' }, { value: 2, label: 'Verified' }, { value: 3, label: 'Failed' }] },
-        { name: 'dmarc_status', label: 'DMARC status', type: 'select', options: [{ value: 1, label: 'Pending' }, { value: 2, label: 'Verified' }, { value: 3, label: 'Failed' }] },
+        // DKIM / SPF / DMARC statuses come from "Check with SES", not the form.
+        { name: 'domain', label: 'Domain', type: 'text', required: true, help: 'e.g. mail.example.com' },
         { name: 'is_active', label: 'Active', type: 'checkbox', default: true }
     ]
 };
+</script>
+
+<!-- Check with SES result: status message + DNS records to publish. -->
+<div class="modal fade" id="edm-dom-ses-modal" tabindex="-1" aria-labelledby="edm-dom-ses-title" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="edm-dom-ses-title">Amazon SES</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body" id="edm-dom-ses-body"></div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary btn-sm" data-bs-dismiss="modal">Close</button>
+            </div>
+        </div>
+    </div>
+</div>
+<script>
+function edmDomainCheck(row, reload) {
+    var BASE = window.EDM_MODULE_BASE || '/odb/edm/';
+    var modalEl = document.getElementById('edm-dom-ses-modal');
+    var bodyEl = document.getElementById('edm-dom-ses-body');
+    var modal = bootstrap.Modal.getOrCreateInstance(modalEl);
+    function esc(v) {
+        return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+    document.getElementById('edm-dom-ses-title').textContent = 'Amazon SES - ' + row.domain;
+    bodyEl.innerHTML = '<div class="text-muted"><span class="spinner-border spinner-border-sm"></span> Checking...</div>';
+    modal.show();
+    fetch(BASE + 'settings/api.php?action=ses_domain_check', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+        body: JSON.stringify({ id: row.id })
+    }).then(function (r) { return r.json(); }).then(function (res) {
+        if (!res.success) {
+            bodyEl.innerHTML = '<div class="alert alert-danger py-2 px-3 small mb-0">' + esc(res.message || 'Check failed.') + '</div>';
+            return;
+        }
+        var d = res.data;
+        var html = '<div class="alert alert-' + (d.domain.dkim_status === 2 ? 'success' : 'info') + ' py-2 px-3 small">' + esc(d.message) + '</div>';
+        if (d.dns.length) {
+            html += '<p class="small mb-2">Publish these records at the DNS provider for ' + esc(row.domain) + ':</p>' +
+                '<div class="table-responsive"><table class="table table-sm align-middle edm-view-tbl small mb-0"><thead><tr>' +
+                '<th>Purpose</th><th>Type</th><th>Name</th><th>Value</th></tr></thead><tbody>' +
+                d.dns.map(function (x) {
+                    return '<tr><td>' + esc(x.purpose) + '</td><td>' + esc(x.type) + '</td>' +
+                        '<td><code class="user-select-all">' + esc(x.name) + '</code></td>' +
+                        '<td><code class="user-select-all">' + esc(x.value) + '</code></td></tr>';
+                }).join('') + '</tbody></table></div>';
+        }
+        bodyEl.innerHTML = html;
+        reload();
+    }).catch(function () {
+        bodyEl.innerHTML = '<div class="alert alert-danger py-2 px-3 small mb-0">Could not reach the server.</div>';
+    });
+}
 </script>
 <?php
 include __DIR__ . '/../footer.php';

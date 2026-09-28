@@ -26,6 +26,7 @@ final class Campaign extends Model
     public const SCHEDULED = 6;
     public const SENDING = 7;
     public const COMPLETED = 8;
+    public const ARCHIVED = 9;
 
     protected const TABLE = 'edm_campaigns';
 
@@ -104,11 +105,20 @@ final class Campaign extends Model
      * @param array<string, mixed> $data validated payload
      * @return array<string, mixed>
      */
-    public static function createDraft(array $data): array
+    public static function createDraft(array $data, ?int $templateId = null): array
     {
-        return self::db()->transaction(static function () use ($data): array {
+        // A chosen template is copied into the body; later edits to either
+        // side do not affect the other.
+        $template = $templateId !== null ? Template::findOrFail($templateId) : null;
+
+        return self::db()->transaction(static function () use ($data, $template): array {
             $campaign = self::create(['status' => self::DRAFT] + $data);
-            CampaignContent::create(['campaign_id' => $campaign['id'], 'html' => '', 'version' => 1]);
+            CampaignContent::create([
+                'campaign_id' => $campaign['id'],
+                'html'        => (string) ($template['html'] ?? ''),
+                'editor_json' => $template['editor_json'] ?? null,
+                'version'     => 1,
+            ]);
 
             return self::withDetails((int) $campaign['id']);
         });

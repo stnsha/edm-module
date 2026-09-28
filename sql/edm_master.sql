@@ -18,6 +18,7 @@ DROP TABLE IF EXISTS `edm_assets`;
 DROP TABLE IF EXISTS `edm_templates`;
 DROP TABLE IF EXISTS `edm_campaign_content`;
 DROP TABLE IF EXISTS `edm_campaigns`;
+DROP TABLE IF EXISTS `edm_ses_events`;
 DROP TABLE IF EXISTS `edm_send_log`;
 DROP TABLE IF EXISTS `edm_suppressions`;
 DROP TABLE IF EXISTS `edm_settings`;
@@ -205,7 +206,9 @@ CREATE TABLE `edm_suppressions` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------
--- edm_send_log: Per-recipient send history (frequency caps). Written by the send pipeline.
+-- edm_send_log: Per-recipient send history (frequency caps + SES delivery state). Written by the
+-- send pipeline (app/Services/Ses/CampaignSender), updated by SES events.
+-- status: 1=sent, 2=delivered, 3=bounced, 4=complained, 5=failed, 6=skipped (error says why).
 -- ----------------------------------------------------------------------
 CREATE TABLE `edm_send_log` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -213,12 +216,40 @@ CREATE TABLE `edm_send_log` (
   `member_code` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `sent_at` datetime NOT NULL,
+  `status` tinyint unsigned NOT NULL DEFAULT '1',
+  `ses_message_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `error` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `delivered_at` datetime NULL DEFAULT NULL,
+  `opened_at` datetime NULL DEFAULT NULL,
+  `clicked_at` datetime NULL DEFAULT NULL,
+  `bounced_at` datetime NULL DEFAULT NULL,
+  `complained_at` datetime NULL DEFAULT NULL,
+  `unsubscribed_at` datetime NULL DEFAULT NULL,
   `created_at` datetime NULL DEFAULT NULL,
   `updated_at` datetime NULL DEFAULT NULL,
   `deleted_at` datetime NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `edm_send_log_email_sent_at_index` (`email`,`sent_at`),
-  KEY `edm_send_log_campaign_id_index` (`campaign_id`)
+  KEY `edm_send_log_campaign_id_index` (`campaign_id`),
+  KEY `edm_send_log_ses_message_id_index` (`ses_message_id`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------------------------------------------------------------
+-- edm_ses_events: Raw Amazon SES events received through SNS (public/ses-webhook.php).
+-- ----------------------------------------------------------------------
+CREATE TABLE `edm_ses_events` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `ses_message_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `event_type` varchar(40) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `email` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `payload` json DEFAULT NULL,
+  `occurred_at` datetime NULL DEFAULT NULL,
+  `created_at` datetime NULL DEFAULT NULL,
+  `updated_at` datetime NULL DEFAULT NULL,
+  `deleted_at` datetime NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `edm_ses_events_ses_message_id_index` (`ses_message_id`),
+  KEY `edm_ses_events_event_type_index` (`event_type`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------
@@ -263,7 +294,7 @@ CREATE TABLE `edm_campaign_content` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------
--- edm_templates: Template library.
+-- edm_templates: Template library: html (rendered email) + editor_json (EmailBuilder.js block tree).
 -- ----------------------------------------------------------------------
 CREATE TABLE `edm_templates` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -271,6 +302,7 @@ CREATE TABLE `edm_templates` (
   `category` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `thumbnail_url` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `html` longtext COLLATE utf8mb4_unicode_ci,
+  `editor_json` json DEFAULT NULL,
   `created_by` int unsigned DEFAULT NULL,
   `created_by_name` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `created_at` datetime NULL DEFAULT NULL,

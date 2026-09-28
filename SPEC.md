@@ -11,10 +11,12 @@ POS / Membership  ->  Customer Data Warehouse  ->  CRM Segmentation
   ->  Automation Engine  ->  Amazon SES (send)  ->  Reporting (SES events via SNS/SQS -> BI DB)
 ```
 
-- SES API: campaign dispatch + bounce/complaint webhook receiver (to be built in `edm/app/`).
+- SES API: campaign dispatch (`cron/send.php` -> `app/Services/Ses/CampaignSender`) +
+  SES event webhook (`public/ses-webhook.php`, SNS HTTPS). Built; see CLAUDE.md "Amazon SES".
 - Customer Data Warehouse: external, owned by BI. Source for all segmentation and
   personalisation. This app queries it, does not own it.
-- Reporting: consume SES delivery events (SNS/SQS), store in BI database.
+- Reporting: consume SES delivery events (SNS/SQS), store in BI database. Currently
+  stored in `edm_ses_events` (raw) + `edm_send_log` (per recipient) in the odb database.
 
 ## Access model
 
@@ -39,12 +41,11 @@ with superadmin / BPT override.
 
 | Module              | Folder            | Phase | Menu gate            |
 | ------------------- | ----------------- | ----- | ------------------- |
-| Dashboard           | `dashboard/`      | 1     | edm >= 1            |
+| Dashboard (incl. Reporting Dashboard) | `dashboard/` | 1 | edm >= 1     |
 | Campaign Management  | `campaign/`       | 1     | edm in (1,2,3)      |
 | Email Builder       | `email-builder/`  | 1     | edm in (1,2,3)      |
 | Audience Builder    | `audience/`       | 1     | edm in (1,2,3)      |
 | Campaign Calendar   | `calendar/`       | 1     | edm >= 1            |
-| Reporting Dashboard  | `reporting/`      | 1     | edm >= 1            |
 | Suppression Centre  | `suppression/`    | 1     | edm in (1,2,3)      |
 | Settings            | `settings/`       | 1     | edm == 1 / superadmin |
 | Automation Builder  | `automation/`     | 2     | edm in (1,2,3)      |
@@ -174,26 +175,25 @@ decoupled via the `$edm_nav` map in `navbar.php`.
 
 | Nav group / item        | Folder / file                     | Spec module          | Gate  |
 | ----------------------- | --------------------------------- | -------------------- | ----- |
-| Dashboard               | `dashboard/index.php`             | Dashboard            | view  |
+| Dashboard               | `dashboard/index.php`             | Dashboard + Reporting Dashboard | view  |
 | Contacts > Lists        | `audience/index.php`              | Audience Builder     | build |
 | Contacts > Segments     | `audience/segments.php`           | Audience Builder     | build |
 | Contacts > Custom fields | `audience/fields.php`            | Audience Builder     | build |
 | Contacts > Tags & scoring | `audience/tags.php`             | Audience Builder     | build |
 | Contacts > Suppression lists | `suppression/index.php`       | Suppression Centre   | build |
-| Newsletters             | `campaign/index.php`             | Campaign Management  | build |
-| (no menu entry; via Newsletters > Design) | `email-builder/index.php` | Email Builder | build |
+| Newsletters > All newsletters | `campaign/index.php`       | Campaign Management  | build |
+| (no menu entry; via Newsletters > Design, keeps All newsletters active) | `email-builder/index.php` | Email Builder | build |
 | Automation > Workflows   | `automation/index.php`           | Automation Builder   | build |
 | Automation > Autoresponders | `automation/autoresponders.php` | Automation Builder | build |
 | Calendar                | `calendar/index.php`             | Campaign Calendar    | view  |
-| Statistics              | `reporting/index.php`            | Reporting Dashboard  | view  |
-| Templates               | `templates/index.php`           | Template Library     | build |
+| Newsletters > Templates | `templates/index.php`           | Template Library     | build |
+| (no menu entry; via Templates > Edit / Design template) | `templates/edit.php` | Template Library | build |
 | Files                   | `assets/index.php`              | Asset Library        | build |
 | Approval                | `approval/index.php`           | Approval Centre      | build |
 | Settings > Senders      | `settings/senders.php`         | Settings             | super |
 | Settings > Sending domains | `settings/domains.php`       | Settings             | super |
 | Settings > Users & permissions | `settings/users.php`     | Settings             | super |
 | Settings > Integrations & API | `settings/integrations.php` | Settings           | super |
-| Settings > General      | `settings/index.php`           | Settings             | super |
 
 Gates: `build` = edm in (1,2,3); `view` = edm >= 1; `super` = edm == 1.
 
@@ -208,7 +208,7 @@ Gates: `build` = edm in (1,2,3); `view` = edm >= 1; `super` = edm == 1.
 | Segment                    | Segment            |
 | Suppression list / Blacklist | Suppression list |
 | From field                 | Sender             |
-| Statistics                 | Statistics         |
+| Statistics                 | Dashboard          |
 | File manager               | Files              |
 | Message template           | Template           |
 
