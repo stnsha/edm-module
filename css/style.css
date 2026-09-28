@@ -2310,6 +2310,97 @@ button {
     max-height: 220px;
 }
 
+/* Contacts > Import contacts (audience/import.php) */
+.edm-imp-steps {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 8px 28px;
+    list-style: none;
+    padding: 0 0 14px;
+    margin: 0 0 20px;
+    border-bottom: 1px solid #e9ecef;
+    font-size: 14px;
+    color: #6c757d;
+}
+.edm-imp-steps li {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+.edm-imp-steps li span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 24px;
+    height: 24px;
+    border-radius: 50%;
+    border: 1px solid #ced4da;
+    font-size: 12px;
+    font-weight: 600;
+}
+.edm-imp-steps li.active {
+    color: #212529;
+    font-weight: 600;
+}
+.edm-imp-steps li.active span {
+    background: #0d6efd;
+    border-color: #0d6efd;
+    color: #fff;
+}
+.edm-imp-steps li.done span {
+    background: #198754;
+    border-color: #198754;
+    color: #fff;
+}
+.edm-imp-drop {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 4px;
+    padding: 32px 16px;
+    border: 2px dashed #ced4da;
+    border-radius: 10px;
+    background: #fbfcfe;
+    text-align: center;
+    cursor: pointer;
+    transition: border-color 0.15s ease, background-color 0.15s ease;
+}
+.edm-imp-drop:hover,
+.edm-imp-drop.is-over {
+    border-color: #0d6efd;
+    background: #eef6ff;
+}
+.edm-imp-drop.has-file {
+    border-color: #198754;
+    border-style: solid;
+}
+.edm-imp-drop .bi {
+    font-size: 32px;
+    color: #0a5aa8;
+}
+.edm-imp-drop-title {
+    font-size: 15px;
+    font-weight: 600;
+    color: #212529;
+}
+.edm-imp-drop-link {
+    color: #0d6efd;
+    text-decoration: underline;
+}
+.edm-imp-drop-file {
+    margin-top: 6px;
+    font-size: 13px;
+    color: #495057;
+    word-break: break-all;
+}
+.edm-imp-map th {
+    min-width: 170px;
+    vertical-align: top;
+}
+.edm-imp-map .edm-imp-skip {
+    opacity: 0.45;
+}
+
 /* Calendar: a day with more than one send / reservation (calendar/calendar.js) */
 .edm-calendar td.edm-cal-conflict {
     background-color: #fff8e1;

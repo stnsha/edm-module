@@ -180,6 +180,8 @@ final class CampaignSender
                 $vars = [
                     'email'           => $email,
                     'member_code'     => $m['member_code'],
+                    'name'            => $m['name'],
+                    'fields'          => json_decode((string) $m['fields'], true) ?: [],
                     'unsubscribe_url' => $unsubscribe->url($id, $email),
                 ];
                 $started = microtime(true);
@@ -222,18 +224,22 @@ final class CampaignSender
     /**
      * Next subscribed list members without a send-log row for this newsletter.
      *
-     * @return list<array{email: string, member_code: ?string}>
+     * One row per address (the oldest when a list holds it twice), with the
+     * contact's name and custom field values for personalisation.
+     *
+     * @return list<array{email: string, member_code: ?string, name: ?string, fields: ?string}>
      */
     private function pending(int $campaignId, int $listId): array
     {
         return $this->db->select(
-            'SELECT MIN(m.`member_code`) AS member_code, LOWER(TRIM(m.`email`)) AS email
+            'SELECT m.`member_code`, LOWER(TRIM(m.`email`)) AS email, m.`name`, m.`fields`
                FROM `edm_list_members` m
-              WHERE m.`list_id` = ? AND m.`status` = 1 AND m.`deleted_at` IS NULL AND m.`email` <> \'\'
-                AND NOT EXISTS (SELECT 1 FROM `edm_send_log` s
+               JOIN (SELECT MIN(`id`) AS id FROM `edm_list_members`
+                      WHERE `list_id` = ? AND `status` = 1 AND `deleted_at` IS NULL AND `email` <> \'\'
+                      GROUP BY LOWER(TRIM(`email`))) oldest ON oldest.`id` = m.`id`
+              WHERE NOT EXISTS (SELECT 1 FROM `edm_send_log` s
                                  WHERE s.`campaign_id` = ? AND s.`email` = LOWER(TRIM(m.`email`)) AND s.`deleted_at` IS NULL)
-              GROUP BY LOWER(TRIM(m.`email`))
-              ORDER BY MIN(m.`id`)
+              ORDER BY m.`id`
               LIMIT ' . self::BATCH,
             [$listId, $campaignId]
         );

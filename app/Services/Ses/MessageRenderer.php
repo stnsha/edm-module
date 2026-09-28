@@ -7,9 +7,11 @@ namespace Edm\Services\Ses;
 /**
  * Fills personalisation variables ({{key}}) for one recipient.
  *
- * Known variables: {{email}}, {{member_code}} / {{MemberCode}},
- * {{unsubscribe_url}} / {{UnsubscribeLink}}. Contacts > Custom fields have no
- * per-member values stored yet, so any other {{key}} renders empty.
+ * Known variables: {{email}}, {{name}}, {{first_name}} (first word of the
+ * name), {{member_code}} / {{MemberCode}}, {{unsubscribe_url}} /
+ * {{UnsubscribeLink}}, and every Contacts > Custom field key from the
+ * contact's stored values (edm_list_members.fields, filled by Import).
+ * A variable with no value renders empty.
  *
  * The unsubscribe footer is mandatory (spec, dynamic content variables): when
  * the design has no unsubscribe variable, a footer with the link is appended.
@@ -50,14 +52,22 @@ final class MessageRenderer
         ) ?? $subject;
     }
 
-    /** @param array{email: string, member_code?: ?string, unsubscribe_url: string} $vars */
+    /**
+     * @param array{email: string, member_code?: ?string, name?: ?string,
+     *              fields?: ?array<string, string>, unsubscribe_url: string} $vars
+     */
     private static function value(string $key, array $vars): string
     {
+        $name = trim((string) ($vars['name'] ?? ''));
+        $fields = array_change_key_case(is_array($vars['fields'] ?? null) ? $vars['fields'] : [], CASE_LOWER);
+
         return match (true) {
             $key === 'email' => $vars['email'],
             $key === 'member_code', $key === 'membercode' => (string) ($vars['member_code'] ?? ''),
+            $key === 'name' => $name,
+            $key === 'first_name', $key === 'firstname' => $name !== '' ? (string) preg_split('/\s+/', $name)[0] : '',
             in_array($key, self::UNSUBSCRIBE_KEYS, true) => $vars['unsubscribe_url'],
-            default => '',
+            default => (string) ($fields[$key] ?? ''),
         };
     }
 

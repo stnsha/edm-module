@@ -2,6 +2,7 @@
     "require": {
         "aws/aws-sdk-php": "^3.398",
         "aws/aws-php-sns-message-validator": "^1.10",
-        "vlucas/phpdotenv": "^5.7"
+        "vlucas/phpdotenv": "^5.7",
+        "phpoffice/phpspreadsheet": "^5.8"
     }
 }

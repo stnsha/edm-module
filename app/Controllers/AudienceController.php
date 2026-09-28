@@ -10,15 +10,21 @@ use Edm\Models\ContactList;
 use Edm\Models\CustomField;
 use Edm\Models\Segment;
 use Edm\Models\Tag;
+use Edm\Services\Import\ContactImport;
+use Edm\Services\Import\ImportFileReader;
 
 /**
- * Contacts (audience/): Lists, Segments, Tags, Custom fields.
- * Actions: (lists|segments|tags|fields)_(list|create|update|delete).
+ * Contacts (audience/): Lists, Segments, Tags, Custom fields, Import.
+ * Actions: (lists|segments|tags|fields)_(list|create|update|delete),
+ * import_preview, import_run.
  */
 final class AudienceController extends Controller
 {
     protected function handle(string $action): mixed
     {
+        if ($action === 'import_preview' || $action === 'import_run') {
+            return $this->import($action);
+        }
         if (!preg_match('/^(lists|segments|tags|fields)_(list|create|update|delete)$/', $action, $m)) {
             $this->unknown();
         }
@@ -159,6 +165,46 @@ final class AudienceController extends Controller
         }
 
         return $this->crud($verb, CustomField::class, [], []);
+    }
+
+    /**
+     * Contacts > Import contacts (audience/import.php).
+     *   import_preview  multipart: list_id, consent, file | paste -> token, preview, mapping
+     *   import_run      { token, list_id, mapping[], has_header } -> summary counts
+     */
+    private function import(string $action): array
+    {
+        $import = new ContactImport($this->db, (int) $this->auth->staffId);
+
+        if ($action === 'import_preview') {
+            $data = $this->validator->validate($this->request->ids(['list_id']), [
+                'list_id' => ['required', 'integer', 'exists:edm_lists,id'],
+            ]);
+            if (empty($this->request->get('consent'))) {
+                throw ValidationException::single('consent', 'Confirm that you have permission to add these people to the list.');
+            }
+            $rows = isset($_FILES['file']) && ($_FILES['file']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE
+                ? ImportFileReader::fromUpload($_FILES['file'])
+                : ImportFileReader::fromPaste((string) $this->request->get('paste', ''));
+
+            return ['list_id' => $data['list_id']] + $import->stage($rows);
+        }
+
+        $data = $this->validator->validate(
+            $this->request->only(['token']) + $this->request->ids(['list_id']) + ['mapping' => $this->request->get('mapping')],
+            [
+                'token'   => ['required', 'string', 'max:64'],
+                'list_id' => ['required', 'integer', 'exists:edm_lists,id'],
+                'mapping' => ['required', 'array'],
+            ]
+        );
+
+        return $import->run(
+            (string) $data['token'],
+            (int) $data['list_id'],
+            array_map('strval', $data['mapping']),
+            !empty($this->request->get('has_header'))
+        );
     }
 
     /** @return list<string> non-empty trimmed lines from a textarea string or array */

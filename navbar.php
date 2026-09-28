@@ -105,6 +105,7 @@ $edm_nav = array(
         'gate'  => 'build',
         'items' => array(
             array('folder' => 'audience',    'file' => 'index.php',    'label' => 'Lists'),
+            array('folder' => 'audience',    'file' => 'import.php',   'label' => 'Import contacts'),
             array('folder' => 'audience',    'file' => 'segments.php', 'label' => 'Segments'),
             array('folder' => 'audience',    'file' => 'fields.php',   'label' => 'Custom fields'),
             array('folder' => 'audience',    'file' => 'tags.php',     'label' => 'Tags & scoring'),

@@ -7,18 +7,22 @@ namespace Edm\Models;
 use Edm\Core\Model;
 
 /**
- * A member of a contact list.
+ * A member of a contact list. `fields` holds Contacts > Custom fields values
+ * keyed by the field key ({{key}} in a design); `source` says how the contact
+ * arrived (e.g. "import").
  * Table: edm_list_members.
  */
 final class ListMember extends Model
 {
     public const STATUSES = [1 => 'subscribed', 2 => 'unsubscribed', 3 => 'bounced'];
 
+    public const SUBSCRIBED = 1;
+
     protected const TABLE = 'edm_list_members';
 
-    protected const FILLABLE = ['list_id', 'member_code', 'email', 'status', 'subscribed_at'];
+    protected const FILLABLE = ['list_id', 'member_code', 'email', 'name', 'fields', 'source', 'status', 'subscribed_at'];
 
-    protected const CASTS = ['status' => 'int', 'subscribed_at' => 'datetime'];
+    protected const CASTS = ['status' => 'int', 'fields' => 'json', 'subscribed_at' => 'datetime'];
 
     protected const ORDER = '`id` ASC';
 }
