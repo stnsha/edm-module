@@ -2298,18 +2298,6 @@ button {
     font-size: 12px;
 }
 
-/* Files > Upload image: preview of the chosen file */
-.edm-asset-preview {
-    padding: 8px;
-    border: 1px solid #e9ecef;
-    border-radius: 6px;
-    background: #f8f9fa;
-    text-align: center;
-}
-.edm-asset-preview img {
-    max-width: 100%;
-    max-height: 220px;
-}
 
 /* Contacts > Import contacts (audience/import.php) */
 /* Step breadcrumbs: pills with chevrons in a grey band */
@@ -2831,4 +2819,414 @@ button {
     .edm-rule-row .edm-rule-value-wrap {
         grid-column: 1;
     }
+}
+
+/* Settings > Users & permissions (settings/users.php): sizes copied from
+   atem/access_control/index.php's inline styles */
+.edm-users-page .edm-pill {
+    font-size: 12px;
+}
+.edm-users-panel-label {
+    font-size: 11px;
+    font-weight: 600;
+    letter-spacing: .06em;
+    text-transform: uppercase;
+}
+.edm-users-page .alert,
+.edm-users-page .alert span {
+    font-size: 12px;
+}
+.edm-users-search {
+    position: relative;
+}
+/* Staff search box: atem's Select2 single selection look */
+#edm-users-search {
+    height: 38px;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    font-size: 14px;
+    color: #212529;
+}
+.edm-users-results {
+    position: absolute;
+    z-index: 20;
+    top: 100%;
+    right: 0;
+    left: 0;
+    max-height: 240px;
+    margin: 0;
+    padding: 0;
+    overflow-y: auto;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    background: #fff;
+    list-style: none;
+    font-size: 12px;
+}
+.edm-users-results li[data-i] {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 0 8px;
+    padding: 6px;
+    cursor: pointer;
+}
+.edm-users-results li[data-i]:hover {
+    background-color: #0d6efd;
+    color: #fff;
+}
+.edm-users-results li[data-i]:hover .edm-users-results-meta {
+    color: #e7f1ff;
+}
+/* Every span in a result (name, department, "No access", role pill): the
+   legacy odb span rule is 15px otherwise */
+.edm-users-results span {
+    font-size: 12px;
+}
+.edm-users-results-meta {
+    grid-column: 1;
+    color: #6c757d;
+}
+.edm-users-results-role {
+    grid-row: 1 / span 2;
+    grid-column: 2;
+    align-self: center;
+}
+.edm-users-results-empty {
+    padding: 6px;
+    font-size: 12px;
+}
+/* atem .staff-info-box */
+.edm-users-info {
+    padding: 12px 14px;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    background: #f8f9fa;
+}
+.edm-users-info,
+.edm-users-info p,
+.edm-users-info strong,
+.edm-users-info span {
+    font-size: 12px;
+}
+.edm-users-info p {
+    margin-bottom: 4px;
+}
+/* atem .grade-list radios (page.css strips the native radio look) */
+.edm-users-roles .form-check {
+    margin-bottom: 6px;
+    padding-left: 1.75rem;
+}
+.edm-users-roles .form-check-label {
+    font-size: 12px;
+    cursor: pointer;
+}
+.edm-users-roles .form-check-input[type="radio"] {
+    width: 1em !important;
+    height: 1em !important;
+    margin-top: 0.25em;
+    border: 1px solid #adb5bd !important;
+    background-color: #fff !important;
+    cursor: pointer;
+    -webkit-appearance: radio !important;
+    -moz-appearance: radio !important;
+    appearance: radio !important;
+}
+.edm-users-roles .form-check-input[type="radio"]:checked {
+    border-color: #0d6efd !important;
+    background-color: #0d6efd !important;
+}
+
+/* Settings > Integrations & API: Amazon SES status card body at 12px (atem
+   detail text size). Set on every element - legacy odb td / span rules are
+   15px otherwise. Labels left-aligned like atem's info boxes. */
+#edm-ses-body,
+#edm-ses-body *,
+#edm-ses-panel .edm-card-hint,
+#edm-ses-panel .edm-card-hint * {
+    font-size: 12px;
+}
+#edm-ses-body th {
+    text-align: left;
+}
+
+/* Files > Upload images dialog (assets/index.php + assets/upload.js),
+   after the "Upload Photos" reference design */
+.edm-up-dialog {
+    max-width: 560px;
+}
+.edm-up {
+    padding: 28px 32px 24px;
+    border: 0;
+    border-radius: 14px;
+    box-shadow: 0 20px 50px rgba(20, 40, 90, 0.12);
+}
+.edm-up-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    margin-bottom: 18px;
+}
+.edm-up-title {
+    margin: 0;
+    font-size: 18px;
+    font-weight: 600;
+    color: #212529;
+}
+.edm-up-drop {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+    min-height: 190px;
+    padding: 24px 16px;
+    border: 1.5px dashed #aab4c3;
+    border-radius: 10px;
+    background: #fff;
+    text-align: center;
+    cursor: pointer;
+    transition: background-color 0.15s ease, border-color 0.15s ease;
+}
+.edm-up-drop:hover {
+    border-color: #0a5aa8;
+}
+.edm-up-drop.is-over {
+    border-color: #0a5aa8;
+    background: #eaf2ff;
+}
+/* Stacked picture tiles, like the reference artwork */
+.edm-up-art {
+    position: relative;
+    width: 72px;
+    height: 58px;
+    margin-bottom: 8px;
+}
+.edm-up-art .bi {
+    position: absolute;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 56px;
+    height: 46px;
+    border-radius: 10px;
+    color: #fff;
+    font-size: 26px;
+}
+.edm-up-art .bi:first-child {
+    top: 0;
+    left: 0;
+    background: linear-gradient(135deg, #8fb3ff, #5b8def);
+    opacity: 0.7;
+}
+.edm-up-art .bi:last-child {
+    right: 0;
+    bottom: 0;
+    background: linear-gradient(135deg, #6f9dff, #3f6fd8);
+    box-shadow: 0 6px 14px rgba(63, 111, 216, 0.3);
+}
+.edm-up-drop-text {
+    font-size: 14px;
+    color: #212529;
+}
+.edm-up-browse {
+    color: #0a5aa8;
+    font-weight: 500;
+}
+.edm-up-drop-over {
+    display: none;
+    font-size: 14px;
+    font-weight: 500;
+    color: #0a5aa8;
+}
+.edm-up-drop.is-over .edm-up-drop-text,
+.edm-up-drop.is-over .edm-up-hint {
+    display: none;
+}
+.edm-up-drop.is-over .edm-up-drop-over {
+    display: block;
+}
+.edm-up-hint {
+    font-size: 11px;
+    color: #8a94a6;
+}
+.edm-up-list {
+    max-height: 250px;
+    margin: 12px 0 0;
+    padding: 0;
+    overflow-y: auto;
+    list-style: none;
+}
+.edm-up-list:empty {
+    display: none;
+}
+.edm-up-item {
+    display: grid;
+    grid-template-columns: 40px minmax(0, 1fr) auto;
+    grid-template-rows: auto auto;
+    align-items: center;
+    gap: 6px 12px;
+    padding: 12px;
+    border: 1px solid #e3e8ef;
+    border-radius: 10px;
+}
+.edm-up-item + .edm-up-item {
+    margin-top: 8px;
+}
+.edm-up-thumb {
+    grid-row: 1;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    width: 40px;
+    height: 40px;
+    overflow: hidden;
+    border-radius: 6px;
+    background: #eef2f7;
+    color: #8a94a6;
+}
+.edm-up-thumb img {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+}
+.edm-up-info {
+    min-width: 0;
+}
+.edm-up-name,
+.edm-up-meta {
+    display: block;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.edm-up-name {
+    font-size: 13px;
+    font-weight: 500;
+    color: #1d3b73;
+}
+.edm-up-meta {
+    font-size: 11px;
+    color: #8a94a6;
+}
+.edm-up-item.is-failed .edm-up-meta {
+    color: #dc3545;
+}
+.edm-up-state .bi-check-lg {
+    font-size: 18px;
+}
+.edm-up-icon-btn {
+    padding: 2px 4px;
+    border: 0;
+    background: none;
+    color: #6c757d;
+}
+.edm-up-icon-btn.is-cancel {
+    color: #dc3545;
+}
+.edm-up-bar {
+    grid-column: 1 / 3;
+    height: 4px;
+    overflow: hidden;
+    border-radius: 2px;
+    background: #eef2f7;
+}
+.edm-up-bar-fill {
+    display: block;
+    width: 0;
+    height: 100%;
+    border-radius: 2px;
+    background: #1d4b9a;
+    transition: width 0.2s ease;
+}
+.edm-up-item.is-failed .edm-up-bar {
+    visibility: hidden;
+}
+.edm-up-pct {
+    font-size: 10px;
+    color: #8a94a6;
+    text-align: right;
+}
+.edm-up-or {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin: 16px 0;
+    font-size: 11px;
+    color: #adb5bd;
+}
+.edm-up-or::before,
+.edm-up-or::after {
+    content: "";
+    flex: 1;
+    border-top: 1px solid #e3e8ef;
+}
+.edm-up-label {
+    display: block;
+    margin-bottom: 8px;
+    font-size: 13px;
+    color: #212529;
+}
+.edm-up-url {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    padding: 6px 6px 6px 12px;
+    border-radius: 8px;
+    background: #f4f6f9;
+}
+.edm-up-url input {
+    flex: 1;
+    min-width: 0;
+    border: 0;
+    background: transparent;
+    font-size: 13px;
+    outline: none;
+}
+.edm-up-url .btn {
+    background: #fff;
+}
+.edm-up-url .btn:hover,
+.edm-up-url .btn:focus-visible {
+    background: #6c757d;
+    color: #fff;
+}
+.edm-up-url-error {
+    margin-top: 6px;
+    font-size: 12px;
+    color: #dc3545;
+}
+.edm-up-foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    margin-top: 22px;
+}
+.edm-up-foot .btn {
+    min-width: 96px;
+}
+.edm-up-state {
+    display: flex;
+    align-items: center;
+    gap: 6px;
+}
+.edm-up-rename {
+    height: 26px;
+    padding: 2px 8px;
+    font-size: 13px;
+}
+/* Files > Edit: preview of the image being edited */
+.edm-asset-edit-preview {
+    margin-bottom: 16px;
+    padding: 8px;
+    border: 1px solid #e3e8ef;
+    border-radius: 8px;
+    background: #f4f6f9;
+    text-align: center;
+}
+.edm-asset-edit-preview img {
+    max-width: 100%;
+    max-height: 240px;
+    border-radius: 4px;
+    object-fit: contain;
 }

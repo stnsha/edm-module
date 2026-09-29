@@ -1,6 +1,9 @@
 <?php
 $page_title = 'Senders';
+$page_subtitle = 'From-addresses available to newsletters. Each must be verified in Amazon SES before it can send: Request verification makes SES email the address a link, Check SES refreshes the status. A verified sending domain covers every address on it.';
 $page_js    = null; // set after header.php once EDM_BASE is defined
+require __DIR__ . '/../partials.php';
+$page_title_actions = edm_title_button('Add sender', 'edm-sender-add');
 include __DIR__ . '/../header.php';
 
 // Settings is superadmin-only. header.php only blocks tier 0, so guard here.
@@ -14,20 +17,6 @@ if (empty($_is_superadmin) && (int)$edm_permission !== 1) {
 
 $page_js = EDM_BASE . 'settings/senders.js';
 ?>
-<div class="d-flex align-items-start justify-content-between flex-wrap gap-2 mb-3">
-    <div>
-        <p class="text-muted small mb-0">
-            From-addresses available to newsletters. Each must be verified in Amazon SES
-            before it can send: Request verification makes SES email the address a link,
-            Check SES refreshes the status. A verified sending domain covers every
-            address on it.
-        </p>
-    </div>
-    <button type="button" class="btn btn-primary btn-sm" id="edm-sender-add">
-        <i class="bi bi-plus-lg"></i> Add sender
-    </button>
-</div>
-
 <div id="edm-sender-alert" class="alert alert-danger py-2 px-3 small" hidden></div>
 
 <div class="table-responsive">

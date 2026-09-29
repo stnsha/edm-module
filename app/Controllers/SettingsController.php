@@ -19,7 +19,7 @@ use Edm\Services\Ses\SesGateway;
  *   senders_(list|create|update|delete), senders_verify
  *   domains_(list|create|update|delete)
  *   (integrations|general)_(list|create|update|delete)   grouped key/value
- *   users_list, users_update                             staff.edm tier (superadmin only)
+ *   users_list, users_search, users_save, users_delete   staff.edm role (superadmin only)
  *   ses_status, ses_sender_check, ses_sender_request, ses_domain_check   Amazon SES
  */
 final class SettingsController extends Controller
@@ -40,7 +40,7 @@ final class SettingsController extends Controller
         if (preg_match('/^(integrations|general)_(list|create|update|delete)$/', $action, $m)) {
             return $this->settings($m[1], $m[2]);
         }
-        if ($action === 'users_list' || $action === 'users_update') {
+        if (in_array($action, ['users_list', 'users_search', 'users_save', 'users_delete'], true)) {
             return $this->users($action);
         }
         if (str_starts_with($action, 'ses_')) {
@@ -218,27 +218,85 @@ final class SettingsController extends Controller
         ]);
     }
 
-    /** staff.edm lives in odb's staff table, not an edm_* table. Superadmin only. */
-    private function users(string $action): array
+    /**
+     * Users & permissions (settings/users.php, laid out like atem's Access
+     * Control). staff.edm lives in odb's staff table, not an edm_* table.
+     * Superadmin only.
+     *   users_list    staff with an EDM role (edm 1-4)
+     *   users_search  ?q= active staff by name (20), for "Add access"
+     *   users_save    { id, edm 1-4 } grant or change a role
+     *   users_delete  { id } remove access (edm = 0)
+     * Nobody can change or remove their own role, so the last superadmin
+     * cannot lock everyone out by accident.
+     */
+    private function users(string $action): mixed
     {
         if (!$this->auth->isSuperadmin) {
             throw new HttpException('Superadmin only.', 403);
         }
-        if ($action === 'users_list') {
-            return array_map(static fn (array $r): array => [
-                'id' => (int) $r['id'],
-                'nama_staff' => $r['nama_staff'],
-                'edm' => (int) $r['edm'],
-            ], $this->db->select('SELECT id, nama_staff, edm FROM staff WHERE edm > 0 ORDER BY nama_staff'));
-        }
 
-        $id = $this->requireId('Staff');
-        $tier = (int) $this->request->get('edm', -1);
-        if ($tier < 0 || $tier > 4) {
-            throw new HttpException('A staff id and a tier 0-4 are required', 422);
+        switch ($action) {
+            case 'users_list':
+                return $this->staffRows('s.`edm` > 0', [], 's.`edm` ASC, s.`nama_staff` ASC', null);
+            case 'users_search':
+                $q = trim((string) $this->request->query('q', ''));
+                if (mb_strlen($q) < 2) {
+                    return [];
+                }
+                $like = '%' . addcslashes($q, '\\%_') . '%';
+                return $this->staffRows('s.`nama_staff` LIKE ?', [$like], 's.`nama_staff` ASC', 20);
+            case 'users_save':
+                $id = $this->requireId('Staff');
+                $role = (int) $this->request->get('edm', 0);
+                if ($role < 1 || $role > 4) {
+                    throw ValidationException::single('edm', 'Choose a role.');
+                }
+                $this->guardStaff($id);
+                $this->db->execute('UPDATE `staff` SET `edm` = ? WHERE `id` = ? AND `recycle` != 1', [$role, $id]);
+                return $this->staffRows('s.`id` = ?', [$id], 's.`id`', 1)[0];
+            default: // users_delete
+                $id = $this->requireId('Staff');
+                $this->guardStaff($id);
+                $this->db->execute('UPDATE `staff` SET `edm` = 0 WHERE `id` = ?', [$id]);
+                return ['id' => $id, 'edm' => 0];
         }
-        $this->db->execute('UPDATE staff SET edm = ? WHERE id = ?', [$tier, $id]);
+    }
 
-        return ['id' => $id, 'edm' => $tier];
+    /** Active staff member, and not the signed-in user. */
+    private function guardStaff(int $id): void
+    {
+        if ($id === $this->auth->staffId) {
+            throw new HttpException('You cannot change your own access - ask another superadmin.', 422);
+        }
+        if ($this->db->scalar('SELECT `id` FROM `staff` WHERE `id` = ? AND `recycle` != 1', [$id]) === null) {
+            throw new HttpException('Staff member not found or no longer active.', 404);
+        }
+    }
+
+    /**
+     * Staff rows for the page: name, department, status and EDM role. Only
+     * active staff (recycle != 1).
+     *
+     * @param list<mixed> $params
+     * @return list<array<string, mixed>>
+     */
+    private function staffRows(string $where, array $params, string $order, ?int $limit): array
+    {
+        $rows = $this->db->select(
+            'SELECT s.`id`, s.`nama_staff`, s.`edm`, s.`status_semasa`, d.`depart_name`
+               FROM `staff` s
+               LEFT JOIN `staff_department` d ON d.`id` = s.`department`
+              WHERE s.`recycle` != 1 AND ' . $where . '
+              ORDER BY ' . $order . ($limit !== null ? ' LIMIT ' . $limit : ''),
+            $params
+        );
+
+        return array_map(static fn (array $r): array => [
+            'id'         => (int) $r['id'],
+            'nama_staff' => (string) $r['nama_staff'],
+            'department' => $r['depart_name'] !== null ? (string) $r['depart_name'] : '',
+            'status'     => (string) ($r['status_semasa'] ?? ''),
+            'edm'        => (int) $r['edm'],
+        ], $rows);
     }
 }

@@ -124,6 +124,8 @@ $edm_nav = array(
             // Template editor (edit.php) is reached from the Templates list.
             array('folder' => 'templates', 'file' => 'index.php', 'label' => 'Templates',
                 'files' => array('edit.php')),
+            // Asset library: newsletter images live with the newsletters.
+            array('folder' => 'assets',    'file' => 'index.php', 'label' => 'Files'),
         ),
     ),
     array(
@@ -138,11 +140,6 @@ $edm_nav = array(
         'label' => 'Calendar',
         'gate'  => 'view',
         'href'  => 'calendar/index.php',
-    ),
-    array(
-        'label' => 'Files',
-        'gate'  => 'build',
-        'href'  => 'assets/index.php',
     ),
     array(
         'label' => 'Approval',

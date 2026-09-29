@@ -93,8 +93,8 @@ if ((int)$edm_permission === 0 && !$_is_superadmin) {
 
         <?php if (empty($page_hide_title)): /* a page with its own heading bar sets $page_hide_title = true */ ?>
         <div class="row mb-4">
-            <div class="col-12 d-flex align-items-start justify-content-between flex-wrap gap-2">
-                <div>
+            <div class="col-12 d-flex align-items-start justify-content-between gap-3">
+                <div class="flex-grow-1" style="min-width:0;">
                     <h1 class="edm-page-title mb-0">
                         <?php echo htmlspecialchars($page_title); ?><?php echo isset($page_title_badge) ? ' ' . $page_title_badge : ''; ?>
                     </h1>
@@ -103,7 +103,7 @@ if ((int)$edm_permission === 0 && !$_is_superadmin) {
                     <?php endif; ?>
                 </div>
                 <?php if (!empty($page_title_actions)): ?>
-                <div><?php echo $page_title_actions; ?></div>
+                <div class="flex-shrink-0"><?php echo $page_title_actions; ?></div>
                 <?php endif; ?>
             </div>
         </div>

@@ -188,7 +188,7 @@ decoupled via the `$edm_nav` map in `navbar.php`.
 | Calendar                | `calendar/index.php`             | Campaign Calendar    | view  |
 | Newsletters > Templates | `templates/index.php`           | Template Library     | build |
 | (no menu entry; via Templates > Edit / Design template) | `templates/edit.php` | Template Library | build |
-| Files                   | `assets/index.php`              | Asset Library        | build |
+| Newsletters > Files     | `assets/index.php`              | Asset Library        | build |
 | Approval                | `approval/index.php`           | Approval Centre      | build |
 | Settings > Senders      | `settings/senders.php`         | Settings             | super |
 | Settings > Sending domains | `settings/domains.php`       | Settings             | super |

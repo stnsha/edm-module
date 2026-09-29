@@ -1,11 +1,9 @@
 <?php
 $page_title = 'Files';
-$page_subtitle = 'Images and banners for EDM artwork. Upload an image (JPG, PNG, GIF or WebP, up to 5 MB) or register an image that is already hosted elsewhere.';
+$page_subtitle = 'Images and banners for EDM artwork.';
 require __DIR__ . '/../partials.php';
-$page_title_actions = '<div class="d-flex gap-2">'
-    . '<button type="button" class="btn btn-outline-primary d-inline-flex align-items-center" id="edm-crud-add"><i class="bi bi-link-45deg me-1"></i>Add URL</button>'
-    . '<button type="button" class="btn btn-primary d-inline-flex align-items-center" id="edm-asset-upload-btn"><i class="bi bi-upload me-1"></i>Upload image</button>'
-    . '</div>';
+$page_title_actions = '<button type="button" class="btn btn-primary d-inline-flex align-items-center" id="edm-asset-upload-btn">'
+    . '<i class="bi bi-upload me-1"></i>Upload images</button>';
 include __DIR__ . '/../header.php';
 $page_js = EDM_BASE . 'js/edm-crud.js';
 
@@ -13,129 +11,48 @@ edm_crud_screen(array(
     'columns' => array('Name', 'URL', 'Type', 'Added'),
 ));
 ?>
-<!-- Upload image: posts multipart to assets/api.php?action=assets_upload. -->
-<div class="modal fade" id="edm-asset-upload-modal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form id="edm-asset-upload-form">
-                <div class="modal-header">
-                    <h5 class="modal-title">Upload image</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <div class="mb-3">
-                        <label class="form-label" for="edm-asset-file">Image <span class="text-danger" aria-hidden="true">*</span></label>
-                        <input type="file" class="form-control" id="edm-asset-file" accept="image/jpeg,image/png,image/gif,image/webp" required>
-                        <div class="form-text">JPG, PNG, GIF or WebP, up to 5 MB.</div>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label" for="edm-asset-name">Name</label>
-                        <input type="text" class="form-control" id="edm-asset-name" maxlength="255" placeholder="Defaults to the file name">
-                    </div>
-                    <div class="edm-asset-preview" id="edm-asset-preview" hidden>
-                        <img id="edm-asset-preview-img" alt="Selected image preview">
-                    </div>
-                    <div id="edm-asset-upload-error" class="text-danger small mt-2" hidden></div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary btn-sm" id="edm-asset-upload-save">Upload</button>
-                </div>
-            </form>
+<!-- Upload images: drop / browse (each file posts to assets_upload with its
+     own progress bar) or import from a URL (assets_create). assets/upload.js. -->
+<div class="modal fade" id="edm-asset-upload-modal" tabindex="-1" aria-labelledby="edm-up-title" aria-hidden="true">
+    <div class="modal-dialog modal-dialog-centered edm-up-dialog">
+        <div class="modal-content edm-up">
+            <div class="edm-up-head">
+                <h2 class="edm-up-title" id="edm-up-title">Upload images</h2>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+
+            <label class="edm-up-drop" id="edm-up-drop" for="edm-up-file">
+                <span class="edm-up-art" aria-hidden="true"><i class="bi bi-image"></i><i class="bi bi-image"></i></span>
+                <span class="edm-up-drop-text">Drop your images here, or <span class="edm-up-browse">browse</span></span>
+                <span class="edm-up-drop-over"><i class="bi bi-chevron-double-right"></i> Drop your files here <i class="bi bi-chevron-double-left"></i></span>
+                <span class="edm-up-hint">Supports: JPG, JPEG, PNG, GIF, WEBP - up to 5 MB each</span>
+            </label>
+            <input type="file" id="edm-up-file" class="visually-hidden" accept="image/jpeg,image/png,image/gif,image/webp" multiple>
+
+            <ul class="edm-up-list" id="edm-up-list"></ul>
+
+            <div class="edm-up-or"><span>or</span></div>
+
+            <label class="edm-up-label" for="edm-up-url">Import from URL</label>
+            <div class="edm-up-url">
+                <input type="url" id="edm-up-url" placeholder="Add image URL, e.g. https://example.com/banner.jpg" autocomplete="off">
+                <button type="button" class="btn btn-sm btn-outline-secondary" id="edm-up-url-btn">Upload</button>
+            </div>
+            <div class="edm-up-url-error" id="edm-up-url-error" hidden></div>
+
+            <div class="edm-up-foot">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal" id="edm-up-cancel">Cancel</button>
+                <button type="button" class="btn btn-primary" id="edm-up-done">Import</button>
+            </div>
         </div>
     </div>
 </div>
 <script>
-(function () {
-    var BASE = window.EDM_MODULE_BASE || '/odb/edm/';
-    var MAX_BYTES = 5 * 1024 * 1024;
-    var TYPES = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
-
-    var modalEl = document.getElementById('edm-asset-upload-modal');
-    var formEl  = document.getElementById('edm-asset-upload-form');
-    var fileEl  = document.getElementById('edm-asset-file');
-    var nameEl  = document.getElementById('edm-asset-name');
-    var prevEl  = document.getElementById('edm-asset-preview');
-    var imgEl   = document.getElementById('edm-asset-preview-img');
-    var errEl   = document.getElementById('edm-asset-upload-error');
-    var saveBtn = document.getElementById('edm-asset-upload-save');
-    var modal   = null;
-    var objectUrl = null;
-
-    function showError(msg) {
-        errEl.textContent = msg;
-        errEl.hidden = false;
-    }
-
-    function clearPreview() {
-        if (objectUrl) { URL.revokeObjectURL(objectUrl); objectUrl = null; }
-        imgEl.removeAttribute('src');
-        prevEl.hidden = true;
-    }
-
-    // Checked again on the server (content sniffing); this only saves a round trip.
-    function checkFile(file) {
-        if (!file) { return 'Choose an image to upload.'; }
-        if (TYPES.indexOf(file.type) === -1) { return 'Only JPG, PNG, GIF or WebP images can be uploaded.'; }
-        if (file.size > MAX_BYTES) { return 'The image must not be larger than 5 MB.'; }
-        return null;
-    }
-
-    document.getElementById('edm-asset-upload-btn').addEventListener('click', function () {
-        if (!modal) { modal = new bootstrap.Modal(modalEl); }
-        formEl.reset();
-        errEl.hidden = true;
-        clearPreview();
-        modal.show();
-    });
-
-    fileEl.addEventListener('change', function () {
-        errEl.hidden = true;
-        clearPreview();
-        var file = fileEl.files[0];
-        var problem = checkFile(file);
-        if (problem) { showError(problem); return; }
-        objectUrl = URL.createObjectURL(file);
-        imgEl.src = objectUrl;
-        prevEl.hidden = false;
-    });
-
-    modalEl.addEventListener('hidden.bs.modal', clearPreview);
-
-    formEl.addEventListener('submit', function (e) {
-        e.preventDefault();
-        errEl.hidden = true;
-        var file = fileEl.files[0];
-        var problem = checkFile(file);
-        if (problem) { showError(problem); return; }
-
-        var body = new FormData();
-        body.append('file', file);
-        if (nameEl.value.trim() !== '') { body.append('name', nameEl.value.trim()); }
-
-        saveBtn.disabled = true;
-        saveBtn.textContent = 'Uploading...';
-        fetch(BASE + 'assets/api.php?action=assets_upload', { method: 'POST', body: body, headers: { 'Accept': 'application/json' } })
-            .then(function (r) { return r.json(); })
-            .then(function (res) {
-                saveBtn.disabled = false;
-                saveBtn.textContent = 'Upload';
-                if (!res.success) { showError(res.message || 'Upload failed.'); return; }
-                modal.hide();
-                if (window.edmCrudReload) { window.edmCrudReload(); }
-            })
-            .catch(function () {
-                saveBtn.disabled = false;
-                saveBtn.textContent = 'Upload';
-                showError('Could not reach the server.');
-            });
-    });
-})();
-
 window.EDM_CRUD_CONFIG = {
     api: 'assets/api.php',
     entity: 'file',
     actions: { list: 'assets_list', create: 'assets_create', update: 'assets_update', 'delete': 'assets_delete' },
+    noCreate: true,
     columns: [
         { key: 'name', label: 'Name' },
         { key: 'url', label: 'URL' },
@@ -146,9 +63,32 @@ window.EDM_CRUD_CONFIG = {
         { name: 'name', label: 'Name', type: 'text', required: true },
         { name: 'url', label: 'URL', type: 'text', required: true },
         { name: 'type', label: 'Type', type: 'text', help: 'e.g. image' }
-    ]
+    ],
+    // Edit: show the image above the fields; follows the URL as it is typed.
+    onFormOpen: function (row, bodyEl) {
+        var box = document.getElementById('edm-asset-edit-preview');
+        if (!box) {
+            box = document.createElement('div');
+            box.id = 'edm-asset-edit-preview';
+            box.className = 'edm-asset-edit-preview';
+            box.innerHTML = '<img alt="Image preview"><span class="text-muted small" hidden>Image could not be loaded from this URL.</span>';
+            bodyEl.insertBefore(box, bodyEl.firstChild);
+            var img = box.querySelector('img');
+            var msg = box.querySelector('span');
+            img.addEventListener('load', function () { img.hidden = false; msg.hidden = true; });
+            img.addEventListener('error', function () { img.hidden = true; msg.hidden = false; });
+            document.getElementById('edm-f-url').addEventListener('input', function () { show(this.value.trim()); });
+        }
+        function show(url) {
+            var img = box.querySelector('img');
+            box.hidden = !url;
+            if (url) { img.src = url; }
+        }
+        show(row && row.url ? row.url : '');
+    }
 };
 </script>
+<script src="<?php echo EDM_BASE; ?>assets/upload.js"></script>
 <?php
 include __DIR__ . '/../footer.php';
 ?>

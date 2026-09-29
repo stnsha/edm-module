@@ -51,6 +51,14 @@ final class AssetController extends Controller
         }
 
         $payload = $this->request->only(['name', 'url', 'type']) + ($m[1] === 'create' ? $this->stamp('uploaded_by') : []);
+        // An image hosted elsewhere must be a full web address - it is put
+        // into emails as-is and loaded by the recipient's mail client.
+        if (isset($payload['url'])) {
+            $url = (string) $payload['url'];
+            if (filter_var($url, FILTER_VALIDATE_URL) === false || !in_array(strtolower((string) parse_url($url, PHP_URL_SCHEME)), ['http', 'https'], true)) {
+                throw ValidationException::single('url', 'Enter a full image address starting with http:// or https://.');
+            }
+        }
         $rules = [
             'name'             => ['required', 'string', 'max:255'],
             'url'              => ['required', 'string', 'max:255'],
