@@ -10,13 +10,15 @@ use Edm\Models\CampaignContent;
 use Edm\Services\SegmentQuery;
 
 /**
- * Newsletters (campaign/). Actions:
+ * Campaigns (campaign/). Actions:
  *   campaigns_list | campaigns_create | campaigns_update | campaigns_delete
  *   (campaigns_create takes an optional template_id: its design is copied in)
  *   campaigns_submit    draft / revision -> pending submission
  *   campaigns_duplicate "Reuse" (same list) or copy to list_id
  *   campaigns_stop      scheduled -> draft, sending -> completed
  *   campaigns_preview   raw email HTML for an <iframe> (not JSON)
+ *   campaigns_new    POST -> empty draft (default sender preset), opened in the
+ *                    Email creator by the New campaign button
  */
 final class CampaignController extends Controller
 {
@@ -50,38 +52,40 @@ final class CampaignController extends Controller
         switch ($action) {
             case 'campaigns_list':
                 return Campaign::listing();
+            case 'campaigns_new':
+                return Campaign::createBlank($this->stamp('requested_by'));
             case 'campaigns_create':
                 $data = $this->validator->validate($this->payload() + $this->stamp('requested_by'), self::RULES);
-                SegmentQuery::forNewsletter($data['segment_id'] ?? null, (int) $data['list_id']);
+                SegmentQuery::forCampaign($data['segment_id'] ?? null, (int) $data['list_id']);
                 $template = $this->validator->validate(
                     $this->request->ids(['template_id']),
                     ['template_id' => ['sometimes', 'nullable', 'integer', 'exists:edm_templates,id']]
                 );
                 return Campaign::createDraft($data, $template['template_id'] ?? null);
             case 'campaigns_update':
-                $id = $this->requireId('Newsletter');
+                $id = $this->requireId('Campaign');
                 $existing = Campaign::findOrFail($id);
                 $data = $this->validator->validate($this->payload(), self::UPDATE_RULES, $id);
-                SegmentQuery::forNewsletter(
+                SegmentQuery::forCampaign(
                     array_key_exists('segment_id', $data) ? $data['segment_id'] : $existing['segment_id'],
                     array_key_exists('list_id', $data) ? $data['list_id'] : $existing['list_id']
                 );
                 Campaign::update($id, $data);
                 return Campaign::withDetails($id);
             case 'campaigns_delete':
-                Campaign::delete($this->requireId('Newsletter'));
+                Campaign::delete($this->requireId('Campaign'));
                 return null;
             case 'campaigns_submit':
-                return Campaign::submit($this->requireId('Newsletter'));
+                return Campaign::submit($this->requireId('Campaign'));
             case 'campaigns_duplicate':
                 $changeList = $this->request->has('list_id');
                 $target = $this->request->ids(['list_id'])['list_id'] ?? null;
                 if ($changeList && $target !== null) {
                     $this->validator->validate(['list_id' => $target], ['list_id' => ['integer', 'exists:edm_lists,id']]);
                 }
-                return Campaign::duplicate($this->requireId('Newsletter'), $this->stamp('requested_by'), $changeList, $target);
+                return Campaign::duplicate($this->requireId('Campaign'), $this->stamp('requested_by'), $changeList, $target);
             case 'campaigns_stop':
-                return Campaign::stop($this->requireId('Newsletter'));
+                return Campaign::stop($this->requireId('Campaign'));
             case 'campaigns_preview':
                 $this->preview();
         }

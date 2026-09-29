@@ -7,7 +7,7 @@ namespace Edm\Models;
 use Edm\Core\Model;
 
 /**
- * A revision request on a newsletter.
+ * A revision request on a campaign.
  * Table: edm_revisions.
  */
 final class Revision extends Model

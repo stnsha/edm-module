@@ -53,7 +53,7 @@ export function AssetPicker({ selectedUrl, onPick }: Props) {
       {assets.length === 0 ? (
         <Box sx={{ p: 1.5, border: '1px dashed', borderColor: 'divider', borderRadius: 1 }}>
           <Typography variant="caption" color="text.secondary">
-            No images yet. Upload them under Files, then reopen this newsletter.
+            No images yet. Upload them under Files, then reopen this campaign.
           </Typography>
         </Box>
       ) : shown.length === 0 ? (

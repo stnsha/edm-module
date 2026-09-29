@@ -36,7 +36,7 @@
     var submitBtn = document.getElementById('edm-eb-submit');
     var templateBtn = document.getElementById('edm-eb-template');
 
-    // Same labels / pill colours as the Newsletters list (campaign/index.php).
+    // Same labels / pill colours as the Campaigns list (campaign/index.php).
     var STATUS = {
         1: { label: 'Draft', cls: 'edm-pill-secondary' },
         2: { label: 'Pending submission', cls: 'edm-pill-info' },
@@ -196,7 +196,7 @@
     });
     f.scheduled.addEventListener('change', checkConflicts);
     f.name.addEventListener('input', function () {
-        nameEl.textContent = f.name.value.trim() || 'Untitled newsletter';
+        nameEl.textContent = f.name.value.trim() || 'Untitled campaign';
         nameEl.title = nameEl.textContent;
     });
 
@@ -254,16 +254,23 @@
 
     // Required settings, checked in form order before anything is sent
     // (the server enforces the same rules).
-    var REQUIRED = [
-        { el: f.name,    label: 'Name' },
-        { el: f.sender,  label: 'Sender' },
-        { el: f.list,    label: 'Recipient list' },
-        { el: f.subject, label: 'Subject line' }
-    ];
+    // A draft saves with just a name (New campaign opens an empty one);
+    // Submit needs every field (the server checks the design too), a test
+    // email needs a sender and a subject.
+    var FIELD = {
+        name:    { el: f.name,    label: 'Name' },
+        sender:  { el: f.sender,  label: 'Sender' },
+        list:    { el: f.list,    label: 'Recipient list' },
+        subject: { el: f.subject, label: 'Subject line' }
+    };
+    var REQUIRED_SAVE   = [FIELD.name];
+    var REQUIRED_SUBMIT = [FIELD.name, FIELD.sender, FIELD.list, FIELD.subject];
+    var REQUIRED_TEST   = [FIELD.name, FIELD.sender, FIELD.subject];
 
-    function missingField() {
-        for (var i = 0; i < REQUIRED.length; i++) {
-            if (!REQUIRED[i].el.value.trim()) { return REQUIRED[i]; }
+    function missingField(list) {
+        list = list || REQUIRED_SAVE;
+        for (var i = 0; i < list.length; i++) {
+            if (!list[i].el.value.trim()) { return list[i]; }
         }
         return null;
     }
@@ -344,7 +351,7 @@
         e.preventDefault();
         var to = testTo.value.trim();
         if (!testTo.checkValidity() || !to) { testMessage('danger', 'Enter a valid email address.'); return; }
-        var missing = missingField();
+        var missing = missingField(REQUIRED_TEST);
         if (missing) { testMessage('danger', missing.label + ' is required - fill it in above first.'); return; }
         try { window.localStorage.setItem(TEST_TO_KEY, to); } catch (err) { /* storage blocked */ }
 
@@ -369,7 +376,7 @@
     });
 
     // Start from template: load a copy of a template into the editor. It
-    // only becomes the newsletter's body on the next Save.
+    // only becomes the campaign's body on the next Save.
     var tplModalEl = document.getElementById('edm-eb-template-modal');
     var tplSelect  = document.getElementById('edm-eb-template-select');
     var tplApply   = document.getElementById('edm-eb-template-apply');
@@ -420,9 +427,15 @@
     }
 
     // Submit = save everything first (so review sees the current version),
-    // then move the newsletter into review.
+    // then move the campaign into review.
     submitBtn.addEventListener('click', function () {
-        var name = f.name.value.trim() || 'this newsletter';
+        var missing = missingField(REQUIRED_SUBMIT);
+        if (missing) {
+            missing.el.focus();
+            showAlert(missing.label + ' is required before submitting for review.');
+            return;
+        }
+        var name = f.name.value.trim() || 'this campaign';
         window.edmConfirm('Save and submit "' + name + '" for review? It cannot be edited while under review.', function () {
             submitBtn.disabled = true;
             afterSave = function () {
@@ -472,7 +485,7 @@
     call('load').then(function (res) {
         if (!res.success) { showAlert(res.message); return; }
         var c = res.data || {};
-        nameEl.textContent = c.name || ('Newsletter #' + CID);
+        nameEl.textContent = c.name || ('Campaign #' + CID);
         nameEl.title = nameEl.textContent;
         setStatus(c.status);
         fillSettings(c);

@@ -1,6 +1,6 @@
 <?php
 $page_title = 'Senders';
-$page_subtitle = 'From-addresses available to newsletters. Each must be verified in Amazon SES before it can send: Request verification makes SES email the address a link, Check SES refreshes the status. A verified sending domain covers every address on it.';
+$page_subtitle = 'From-addresses available to campaigns. Each must be verified in Amazon SES before it can send: Request verification makes SES email the address a link, Check SES refreshes the status. A verified sending domain covers every address on it.';
 $page_js    = null; // set after header.php once EDM_BASE is defined
 require __DIR__ . '/../partials.php';
 $page_title_actions = edm_title_button('Add sender', 'edm-sender-add');
@@ -64,7 +64,7 @@ $page_js = EDM_BASE . 'settings/senders.js';
                     </div>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="edm-sender-default">
-                        <label class="form-check-label" for="edm-sender-default">Default sender for new newsletters</label>
+                        <label class="form-check-label" for="edm-sender-default">Default sender for new campaigns</label>
                     </div>
                     <div id="edm-sender-form-error" class="text-danger small mt-2" hidden></div>
                 </div>
@@ -76,7 +76,7 @@ $page_js = EDM_BASE . 'settings/senders.js';
         </div>
     </div>
 </div>
-<script src="<?php echo EDM_BASE; ?>js/edm-confirm.js"></script>
+<script src="<?php echo EDM_BASE; ?>js/edm-confirm.js?v=<?php echo filemtime(__DIR__ . '/../js/edm-confirm.js'); ?>"></script>
 <?php
 include __DIR__ . '/../footer.php';
 ?>

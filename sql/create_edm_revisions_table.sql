@@ -1,5 +1,5 @@
 -- Table `edm_revisions` (EDM module, odb database).
--- Revision requests on a newsletter.
+-- Revision requests on a campaign.
 -- Drops and recreates the table (development: existing rows are lost).
 -- Datetime columns hold Asia/Kuala_Lumpur local time. deleted_at = soft delete (NULL = active).
 

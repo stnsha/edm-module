@@ -1,6 +1,7 @@
 @echo off
 rem ==========================================================================
-rem  EDM send queue - runs edm\cron\send.php once (about 50 seconds of work).
+rem  EDM send queue - runs edm\cron\send.php once (about 50 seconds of work),
+rem  then edm\cron\qa.php (automated QA checks, up to about 40 seconds).
 rem
 rem  Schedule it every minute with Windows Task Scheduler. From an
 rem  Administrator command prompt on the server (adjust the path):
@@ -27,5 +28,8 @@ rem %~dp0 is this file's folder (edm\cron\), so the task works from any
 rem working directory.
 "%PHP_EXE%" "%~dp0send.php"
 set "RC=%ERRORLEVEL%"
+
+rem Automated QA checks on queued campaigns (log: edm\logs\qa.log).
+"%PHP_EXE%" "%~dp0qa.php"
 
 endlocal & exit /b %RC%

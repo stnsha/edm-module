@@ -8,7 +8,7 @@ declare(strict_types=1);
  *
  *   php edm/cron/send.php
  *
- * Starts due scheduled newsletters and sends for up to ~50 seconds
+ * Starts due scheduled campaigns and sends for up to ~50 seconds
  * (Edm\Services\Ses\CampaignSender). A lock file stops two runs overlapping.
  * Output goes to the console and to edm/logs/ses-send.log.
  */

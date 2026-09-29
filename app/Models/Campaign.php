@@ -9,7 +9,7 @@ use Edm\Core\HttpException;
 use Edm\Core\Model;
 
 /**
- * A newsletter. Table: edm_campaigns.
+ * A campaign. Table: edm_campaigns.
  *
  * status is an integer, never a word (spec 5.1, 9-state flow) - see STATUSES.
  */
@@ -46,7 +46,7 @@ final class Campaign extends Model
     }
 
     /**
-     * Newsletters list: every row plus `delivered` (edm_send_log rows) and
+     * Campaigns list: every row plus `delivered` (edm_send_log rows) and
      * `list` ({ id, name } or null). Newest first.
      *
      * @return list<array<string, mixed>>
@@ -85,7 +85,7 @@ final class Campaign extends Model
     }
 
     /**
-     * One newsletter with its `content` and `list`.
+     * One campaign with its `content` and `list`.
      *
      * @return array<string, mixed>
      */
@@ -175,11 +175,41 @@ final class Campaign extends Model
     }
 
     /** Draft / content revision -> pending submission. */
+    /**
+     * New campaign from the Campaigns list: an empty draft opened
+     * straight in the Email creator. Sender, list and subject are filled in
+     * there; the default sender is preset. They are checked on submit().
+     *
+     * @param array<string, mixed> $stamp requested_by / requested_by_name
+     * @return array<string, mixed>
+     */
+    public static function createBlank(array $stamp): array
+    {
+        $sender = self::db()->scalar(
+            'SELECT `id` FROM `edm_senders` WHERE `deleted_at` IS NULL AND `is_default` = 1 ORDER BY `id` LIMIT 1'
+        );
+
+        return self::createDraft([
+            'name'      => 'Untitled campaign ' . date('d-m-Y H:i'),
+            'sender_id' => $sender !== null ? (int) $sender : null,
+        ] + $stamp);
+    }
+
     public static function submit(int $id): array
     {
         $campaign = self::findOrFail($id);
         if (!self::isEditable($campaign)) {
             throw new HttpException('Only a draft or a campaign in revision can be submitted for review.', 422);
+        }
+        // Drafts may be saved half-filled; a submitted one must be complete.
+        $missing = array_keys(array_filter([
+            'a sender'         => $campaign['sender_id'] === null,
+            'a recipient list' => $campaign['list_id'] === null,
+            'a subject line'   => trim((string) $campaign['subject']) === '',
+            'a design'         => trim((string) (CampaignContent::forCampaign($id)['html'] ?? '')) === '',
+        ]));
+        if ($missing !== []) {
+            throw new HttpException('Before submitting, add ' . implode(', ', $missing) . '.', 422);
         }
 
         return self::update($id, ['status' => self::PENDING_SUBMISSION]);
@@ -198,7 +228,7 @@ final class Campaign extends Model
             default => null,
         };
         if ($next === null) {
-            throw new HttpException('Only a scheduled or sending newsletter can be stopped.', 422);
+            throw new HttpException('Only a scheduled or sending campaign can be stopped.', 422);
         }
 
         return self::update($id, ['status' => $next]);

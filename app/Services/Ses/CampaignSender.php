@@ -17,19 +17,19 @@ use Edm\Services\SegmentQuery;
  * The send queue, run every minute by cron/send.php (spec 5.2 step 7: "SES
  * queue triggered at scheduled datetime").
  *
- *   1. Scheduled (6) newsletters whose scheduled_at has passed and that pass
+ *   1. Scheduled (6) campaigns whose scheduled_at has passed and that pass
  *      the pre-send checks move to Sending (7).
- *   2. Sending newsletters are worked through in batches until the time
+ *   2. Sending campaigns are worked through in batches until the time
  *      budget runs out. With a segment, only list members matching its
  *      conditions (SegmentQuery) are recipients; the conditions are read
  *      at the start of each run. Every recipient gets exactly one edm_send_log row
  *      (sent, failed or skipped), so a run that stops part-way resumes where
  *      it left off. "Stop sending" (status leaves 7) is honoured per batch.
- *   3. A newsletter with no member left to process becomes Completed (8).
+ *   3. A campaign with no member left to process becomes Completed (8).
  *
  * Suppression rules applied at queue time (spec, hard, no override):
  * suppressed address, 1 send per rolling 24 hours, 2 per rolling 7 days,
- * 8 per calendar month - counted over every newsletter's actual sends.
+ * 8 per calendar month - counted over every campaign's actual sends.
  */
 final class CampaignSender
 {
@@ -102,19 +102,19 @@ final class CampaignSender
             $id = (int) $row['id'];
             $problem = $this->preflight(Campaign::findOrFail($id));
             if ($problem !== null) {
-                ($this->log)("Newsletter #{$id} not started: {$problem}");
+                ($this->log)("Campaign #{$id} not started: {$problem}");
                 continue;
             }
-            // Conditional on the status, so a newsletter stopped meanwhile stays stopped.
+            // Conditional on the status, so a campaign stopped meanwhile stays stopped.
             $this->db->execute(
                 'UPDATE `edm_campaigns` SET `status` = ?, `updated_at` = ? WHERE `id` = ? AND `status` = ?',
                 [Campaign::SENDING, date('Y-m-d H:i:s'), $id, Campaign::SCHEDULED]
             );
-            ($this->log)("Newsletter #{$id} started sending.");
+            ($this->log)("Campaign #{$id} started sending.");
         }
     }
 
-    /** Why a newsletter cannot be sent, or null when it can. */
+    /** Why a campaign cannot be sent, or null when it can. */
     private function preflight(array $c): ?string
     {
         $sender = $c['sender_id'] !== null ? Sender::find((int) $c['sender_id']) : null;
@@ -130,11 +130,11 @@ final class CampaignSender
         };
     }
 
-    /** Why the newsletter's segment cannot be used, or null. */
+    /** Why the campaign's segment cannot be used, or null. */
     private function segmentProblem(array $c): ?string
     {
         try {
-            SegmentQuery::forNewsletter(
+            SegmentQuery::forCampaign(
                 $c['segment_id'] !== null ? (int) $c['segment_id'] : null,
                 $c['list_id'] !== null ? (int) $c['list_id'] : null
             );
@@ -157,31 +157,31 @@ final class CampaignSender
         );
     }
 
-    /** Send one newsletter's next batches. Returns emails sent. */
+    /** Send one campaign's next batches. Returns emails sent. */
     private function work(int $id, float $deadline, float $gap, int &$room): int
     {
         $c = Campaign::findOrFail($id);
         $sender = Sender::find((int) $c['sender_id']);
         $problem = $this->preflight($c);
         if ($problem !== null || $sender === null) {
-            ($this->log)("Newsletter #{$id} paused: " . ($problem ?? 'no sender.'));
+            ($this->log)("Campaign #{$id} paused: " . ($problem ?? 'no sender.'));
             return 0;
         }
         $html = (string) CampaignContent::forCampaign($id)['html'];
         // Checked by preflight() just above, so this does not throw.
-        $segment = SegmentQuery::forNewsletter($c['segment_id'] !== null ? (int) $c['segment_id'] : null, (int) $c['list_id']);
+        $segment = SegmentQuery::forCampaign($c['segment_id'] !== null ? (int) $c['segment_id'] : null, (int) $c['list_id']);
         $unsubscribe = new Unsubscribe($this->ses->config);
         $sent = 0;
 
         while (microtime(true) < $deadline && $room > 0) {
             if ((int) $this->db->scalar('SELECT `status` FROM `edm_campaigns` WHERE `id` = ?', [$id]) !== Campaign::SENDING) {
-                ($this->log)("Newsletter #{$id} was stopped.");
+                ($this->log)("Campaign #{$id} was stopped.");
                 return $sent;
             }
             $batch = $this->pending($id, (int) $c['list_id'], $segment);
             if ($batch === []) {
                 Campaign::update($id, ['status' => Campaign::COMPLETED]);
-                ($this->log)("Newsletter #{$id} completed.");
+                ($this->log)("Campaign #{$id} completed.");
                 return $sent;
             }
 
@@ -225,7 +225,7 @@ final class CampaignSender
                     if (self::isRetryable($e)) {
                         // Throttled / account-level pause: nothing is recorded,
                         // the recipient is retried on the next run.
-                        ($this->log)("Newsletter #{$id} paused: " . $e->getMessage());
+                        ($this->log)("Campaign #{$id} paused: " . $e->getMessage());
                         return $sent;
                     }
                     $this->record($id, $m, SendLog::FAILED, null, mb_substr($e->getMessage(), 0, 255));
@@ -241,7 +241,7 @@ final class CampaignSender
     }
 
     /**
-     * Next subscribed list members without a send-log row for this newsletter,
+     * Next subscribed list members without a send-log row for this campaign,
      * limited to those matching the segment when there is one.
      *
      * One row per address (the oldest when a list holds it twice), with the

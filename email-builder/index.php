@@ -2,9 +2,9 @@
 $page_title  = 'Email creator';
 $campaign_id = isset($_GET['campaign']) ? (int)$_GET['campaign'] : 0;
 if (!$campaign_id) {
-    $page_subtitle = 'Pick a newsletter to design.';
+    $page_subtitle = 'Pick a campaign to design.';
 } else {
-    // The editor bar below carries the newsletter name instead.
+    // The editor bar below carries the campaign name instead.
     $page_hide_title = true;
 }
 require __DIR__ . '/../partials.php';
@@ -53,7 +53,7 @@ $page_js = EDM_BASE . 'email-builder/email-builder.js';
         .then(function (res) {
             var rows = (res.success && res.data) || [];
             if (!rows.length) {
-                rowsEl.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No newsletters yet - create one under Newsletters.</td></tr>';
+                rowsEl.innerHTML = '<tr><td colspan="5" class="text-center text-muted py-4">No campaigns yet - create one under Campaigns.</td></tr>';
                 return;
             }
             rowsEl.innerHTML = rows.map(function (r, i) {
@@ -79,7 +79,7 @@ $page_js = EDM_BASE . 'email-builder/email-builder.js';
 </script>
 <?php else: ?>
 <div class="edm-eb-bar">
-    <a class="edm-eb-back" href="<?php echo EDM_BASE; ?>campaign/index.php" title="Back to newsletters" aria-label="Back to newsletters">
+    <a class="edm-eb-back" href="<?php echo EDM_BASE; ?>campaign/index.php" title="Back to campaigns" aria-label="Back to campaigns">
         <i class="bi bi-arrow-left"></i>
     </a>
     <div class="edm-eb-heading">
@@ -149,7 +149,7 @@ window.EDM_EB_ASSETS = <?php echo json_encode($edm_assets); ?>;
 window.EDM_EB_SEGMENT_LISTS = <?php echo json_encode((object) $edm_segment_lists); ?>;
 </script>
 
-<!-- Newsletter settings (same fields as the Newsletters create form). Saved
+<!-- Campaign settings (same fields as the Campaigns create form). Saved
      together with the design by the Save button / Ctrl+S. -->
 <form class="edm-eb-settings" id="edm-eb-settings" autocomplete="off" onsubmit="return false;">
     <div class="row g-3">
@@ -247,7 +247,7 @@ window.EDM_EB_SEGMENT_LISTS = <?php echo json_encode((object) $edm_segment_lists
             <div class="modal-body">
                 <label class="form-label" for="edm-eb-test-to">Send to <span class="text-danger" aria-hidden="true">*</span></label>
                 <input type="email" class="form-control" id="edm-eb-test-to" maxlength="255" required autocomplete="email">
-                <div class="form-text">The newsletter is saved first. While the SES account is in the sandbox, this address must be verified in SES too.</div>
+                <div class="form-text">The campaign is saved first. While the SES account is in the sandbox, this address must be verified in SES too.</div>
                 <div class="alert py-2 px-3 small mt-3 mb-0" id="edm-eb-test-result" hidden></div>
             </div>
             <div class="modal-footer">
@@ -257,7 +257,7 @@ window.EDM_EB_SEGMENT_LISTS = <?php echo json_encode((object) $edm_segment_lists
         </form>
     </div>
 </div>
-<script src="<?php echo EDM_BASE; ?>js/edm-confirm.js"></script>
+<script src="<?php echo EDM_BASE; ?>js/edm-confirm.js?v=<?php echo filemtime(__DIR__ . '/../js/edm-confirm.js'); ?>"></script>
 <script src="<?php echo EDM_BASE; ?>js/edm-segment-picker.js"></script>
 <?php endif; ?>
 <?php

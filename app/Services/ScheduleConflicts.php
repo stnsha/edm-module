@@ -13,9 +13,9 @@ use Edm\Models\Campaign;
  * slot; conflict detection runs").
  *
  * A day is taken by:
- *   - another newsletter scheduled that day (any status except archived), or
+ *   - another campaign scheduled that day (any status except archived), or
  *   - a calendar slot reserved that day, unless the slot is linked to the
- *     newsletter being checked.
+ *     campaign being checked.
  *
  * Conflicts are warnings for BPT to judge, not a block. calendar/calendar.js
  * applies the same rule to the month grid.
@@ -35,15 +35,15 @@ final class ScheduleConflicts
         $exclude = $campaignId ?? 0;
         $out = [];
 
-        $newsletters = $this->db->select(
+        $campaigns = $this->db->select(
             'SELECT `id`, `name` FROM `edm_campaigns`
               WHERE `deleted_at` IS NULL AND `status` <> ? AND `scheduled_at` IS NOT NULL
                 AND DATE(`scheduled_at`) = ? AND `id` <> ?
               ORDER BY `scheduled_at`',
             [Campaign::ARCHIVED, $day, $exclude]
         );
-        foreach ($newsletters as $r) {
-            $out[] = ['type' => 'newsletter', 'id' => (int) $r['id'], 'name' => (string) $r['name']];
+        foreach ($campaigns as $r) {
+            $out[] = ['type' => 'campaign', 'id' => (int) $r['id'], 'name' => (string) $r['name']];
         }
 
         $slots = $this->db->select(

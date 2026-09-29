@@ -7,7 +7,7 @@ namespace Edm\Models;
 use Edm\Core\Model;
 
 /**
- * A From-address newsletters are sent from.
+ * A From-address campaigns are sent from.
  * Table: edm_senders.
  */
 final class Sender extends Model

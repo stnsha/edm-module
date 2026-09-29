@@ -2151,7 +2151,7 @@ button {
 }
 
 /* ---------------------------------------------------------------
-   Newsletters (campaign/) - Preview modal
+   Campaigns (campaign/) - Preview modal
 --------------------------------------------------------------- */
 .edm-nl-preview-frame {
     display: block;
@@ -3229,4 +3229,263 @@ button {
     max-height: 240px;
     border-radius: 4px;
     object-fit: contain;
+}
+
+/* Approval Centre > Raise review (approval/edit.php): Quill editors sized
+   like atem's ATEM Description (fixed height, scrolls inside) */
+.edm-rv-editor.ql-container {
+    height: 220px;
+}
+.edm-rv-editor-lg.ql-container {
+    height: 350px;
+}
+.edm-mode-read .edm-rv-editor.ql-container {
+    border-top: 1px solid #ccc;
+    border-radius: 4px;
+    background: #f8f9fa;
+}
+
+/* ---------------------------------------------------------------
+   Dialogs (js/edm-confirm.js: edmConfirm / edmAlert / edmPrompt):
+   coloured top bar, tinted icon circle, grey footer, tinted action
+--------------------------------------------------------------- */
+.edm-dlg-dialog {
+    max-width: 520px;
+}
+.edm-dlg {
+    --dlg-main: #0a5aa8;
+    --dlg-tint: #e7f1ff;
+    --dlg-dark: #0a4a8a;
+    overflow: hidden;
+    border: 0;
+    border-top: 5px solid var(--dlg-main);
+    border-radius: 6px;
+    box-shadow: 0 18px 40px rgba(20, 30, 50, 0.18);
+}
+.edm-dlg-danger  { --dlg-main: #dc3545; --dlg-tint: #fde8ea; --dlg-dark: #b02a37; }
+.edm-dlg-warning { --dlg-main: #f0b429; --dlg-tint: #fdf3d7; --dlg-dark: #7a5a00; }
+.edm-dlg-success { --dlg-main: #198754; --dlg-tint: #e3f4ea; --dlg-dark: #146c43; }
+.edm-dlg-info    { --dlg-main: #0a5aa8; --dlg-tint: #e7f1ff; --dlg-dark: #0a4a8a; }
+.edm-dlg-body {
+    display: flex;
+    align-items: flex-start;
+    gap: 18px;
+    padding: 26px 28px 22px;
+    background: #fff;
+}
+.edm-dlg-icon {
+    display: flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 44px;
+    height: 44px;
+    border-radius: 50%;
+    background: var(--dlg-tint);
+    color: var(--dlg-main);
+    font-size: 22px;
+}
+.edm-dlg-text {
+    flex: 1;
+    min-width: 0;
+    padding-top: 2px;
+}
+.edm-dlg-title {
+    margin: 0 0 6px;
+    font-size: 17px;
+    font-weight: 600;
+    color: #212529;
+}
+.edm-dlg-msg,
+.edm-dlg-msg * {
+    font-size: 14px;
+    line-height: 1.55;
+    color: #5c6470;
+}
+.edm-dlg-field {
+    margin-top: 14px;
+}
+.edm-dlg-field textarea {
+    font-size: 14px;
+}
+.edm-dlg-foot {
+    display: flex;
+    justify-content: flex-end;
+    gap: 10px;
+    padding: 14px 20px;
+    background: #f6f7f9;
+}
+.edm-dlg-foot .btn {
+    min-width: 88px;
+    padding: 7px 16px;
+    border: 0;
+    border-radius: 6px;
+    font-size: 14px;
+    font-weight: 600;
+}
+.edm-dlg-cancel {
+    background: transparent;
+    color: #495057;
+}
+.edm-dlg-cancel:hover,
+.edm-dlg-cancel:focus-visible {
+    background: #e9ecef;
+    color: #212529;
+}
+.edm-dlg-ok {
+    background: var(--dlg-tint);
+    color: var(--dlg-dark);
+}
+.edm-dlg-ok:hover,
+.edm-dlg-ok:focus-visible {
+    background: var(--dlg-main);
+    color: #fff;
+}
+.edm-dlg-warning .edm-dlg-ok:hover,
+.edm-dlg-warning .edm-dlg-ok:focus-visible {
+    color: #3d2d00;
+}
+
+/* In-page alert banners, after the "Warning!" banner design: soft tinted
+   background, 2px tinted border, dark text in the same hue */
+.edm-container .alert {
+    border-width: 2px;
+    border-radius: 8px;
+}
+.edm-container .alert-warning { border-color: #f7df9a; background: #fffbef; color: #6b4e00; }
+.edm-container .alert-danger  { border-color: #f5c2c7; background: #fff6f7; color: #8f1d2a; }
+.edm-container .alert-success { border-color: #b7e0c6; background: #f4fbf7; color: #115c39; }
+.edm-container .alert-info    { border-color: #b9d4f5; background: #f4f8fe; color: #0a4a8a; }
+/* odb's page.css centres text inside modals; dialogs read left-aligned */
+.edm-dlg,
+.edm-dlg * {
+    text-align: left;
+}
+
+/* BPT Review card (approval/edit.php): checklist + sending slot, atem sizes */
+.edm-bpt-checks .form-check,
+#edm-bpt-card .form-check {
+    margin-bottom: 6px;
+}
+#edm-bpt-card .form-check-label {
+    font-size: 13px;
+    cursor: pointer;
+}
+.edm-bpt-slot {
+    padding: 12px 14px;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    background: #f8f9fa;
+}
+.edm-bpt-slot,
+.edm-bpt-slot p,
+.edm-bpt-slot span,
+.edm-bpt-slot strong,
+.edm-bpt-slot a {
+    font-size: 12px;
+}
+.edm-audit-bpt_approved .edm-audit-icon {
+    background: #d1e7dd;
+    color: #0a3622;
+}
+.edm-audit-bpt_rejected .edm-audit-icon {
+    background: #f8d7da;
+    color: #58151c;
+}
+.edm-audit-resubmitted .edm-audit-icon {
+    background: #cfe2ff;
+    color: #084298;
+}
+
+/* Automated QA card (approval/edit.php) */
+.edm-qa-meta {
+    font-size: 12px;
+    color: #6c757d;
+}
+.edm-qa-list {
+    margin: 12px 0 0;
+    padding: 0;
+    list-style: none;
+}
+.edm-qa-item {
+    display: flex;
+    gap: 10px;
+    padding: 9px 0;
+    border-top: 1px solid #f1f3f5;
+}
+.edm-qa-item > .bi {
+    flex: 0 0 auto;
+    margin-top: 1px;
+    font-size: 15px;
+}
+.edm-qa-body {
+    flex: 1;
+    min-width: 0;
+}
+.edm-qa-line {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 4px 14px;
+}
+.edm-qa-label {
+    min-width: 170px;
+    font-size: 13px;
+    font-weight: 600;
+    color: #212529;
+}
+.edm-qa-summary {
+    flex: 1;
+    font-size: 13px;
+    color: #495057;
+}
+.edm-qa-details {
+    margin: 4px 0 0;
+    padding-left: 18px;
+    font-size: 12px;
+    color: #6c757d;
+    word-break: break-all;
+}
+.edm-qa-details li {
+    font-size: 12px;
+}
+.edm-qa-item.is-fail .edm-qa-details {
+    color: #b02a37;
+}
+.edm-audit-qa_passed .edm-audit-icon {
+    background: #d1e7dd;
+    color: #0a3622;
+}
+.edm-audit-qa_failed .edm-audit-icon {
+    background: #f8d7da;
+    color: #58151c;
+}
+
+/* Activity Log (approval/edit.php): events beyond atem's set */
+.edm-audit-attachment_removed .edm-audit-icon {
+    background: #f8d7da;
+    color: #58151c;
+}
+.edm-audit-approved .edm-audit-icon {
+    background: #d1e7dd;
+    color: #0a3622;
+}
+.edm-audit-rejected .edm-audit-icon {
+    background: #f8d7da;
+    color: #58151c;
+}
+/* odb's page.css strips the native checkbox look (same fix as the radios) */
+#edm-bpt-card .form-check-input[type="checkbox"] {
+    width: 1em !important;
+    height: 1em !important;
+    margin-top: 0.25em;
+    border: 1px solid #adb5bd !important;
+    background-color: #fff !important;
+    cursor: pointer;
+    -webkit-appearance: checkbox !important;
+    -moz-appearance: checkbox !important;
+    appearance: checkbox !important;
+}
+#edm-bpt-card .form-label span {
+    font-size: 12px;
 }

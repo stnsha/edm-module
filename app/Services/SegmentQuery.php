@@ -32,8 +32,8 @@ use Edm\Models\Segment;
  * "is not" / ">" / "<" become is_not / gt / lt.
  *
  * Matching always covers subscribed, non-deleted members only (the people a
- * newsletter can reach), optionally within one list. Used by the Segments
- * screen (live count + sample), the newsletter segment picker and
+ * campaign can reach), optionally within one list. Used by the Segments
+ * screen (live count + sample), the campaign segment picker and
  * Ses\CampaignSender (recipients).
  */
 final class SegmentQuery
@@ -166,14 +166,14 @@ final class SegmentQuery
     }
 
     /**
-     * A newsletter's segment, checked against its list: it must still exist,
+     * A campaign's segment, checked against its list: it must still exist,
      * belong to that list (or to no list) and have valid conditions. Returns
-     * the normalized definition, or null when the newsletter has no segment.
+     * the normalized definition, or null when the campaign has no segment.
      *
      * @throws ValidationException on segment_id
      * @return array{match: string, rules: list<array{field: string, op: string, value: string}>}|null
      */
-    public static function forNewsletter(?int $segmentId, ?int $listId): ?array
+    public static function forCampaign(?int $segmentId, ?int $listId): ?array
     {
         if ($segmentId === null) {
             return null;

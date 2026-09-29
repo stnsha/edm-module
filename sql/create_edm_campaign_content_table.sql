@@ -1,5 +1,5 @@
 -- Table `edm_campaign_content` (EDM module, odb database).
--- Newsletter body: html (sent) + editor_json (EmailBuilder.js block tree).
+-- Campaign body: html (sent) + editor_json (EmailBuilder.js block tree).
 -- Drops and recreates the table (development: existing rows are lost).
 -- Datetime columns hold Asia/Kuala_Lumpur local time. deleted_at = soft delete (NULL = active).
 

@@ -1,5 +1,8 @@
 -- Table `edm_approvals` (EDM module, odb database).
--- Approval steps per newsletter. status: 1=pending, 2=approved, 3=rejected.
+-- Review requests / approval steps per campaign. status: 1=pending, 2=approved, 3=rejected.
+-- A request raised from approval/edit.php carries title, requester, objective,
+-- audience brief and copywriting (HTML from the Quill editors); artwork files
+-- are in edm_approval_files.
 -- Drops and recreates the table (development: existing rows are lost).
 -- Datetime columns hold Asia/Kuala_Lumpur local time. deleted_at = soft delete (NULL = active).
 
@@ -10,6 +13,12 @@ SET FOREIGN_KEY_CHECKS = 1;
 CREATE TABLE `edm_approvals` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `campaign_id` bigint unsigned NOT NULL,
+  `title` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `requested_by` int unsigned DEFAULT NULL,
+  `requested_by_name` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `objective` mediumtext COLLATE utf8mb4_unicode_ci,
+  `audience_brief` mediumtext COLLATE utf8mb4_unicode_ci,
+  `copywriting` mediumtext COLLATE utf8mb4_unicode_ci,
   `step` tinyint unsigned NOT NULL DEFAULT '1',
   `status` tinyint unsigned NOT NULL DEFAULT '1',
   `reviewer_id` int unsigned DEFAULT NULL,

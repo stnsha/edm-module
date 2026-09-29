@@ -117,7 +117,7 @@ $edm_roles = array(
 window.EDM_USER_ROLES = <?php echo json_encode($edm_roles); ?>;
 window.EDM_USER_SELF = <?php echo json_encode(isset($id_user) ? (int)$id_user : null); ?>;
 </script>
-<script src="<?php echo EDM_BASE; ?>js/edm-confirm.js"></script>
+<script src="<?php echo EDM_BASE; ?>js/edm-confirm.js?v=<?php echo filemtime(__DIR__ . '/../js/edm-confirm.js'); ?>"></script>
 <?php
 include __DIR__ . '/../footer.php';
 ?>

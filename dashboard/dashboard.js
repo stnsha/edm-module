@@ -31,7 +31,7 @@
             var d = res.data || {};
             var c = d.campaigns || {}, a = d.audience || {}, s = d.senders || {}, del = d.delivery || {};
 
-            stat('newsletters', c.total || 0, (c.scheduled || 0) + ' scheduled');
+            stat('campaigns', c.total || 0, (c.scheduled || 0) + ' scheduled');
             stat('lists', a.lists || 0, (a.list_members || 0) + ' members');
             stat('suppressed', a.suppressed || 0, 'addresses');
             stat('senders', (s.verified || 0) + ' / ' + (s.total || 0), 'verified / total');

@@ -1,6 +1,6 @@
 <?php
 $page_title = 'Segments';
-$page_subtitle = 'Saved groups of contacts, picked by conditions on their details and custom fields. Choose one on a newsletter to send only to the contacts on its list who match.';
+$page_subtitle = 'Saved groups of contacts, picked by conditions on their details and custom fields. Choose one on a campaign to send only to the contacts on its list who match.';
 require __DIR__ . '/../partials.php';
 $page_title_actions = edm_title_button('New segment');
 include __DIR__ . '/../header.php';
@@ -40,7 +40,7 @@ window.EDM_CRUD_CONFIG = {
         { name: 'name', label: 'Name', type: 'text', required: true },
         { name: 'description', label: 'Description', type: 'textarea' },
         { name: 'list_id', label: 'List', type: 'select', options: <?php echo json_encode($edm_segment_lists); ?>,
-          help: 'Optional. A segment on one list is offered only for newsletters sent to that list.' },
+          help: 'Optional. A segment on one list is offered only for campaigns sent to that list.' },
         { name: 'definition', label: 'Conditions', type: 'rules', required: true,
           catalog: <?php echo json_encode($edm_segment_catalog); ?>,
           count: { action: 'segments_count', listField: 'list_id' } }

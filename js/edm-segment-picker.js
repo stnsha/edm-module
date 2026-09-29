@@ -1,5 +1,5 @@
 /**
- * Newsletter "Segment" select, shared by the New newsletter form
+ * Campaign "Segment" select, shared by the New campaign form
  * (campaign/index.php) and the Email creator settings (email-builder/).
  *
  *   edmSegmentPicker({
@@ -10,7 +10,7 @@
  *   }) -> { sync() }
  *
  * Segments tied to another list are hidden (and cleared when selected), and
- * the hint shows how many subscribed contacts the newsletter would reach,
+ * the hint shows how many subscribed contacts the campaign would reach,
  * from audience/api.php segments_count - before suppressions and send limits.
  */
 (function () {

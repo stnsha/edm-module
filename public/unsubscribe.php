@@ -34,7 +34,7 @@ $done = false;
 if ($link !== null && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $email = strtolower($link['email']);
     $campaign = Campaign::find($link['campaign_id']);
-    Suppression::suppress($email, 'unsubscribed', 'Unsubscribe link', 'Newsletter #' . $link['campaign_id']);
+    Suppression::suppress($email, 'unsubscribed', 'Unsubscribe link', 'Campaign #' . $link['campaign_id']);
     if ($campaign !== null && $campaign['list_id'] !== null) {
         foreach (ListMember::where('`list_id` = ? AND LOWER(`email`) = ?', [(int) $campaign['list_id'], $email]) as $m) {
             ListMember::update((int) $m['id'], ['status' => 2]); // 2 = unsubscribed

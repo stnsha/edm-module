@@ -6,7 +6,7 @@
  *
  * The postMessage protocol is documented in editor-src/src/bridge.ts; this is
  * the Email creator's host logic (email-builder/email-builder.js) without the
- * newsletter-only parts (status, submit for review).
+ * campaign-only parts (status, submit for review).
  */
 (function () {
     'use strict';

@@ -7,7 +7,7 @@ namespace Edm\Models;
 use Edm\Core\Model;
 
 /**
- * A newsletter body: html (what is sent) + editor_json (EmailBuilder.js
+ * A campaign body: html (what is sent) + editor_json (EmailBuilder.js
  * block tree, so the design reopens editable). One row per campaign.
  * Table: edm_campaign_content.
  */

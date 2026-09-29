@@ -1,6 +1,6 @@
 <?php
 $page_title = 'Templates';
-$page_subtitle = 'Reusable email layouts. Pick one when creating a newsletter, or use Start from template in the Email creator.';
+$page_subtitle = 'Reusable email layouts. Pick one when creating a campaign, or use Start from template in the Email creator.';
 require __DIR__ . '/../partials.php';
 $page_title_actions = edm_title_button('New template');
 include __DIR__ . '/../header.php';

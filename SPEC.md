@@ -167,7 +167,7 @@ SES sending domains: count in scope; DKIM / SPF per domain.
 The marketing / CRM team is moving off GetResponse (`app.getresponse.com`);
 GetResponse is being cancelled, not integrated. This module is its replacement.
 To keep the switch familiar, the navigation grouping, screen labels, and the
-newsletter creation flow mirror GetResponse. Folder names on disk stay
+campaign creation flow mirror GetResponse. Folder names on disk stay
 spec-aligned (code identity, drives navbar active state); the display label is
 decoupled via the `$edm_nav` map in `navbar.php`.
 
@@ -181,14 +181,14 @@ decoupled via the `$edm_nav` map in `navbar.php`.
 | Contacts > Custom fields | `audience/fields.php`            | Audience Builder     | build |
 | (not in menu) Tags       | `audience/tags.php`             | Audience Builder     | build |
 | Contacts > Suppression lists | `suppression/index.php`       | Suppression Centre   | build |
-| Newsletters > All newsletters | `campaign/index.php`       | Campaign Management  | build |
-| (no menu entry; via Newsletters > Design, keeps All newsletters active) | `email-builder/index.php` | Email Builder | build |
+| Campaigns > All campaigns | `campaign/index.php`       | Campaign Management  | build |
+| (no menu entry; via Campaigns > Design, keeps All campaigns active) | `email-builder/index.php` | Email Builder | build |
 | Automation > Workflows   | `automation/index.php`           | Automation Builder   | build |
 | Automation > Autoresponders | `automation/autoresponders.php` | Automation Builder | build |
 | Calendar                | `calendar/index.php`             | Campaign Calendar    | view  |
-| Newsletters > Templates | `templates/index.php`           | Template Library     | build |
+| Campaigns > Templates | `templates/index.php`           | Template Library     | build |
 | (no menu entry; via Templates > Edit / Design template) | `templates/edit.php` | Template Library | build |
-| Newsletters > Files     | `assets/index.php`              | Asset Library        | build |
+| Campaigns > Files     | `assets/index.php`              | Asset Library        | build |
 | Approval                | `approval/index.php`           | Approval Centre      | build |
 | Settings > Senders      | `settings/senders.php`         | Settings             | super |
 | Settings > Sending domains | `settings/domains.php`       | Settings             | super |
@@ -202,7 +202,7 @@ Gates: `build` = edm in (1,2,3); `view` = edm >= 1; `super` = edm == 1.
 | GetResponse                | This module        |
 | -------------------------- | ------------------ |
 | Campaign (legacy = a list) | List               |
-| Newsletter                 | Newsletter         |
+| Newsletter                 | Campaign         |
 | Autoresponder              | Autoresponder      |
 | Marketing Automation       | Workflow           |
 | Segment                    | Segment            |
@@ -216,7 +216,7 @@ Never use the bare word "Campaign" for the audience container - that is
 GetResponse's legacy meaning and the top source of confusion. The container is a
 "List".
 
-### Newsletter creation flow (GetResponse 3-step wizard shape)
+### Campaign creation flow (GetResponse 3-step wizard shape)
 
 1. Setup - name, subject + A/B subject variant, sender (`settings/senders.php`),
    reply-to, recipient Lists / Segments, UTM auto-tag. Creates campaign at
@@ -260,7 +260,7 @@ Ownership boundaries:
 | Module      | Tables                                                                                                                                          | Phase |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
 | Contacts    | `edm_lists`, `edm_list_members` (by member code), `edm_segments` (filter JSON), `edm_tags`, `edm_member_tags`, `edm_custom_fields`               | 1     |
-| Newsletters | `edm_campaigns` (9-status enum, `requested_by` / `requested_by_name` snapshot), `edm_campaign_content` (html + editor JSON + version), `edm_campaign_ab_variants`, `edm_campaign_recipients` (resolved snapshot), `edm_campaign_status_log` | 1 |
+| Campaigns | `edm_campaigns` (9-status enum, `requested_by` / `requested_by_name` snapshot), `edm_campaign_content` (html + editor JSON + version), `edm_campaign_ab_variants`, `edm_campaign_recipients` (resolved snapshot), `edm_campaign_status_log` | 1 |
 | Suppression | `edm_suppressions` (email, reason enum, source), `edm_send_log` (drives 8/month, 2/week, 1/day rolling caps)                                     | 1     |
 | Calendar    | `edm_calendar_slots` (slot allocation + conflict detection)                                                                                      | 1     |
 | Settings    | `edm_senders` (from-field + verified flag), `edm_sending_domains` (dkim / spf status), `edm_settings` (kv)                                        | 1     |
@@ -268,4 +268,4 @@ Ownership boundaries:
 | Templates   | `edm_templates`, `edm_template_content`                                                                                                          | 2     |
 | Files       | `edm_assets`                                                                                                                                     | 2     |
 | Automation  | `edm_workflows`, `edm_workflow_nodes`, `edm_workflow_runs`, `edm_autoresponders`                                                                 | 2     |
-| Approval    | `edm_approvals` (step 1-8, reviewer, decision, comment), `edm_revisions`                                                                          | 2     |
+| Approval    | `edm_approvals` (request: title, requester, objective, audience brief, copywriting; step 1-8, reviewer, decision, comment), `edm_approval_files` (artwork), `edm_revisions`                                                                          | 2     |

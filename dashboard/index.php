@@ -8,7 +8,7 @@ $page_js = EDM_BASE . 'dashboard/dashboard.js';
 // a coloured .edm-stat-value (filled in by dashboard.js) and a .edm-stat-label.
 // id suffix => [title, value colour class, label]
 $edm_kpis = array(
-    'newsletters' => array('Newsletters', 'edm-stat-value--blue', 'scheduled'),
+    'campaigns' => array('Campaigns', 'edm-stat-value--blue', 'scheduled'),
     'lists'       => array('Lists', 'edm-stat-value--blue', 'members'),
     'suppressed'  => array('Suppressed', 'edm-stat-value--red', 'addresses'),
     'senders'     => array('Senders Verified', 'edm-stat-value--green', 'verified / total'),
@@ -19,7 +19,7 @@ $edm_kpis = array(
 );
 
 // Campaign::STATUSES label => [title, value colour]. Colours match the status
-// pills on the Newsletters list (campaign/index.php).
+// pills on the Campaigns list (campaign/index.php).
 $edm_status_cards = array(
     'draft'               => array('Draft', '#6c757d'),
     'pending_submission'  => array('Pending Submission', '#0aa2c0'),
@@ -47,14 +47,14 @@ $edm_status_cards = array(
     <?php endforeach; ?>
 </div>
 
-<!-- Newsletters by status: same stat cards, continuing below -->
+<!-- Campaigns by status: same stat cards, continuing below -->
 <div class="row g-3 mb-4">
     <?php foreach ($edm_status_cards as $key => $s): ?>
     <div class="col-12 col-sm-6 col-xl">
         <div class="edm-card edm-dash-stat h-100">
             <div class="edm-card-title mb-1"><?php echo htmlspecialchars($s[0]); ?></div>
             <div class="edm-stat-value" id="edm-dash-status-<?php echo $key; ?>" style="color:<?php echo $s[1]; ?>;">---</div>
-            <div class="edm-stat-label">newsletters</div>
+            <div class="edm-stat-label">campaigns</div>
         </div>
     </div>
     <?php endforeach; ?>

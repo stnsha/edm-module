@@ -1,34 +1,11 @@
 <?php
-$page_title = 'Newsletters';
-$page_subtitle = 'One-time email campaigns. Create a newsletter, design it in the Email creator, then submit it for review.';
+$page_title = 'Campaigns';
+$page_subtitle = 'One-time email campaigns. Create a campaign, design it in the Email creator, then submit it for review.';
 require __DIR__ . '/../partials.php';
-$page_title_actions = edm_title_button('New newsletter');
+// New campaign: creates an empty draft and opens it in the Email creator
+// (no pop-up form); settings are filled in there.
+$page_title_actions = edm_title_button('New campaign', 'edm-nl-new');
 include __DIR__ . '/../header.php';
-
-// Server-side lookups for the sender / list selects.
-require __DIR__ . '/../app/bootstrap.php';
-
-$edm_sender_opts = array(array('value' => '', 'label' => 'Select a sender'));
-$edm_list_opts   = array(array('value' => '', 'label' => 'Select a list'));
-
-foreach (\Edm\Models\Sender::all() as $row) {
-    $edm_sender_opts[] = array('value' => $row['id'], 'label' => $row['from_name'] . ' <' . $row['email'] . '>');
-}
-foreach (\Edm\Models\ContactList::all() as $row) {
-    $edm_list_opts[] = array('value' => $row['id'], 'label' => $row['name']);
-}
-// Segment select: "whole list" first; each segment's list (null = any list)
-// drives js/edm-segment-picker.js, which hides segments of other lists.
-$edm_segment_opts  = array(array('value' => '', 'label' => 'None - send to the whole list'));
-$edm_segment_lists = array();
-foreach (\Edm\Models\Segment::all() as $row) {
-    $edm_segment_opts[] = array('value' => $row['id'], 'label' => $row['name']);
-    $edm_segment_lists[$row['id']] = $row['list_id'];
-}
-$edm_template_opts = array(array('value' => '', 'label' => 'Blank'));
-foreach (\Edm\Models\Template::options() as $row) {
-    $edm_template_opts[] = array('value' => $row['id'], 'label' => $row['name'] . ($row['category'] ? ' (' . $row['category'] . ')' : ''));
-}
 
 $page_js = EDM_BASE . 'js/edm-crud.js';
 
@@ -47,7 +24,7 @@ edm_crud_screen(array(
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-0">
-                <iframe class="edm-nl-preview-frame" id="edm-nl-preview-frame" sandbox="" title="Newsletter preview"></iframe>
+                <iframe class="edm-nl-preview-frame" id="edm-nl-preview-frame" sandbox="" title="Campaign preview"></iframe>
             </div>
         </div>
     </div>
@@ -73,11 +50,28 @@ edm_crud_screen(array(
     // Draft (1) and content revision (4) are the only states still being worked
     // on; later states are in review / scheduled / sent and stay read-only here.
     function editable(r) { return r.status === 1 || r.status === 4; }
-    var segmentPicker = null;
+
+    document.getElementById('edm-nl-new').addEventListener('click', function () {
+        var btn = this;
+        btn.disabled = true;
+        fetch(BASE + 'campaign/api.php?action=campaigns_new', { method: 'POST', headers: { 'Accept': 'application/json' } })
+            .then(function (r) { return r.json(); })
+            .then(function (res) {
+                if (!res.success) {
+                    btn.disabled = false;
+                    var el = document.getElementById('edm-crud-alert');
+                    el.textContent = res.message || 'Could not create the campaign.';
+                    el.hidden = false;
+                    return;
+                }
+                window.location.href = BASE + 'email-builder/index.php?campaign=' + res.data.id;
+            })
+            .catch(function () { btn.disabled = false; });
+    });
 
     window.EDM_CRUD_CONFIG = {
         api: 'campaign/api.php',
-        entity: 'newsletter',
+        entity: 'campaign',
         actions: { list: 'campaigns_list', create: 'campaigns_create', update: 'campaigns_update', 'delete': 'campaigns_delete' },
         badges: { status: {
             1: { cls: 'edm-pill-secondary', label: 'Draft' },
@@ -90,23 +84,19 @@ edm_crud_screen(array(
             8: { cls: 'edm-pill-success', label: 'Completed' },
             9: { cls: 'edm-pill-dark', label: 'Archived' }
         } },
-        // Edit = the Email creator page, which holds the settings and the
-        // design together; the list's own edit modal is not used.
+        // Create and edit both happen in the Email creator page, which holds
+        // the settings and the design together; no modal form here.
+        noCreate: true,
         noEdit: true,
-        saveAndGo: {
-            label: 'Design message',
-            icon: 'bi-brush',
-            link: function (r) { return 'email-builder/index.php?campaign=' + r.id; }
-        },
         rowActions: [
             { label: 'Edit', visible: editable,
                 link: function (r) { return 'email-builder/index.php?campaign=' + r.id; } },
-            { label: 'Submit', action: 'campaigns_submit', confirm: 'Submit this newsletter for review?',
+            { label: 'Submit', action: 'campaigns_submit', confirm: 'Submit this campaign for review?',
                 visible: editable },
             { label: 'Preview', handler: function (r) { openPreview(r); } },
-            { label: 'Reuse', action: 'campaigns_duplicate', confirm: 'Create a copy of this newsletter as a new draft?' },
+            { label: 'Reuse', action: 'campaigns_duplicate', confirm: 'Create a copy of this campaign as a new draft?' },
             { label: 'Stop sending', action: 'campaigns_stop',
-                confirm: 'Stop this newsletter? A scheduled newsletter goes back to Draft; one already sending is closed as completed.',
+                confirm: 'Stop this campaign? A scheduled campaign goes back to Draft; one already sending is closed as completed.',
                 visible: function (r) { return r.status === 6 || r.status === 7; } }
         ],
         columns: [
@@ -116,37 +106,10 @@ edm_crud_screen(array(
             { key: 'status', label: 'Status', type: 'badge' },
             { key: 'scheduled_at', label: 'Scheduled' }
         ],
-        fields: [
-            { name: 'name', label: 'Name', type: 'text', required: true },
-            { name: 'sender_id', label: 'Sender', type: 'select', required: true, options: <?php echo json_encode($edm_sender_opts); ?> },
-            { name: 'list_id', label: 'Recipient list', type: 'select', required: true, options: <?php echo json_encode($edm_list_opts); ?> },
-            { name: 'segment_id', label: 'Segment', type: 'select', options: <?php echo json_encode($edm_segment_opts); ?>,
-                help: 'Optional. Send only to the contacts on the list who match the segment (Contacts > Segments).' },
-            { name: 'subject', label: 'Subject line', type: 'text', required: true },
-            { name: 'template_id', label: 'Template', type: 'select', options: <?php echo json_encode($edm_template_opts); ?>,
-                help: 'Starting design, copied into the new newsletter. Blank starts empty.' },
-            { name: 'scheduled_at', label: 'Scheduled send', type: 'datetime' }
-        ],
-        // Segment picker: segments of other lists hidden, audience count below.
-        onFormOpen: function () {
-            if (!segmentPicker) {
-                var seg = document.getElementById('edm-f-segment_id');
-                var hint = document.createElement('div');
-                hint.className = 'form-text edm-segment-hint';
-                seg.parentNode.appendChild(hint);
-                segmentPicker = window.edmSegmentPicker({
-                    list: document.getElementById('edm-f-list_id'),
-                    segment: seg,
-                    hint: hint,
-                    segmentLists: <?php echo json_encode((object) $edm_segment_lists); ?>
-                });
-            }
-            segmentPicker.sync();
-        }
+        fields: []
     };
 })();
 </script>
-<script src="<?php echo EDM_BASE; ?>js/edm-segment-picker.js"></script>
 <?php
 include __DIR__ . '/../footer.php';
 ?>

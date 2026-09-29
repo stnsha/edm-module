@@ -119,7 +119,7 @@ if (!function_exists('edm_crud_screen')) {
                 </div>
             </div>
         </div>
-        <script src="<?php echo EDM_BASE; ?>js/edm-confirm.js"></script>
+        <script src="<?php echo EDM_BASE; ?>js/edm-confirm.js?v=<?php echo filemtime(__DIR__ . '/js/edm-confirm.js'); ?>"></script>
         <?php
     }
 }

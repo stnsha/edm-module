@@ -114,17 +114,17 @@ $edm_nav = array(
         ),
     ),
     array(
-        'label' => 'Newsletters',
+        'label' => 'Campaigns',
         'gate'  => 'build',
         'items' => array(
             // Email creator has no menu entry of its own; it is reached from
-            // the Newsletters list (Design button) and keeps this highlighted.
-            array('folder' => 'campaign',  'file' => 'index.php', 'label' => 'All newsletters',
+            // the Campaigns list (Design button) and keeps this highlighted.
+            array('folder' => 'campaign',  'file' => 'index.php', 'label' => 'All campaigns',
                 'folders' => array('email-builder')),
             // Template editor (edit.php) is reached from the Templates list.
             array('folder' => 'templates', 'file' => 'index.php', 'label' => 'Templates',
                 'files' => array('edit.php')),
-            // Asset library: newsletter images live with the newsletters.
+            // Asset library: campaign images live with the campaigns.
             array('folder' => 'assets',    'file' => 'index.php', 'label' => 'Files'),
         ),
     ),

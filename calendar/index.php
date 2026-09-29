@@ -46,7 +46,7 @@ $page_js = EDM_BASE . 'calendar/calendar.js';
                     </div>
                     <div class="mb-3">
                         <label class="form-label" for="edm-cal-category">Category</label>
-                        <input type="text" class="form-control" id="edm-cal-category" maxlength="50" placeholder="promo, newsletter, ...">
+                        <input type="text" class="form-control" id="edm-cal-category" maxlength="50" placeholder="promo, campaign, ...">
                     </div>
                     <div class="mb-3">
                         <label class="form-label" for="edm-cal-note">Note</label>
@@ -63,7 +63,7 @@ $page_js = EDM_BASE . 'calendar/calendar.js';
         </div>
     </div>
 </div>
-<script src="<?php echo EDM_BASE; ?>js/edm-confirm.js"></script>
+<script src="<?php echo EDM_BASE; ?>js/edm-confirm.js?v=<?php echo filemtime(__DIR__ . '/../js/edm-confirm.js'); ?>"></script>
 <?php
 include __DIR__ . '/../footer.php';
 ?>
