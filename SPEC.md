@@ -179,7 +179,7 @@ decoupled via the `$edm_nav` map in `navbar.php`.
 | Contacts > Lists        | `audience/index.php`              | Audience Builder     | build |
 | Contacts > Segments     | `audience/segments.php`           | Audience Builder     | build |
 | Contacts > Custom fields | `audience/fields.php`            | Audience Builder     | build |
-| Contacts > Tags & scoring | `audience/tags.php`             | Audience Builder     | build |
+| (not in menu) Tags       | `audience/tags.php`             | Audience Builder     | build |
 | Contacts > Suppression lists | `suppression/index.php`       | Suppression Centre   | build |
 | Newsletters > All newsletters | `campaign/index.php`       | Campaign Management  | build |
 | (no menu entry; via Newsletters > Design, keeps All newsletters active) | `email-builder/index.php` | Email Builder | build |

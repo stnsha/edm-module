@@ -62,7 +62,13 @@ $page_js = EDM_BASE . 'email-builder/email-builder.js';
                     '<td>' + esc(r.name) + '</td>' +
                     '<td>' + (r.subject ? esc(r.subject) : '<span class="text-muted">-</span>') + '</td>' +
                     '<td><span class="edm-pill ' + ((badges[r.status] && badges[r.status].cls) || 'edm-pill-secondary') + '">' + esc((badges[r.status] && badges[r.status].label) || r.status) + '</span></td>' +
-                    '<td class="text-end"><a class="btn btn-sm btn-outline-primary" href="' + esc(BASE + 'email-builder/index.php?campaign=' + r.id) + '">Design</a></td>' +
+                    '<td class="text-end"><div class="dropdown">' +
+                        '<button type="button" class="edm-row-kebab" data-bs-toggle="dropdown" aria-expanded="false"' +
+                            ' data-bs-popper-config=\'{"strategy":"fixed"}\' aria-label="Actions" title="Actions">' +
+                            '<i class="bi bi-three-dots-vertical"></i></button>' +
+                        '<ul class="dropdown-menu dropdown-menu-end edm-row-menu">' +
+                            '<li><a class="dropdown-item" href="' + esc(BASE + 'email-builder/index.php?campaign=' + r.id) + '">Design</a></li>' +
+                        '</ul></div></td>' +
                 '</tr>';
             }).join('');
         })
@@ -129,11 +135,18 @@ $edm_lists = array();
 foreach (\Edm\Models\ContactList::all() as $row) {
     $edm_lists[] = array('id' => (int)$row['id'], 'label' => $row['name']);
 }
+$edm_segments = array();
+$edm_segment_lists = array();
+foreach (\Edm\Models\Segment::all() as $row) {
+    $edm_segments[] = array('id' => (int)$row['id'], 'label' => $row['name']);
+    $edm_segment_lists[$row['id']] = $row['list_id'];
+}
 $edm_templates = \Edm\Models\Template::options();
 ?>
 <script>
 window.EDM_EB_CUSTOM_VARS = <?php echo json_encode($edm_custom_vars); ?>;
 window.EDM_EB_ASSETS = <?php echo json_encode($edm_assets); ?>;
+window.EDM_EB_SEGMENT_LISTS = <?php echo json_encode((object) $edm_segment_lists); ?>;
 </script>
 
 <!-- Newsletter settings (same fields as the Newsletters create form). Saved
@@ -162,7 +175,17 @@ window.EDM_EB_ASSETS = <?php echo json_encode($edm_assets); ?>;
                 <?php endforeach; ?>
             </select>
         </div>
-        <div class="col-md-8">
+        <div class="col-md-4">
+            <label class="form-label" for="edm-eb-f-segment">Segment</label>
+            <select class="form-select" id="edm-eb-f-segment">
+                <option value="">None - send to the whole list</option>
+                <?php foreach ($edm_segments as $o): ?>
+                <option value="<?php echo $o['id']; ?>"><?php echo htmlspecialchars($o['label']); ?></option>
+                <?php endforeach; ?>
+            </select>
+            <div class="form-text" id="edm-eb-segment-hint"></div>
+        </div>
+        <div class="col-md-4">
             <label class="form-label" for="edm-eb-f-subject">Subject line <span class="text-danger" aria-hidden="true">*</span></label>
             <input type="text" class="form-control" id="edm-eb-f-subject" maxlength="255" required>
         </div>
@@ -235,6 +258,7 @@ window.EDM_EB_ASSETS = <?php echo json_encode($edm_assets); ?>;
     </div>
 </div>
 <script src="<?php echo EDM_BASE; ?>js/edm-confirm.js"></script>
+<script src="<?php echo EDM_BASE; ?>js/edm-segment-picker.js"></script>
 <?php endif; ?>
 <?php
 include __DIR__ . '/../footer.php';

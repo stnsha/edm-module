@@ -22,9 +22,8 @@ window.EDM_CRUD_CONFIG = {
     entity: 'domain',
     actions: { list: 'domains_list', create: 'domains_create', update: 'domains_update', 'delete': 'domains_delete' },
     rowActions: [
-        { label: 'Check with SES', className: 'btn-outline-primary', handler: function (r, reload) { edmDomainCheck(r, reload); } },
+        { label: 'Check with SES', handler: function (r, reload) { edmDomainCheck(r, reload); } },
         { label: function (r) { return r.is_active ? 'Set inactive' : 'Set active'; },
-          className: function (r) { return r.is_active ? 'btn-outline-danger' : 'btn-outline-success'; },
           body: function (r) { return { is_active: !r.is_active }; },
           action: 'domains_update', method: 'PUT' }
     ],

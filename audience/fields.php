@@ -17,7 +17,6 @@ window.EDM_CRUD_CONFIG = {
     actions: { list: 'fields_list', create: 'fields_create', update: 'fields_update', 'delete': 'fields_delete' },
     rowActions: [
         { label: function (r) { return r.is_active ? 'Set inactive' : 'Set active'; },
-          className: function (r) { return r.is_active ? 'btn-outline-danger' : 'btn-outline-success'; },
           body: function (r) { return { is_active: !r.is_active }; },
           action: 'fields_update', method: 'PUT' }
     ],

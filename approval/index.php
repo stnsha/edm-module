@@ -92,8 +92,8 @@ edm_crud_screen(array(
             3: { cls: 'edm-pill-danger', label: 'Rejected' }
         } },
         rowActions: [
-            { label: 'Approve', className: 'btn-outline-success', visible: function (row) { return row.status === 1; }, handler: function (row, reload) { decide(row, 2, reload); } },
-            { label: 'Reject', className: 'btn-outline-danger', visible: function (row) { return row.status === 1; }, handler: function (row, reload) { decide(row, 3, reload); } }
+            { label: 'Approve', visible: function (row) { return row.status === 1; }, handler: function (row, reload) { decide(row, 2, reload); } },
+            { label: 'Reject', visible: function (row) { return row.status === 1; }, handler: function (row, reload) { decide(row, 3, reload); } }
         ],
         columns: [
             { key: 'campaign_name', label: 'Newsletter' },

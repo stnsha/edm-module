@@ -23,15 +23,25 @@
  *            // (see the .edm-pill note in css/style.css).
  *   fields:  [ { name, label, type, required, default, options, help } ]
  *            // type: text|textarea|number|email|checkbox|select|date|datetime|rules
+ *            // rules: the segment condition builder. Needs
+ *            //   catalog: { fields: { key: { label, type, group, options? } },
+ *            //              ops: { type: [op] }, op_labels: { op: label }, no_value: [op] }
+ *            // (SegmentQuery::fields() etc., rendered by audience/segments.php) and
+ *            // optionally count: { action, listField } for a live "N of M match"
+ *            // line (POST { definition, list_id } -> { matched, total, sample }).
  *            // datetime: <input type="datetime-local">; the API's
  *            // 'd-m-Y H:i:s' value is converted for the input only.
  *   columns[].value: optional function (row) -> text, for a derived or
  *            // nested value (e.g. row.list.name); escaped like a text cell.
  *   canEdit / canDelete: optional function (row) -> bool, hides the
  *            // row's Edit / Delete button when false.
- *   actionMenu: optional bool - render the row's actions (Edit, then
- *            // rowActions, then Delete) as a vertical-ellipsis dropdown instead of
- *            // a row of buttons (GetResponse style; see campaign/index.php).
+ *   Row actions (Edit, then rowActions, then Delete) always render as a
+ *            // vertical-ellipsis dropdown in the Action column (GetResponse
+ *            // style); rowActions[].className is not used by the menu.
+ *   listParams: optional { name: value } query parameters sent with the
+ *            // list action (e.g. { list_id: 5 } on audience/contacts.php).
+ *   onFormOpen: optional function (row|null, bodyEl) - runs after the modal
+ *            // form is filled, e.g. to wire dependent selects (campaign/index.php).
  *   saveAndGo: optional { label, icon, link: function (savedRow) -> path }
  *            // adds a second submit button to the modal that saves, then
  *            // navigates to BASE + link(savedRow) instead of closing.
@@ -76,8 +86,12 @@
     function showAlert(msg) { alertEl.textContent = msg || 'Something went wrong.'; alertEl.hidden = false; }
     function clearAlert() { alertEl.hidden = true; }
 
-    function call(action, method, body) {
-        return fetch(API + '?action=' + encodeURIComponent(action), {
+    function call(action, method, body, params) {
+        var qs = '';
+        for (var k in (params || {})) {
+            if (Object.prototype.hasOwnProperty.call(params, k)) { qs += '&' + encodeURIComponent(k) + '=' + encodeURIComponent(params[k]); }
+        }
+        return fetch(API + '?action=' + encodeURIComponent(action) + qs, {
             method: method || 'GET',
             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
             body: body ? JSON.stringify(body) : null
@@ -118,40 +132,17 @@
             return;
         }
         rowsEl.innerHTML = rows.map(function (row, i) {
-            if (cfg.actionMenu) {
-                return '<tr data-id="' + esc(row[idKey]) + '">' +
-                    '<td class="text-muted">' + (startIdx + i + 1) + '</td>' +
-                    cfg.columns.map(function (col) { return '<td>' + cell(row, col) + '</td>'; }).join('') +
-                    '<td class="text-end">' + actionMenu(row) + '</td>' +
-                '</tr>';
-            }
-            var extra = (cfg.rowActions || []).map(function (a, ai) {
-                if (a.visible && !a.visible(row)) { return ''; }
-                var label = typeof a.label === 'function' ? a.label(row) : a.label;
-                var className = typeof a.className === 'function' ? a.className(row) : a.className;
-                if (a.link) {
-                    return '<a class="btn btn-sm ' + (className || 'btn-outline-secondary') + '" href="' +
-                        esc(BASE + a.link(row)) + '">' + esc(label) + '</a>';
-                }
-                return '<button type="button" class="btn btn-sm ' + (className || 'btn-outline-secondary') +
-                    '" data-act="custom" data-i="' + ai + '">' + esc(label) + '</button>';
-            }).join('');
             return '<tr data-id="' + esc(row[idKey]) + '">' +
                 '<td class="text-muted">' + (startIdx + i + 1) + '</td>' +
                 cfg.columns.map(function (col) { return '<td>' + cell(row, col) + '</td>'; }).join('') +
-                '<td class="text-end"><div class="d-flex justify-content-end align-items-center gap-2">' +
-                    extra +
-                    (cfg.noEdit || (cfg.canEdit && !cfg.canEdit(row)) ? '' : '<button type="button" class="btn btn-sm btn-outline-secondary edm-icon-btn" data-act="edit" title="Edit"><i class="bi bi-pencil"></i></button>') +
-                    (cfg.noDelete || (cfg.canDelete && !cfg.canDelete(row)) ? '' : '<button type="button" class="btn btn-sm btn-outline-danger edm-icon-btn" data-act="delete" title="Delete"><i class="bi bi-trash"></i></button>') +
-                '</div></td>' +
+                '<td class="text-end">' + actionMenu(row) + '</td>' +
             '</tr>';
         }).join('');
     }
 
-    // Vertical-ellipsis dropdown holding every row action. Items reuse the
-    // data-act / data-i attributes, so the rowsEl click handler serves both
-    // layouts. Fixed popper strategy keeps the menu from being clipped by
-    // .table-responsive.
+    // Vertical-ellipsis dropdown holding every row action. Items carry the
+    // data-act / data-i attributes the rowsEl click handler reads. Fixed
+    // popper strategy keeps the menu from being clipped by .table-responsive.
     function actionMenu(row) {
         var items = [];
         if (!cfg.noEdit && !(cfg.canEdit && !cfg.canEdit(row))) {
@@ -235,7 +226,7 @@
     function load() {
         clearAlert();
         rowsEl.innerHTML = '<tr><td colspan="' + colCount + '" class="text-center text-muted py-4">Loading...</td></tr>';
-        call(cfg.actions.list).then(function (res) {
+        call(cfg.actions.list, 'GET', null, cfg.listParams).then(function (res) {
             if (!res.success) { showAlert(res.message); current = []; renderPage(); return; }
             current = res.data || [];
             page = 1;
@@ -267,13 +258,14 @@
         }
         if (f.type === 'rules') {
             return '<div id="' + id + '" class="edm-rules">' +
-                '<div class="mb-2 d-flex align-items-center gap-2">Match ' +
-                    '<select class="form-select form-select-sm w-auto edm-rules-match">' +
+                '<div class="edm-rules-match-row">Contacts must match ' +
+                    '<select class="form-select form-select-sm w-auto edm-rules-match" aria-label="Match all or any">' +
                         '<option value="all">all</option><option value="any">any</option>' +
-                    '</select> of:' +
+                    '</select> of these conditions:' +
                 '</div>' +
                 '<div class="edm-rules-rows"></div>' +
-                '<button type="button" class="btn btn-sm btn-outline-secondary edm-rules-add">Add condition</button>' +
+                '<button type="button" class="btn btn-sm btn-outline-secondary edm-rules-add"><i class="bi bi-plus-lg me-1"></i>Add condition</button>' +
+                (f.count ? '<div class="edm-rules-count" aria-live="polite"></div>' : '') +
             '</div>';
         }
         if (f.type === 'datetime') {
@@ -296,8 +288,18 @@
             '</div>';
         }).join('');
 
-        var add = bodyEl.querySelector('.edm-rules-add');
-        if (add) { add.addEventListener('click', function () { addRuleRow(); }); }
+        cfg.fields.forEach(function (f) {
+            if (f.type !== 'rules') { return; }
+            var el = document.getElementById('edm-f-' + f.name);
+            el.querySelector('.edm-rules-add').addEventListener('click', function () {
+                addRuleRow(f);
+                scheduleCount(f);
+            });
+            if (f.count) {
+                bodyEl.addEventListener('change', function () { scheduleCount(f); });
+                bodyEl.addEventListener('input', function () { scheduleCount(f); });
+            }
+        });
 
         quillFields = {};
         if (window.Quill) {
@@ -319,22 +321,130 @@
         }
     }
 
-    function addRuleRow(rule) {
-        var wrap = bodyEl.querySelector('.edm-rules-rows');
-        if (!wrap) { return; }
+    // ---- rules (segment conditions) ----
+
+    var LEGACY_OPS = { 'is not': 'is_not', '>': 'gt', '<': 'lt' };
+
+    function addRuleRow(f, rule) {
+        var el = document.getElementById('edm-f-' + f.name);
+        var cat = f.catalog || { fields: {}, ops: {}, op_labels: {}, no_value: [] };
+        rule = rule || {};
+        // Rules from the first free-text builder: bare custom field key, old op names.
+        var fieldKey = rule.field || '';
+        if (fieldKey && !cat.fields[fieldKey] && cat.fields['field:' + fieldKey]) { fieldKey = 'field:' + fieldKey; }
+        var op = LEGACY_OPS[rule.op] || rule.op || '';
+
+        var groups = {};
+        Object.keys(cat.fields).forEach(function (k) {
+            var g = cat.fields[k].group || 'Fields';
+            (groups[g] = groups[g] || []).push(k);
+        });
         var div = document.createElement('div');
-        div.className = 'd-flex gap-2 mb-2 edm-rule-row';
+        div.className = 'edm-rule-row';
         div.innerHTML =
-            '<input type="text" class="form-control form-control-sm edm-rule-field" placeholder="field" value="' + esc(rule && rule.field || '') + '">' +
-            '<select class="form-select form-select-sm edm-rule-op" style="max-width:8rem;">' +
-                ['is', 'is not', 'contains', '>', '<', 'in'].map(function (o) {
-                    return '<option' + (rule && rule.op === o ? ' selected' : '') + '>' + o + '</option>';
+            '<select class="form-select form-select-sm edm-rule-field" aria-label="Field">' +
+                '<option value="">Choose a field</option>' +
+                Object.keys(groups).map(function (g) {
+                    return '<optgroup label="' + esc(g) + '">' + groups[g].map(function (k) {
+                        return '<option value="' + esc(k) + '"' + (k === fieldKey ? ' selected' : '') + '>' + esc(cat.fields[k].label) + '</option>';
+                    }).join('') + '</optgroup>';
                 }).join('') +
+                (fieldKey && !cat.fields[fieldKey] ? '<option value="' + esc(fieldKey) + '" selected>' + esc(fieldKey) + ' (missing)</option>' : '') +
             '</select>' +
-            '<input type="text" class="form-control form-control-sm edm-rule-value" placeholder="value" value="' + esc(rule && rule.value != null ? rule.value : '') + '">' +
-            '<button type="button" class="btn btn-sm btn-outline-danger edm-rule-del">&times;</button>';
-        div.querySelector('.edm-rule-del').addEventListener('click', function () { div.remove(); });
-        wrap.appendChild(div);
+            '<select class="form-select form-select-sm edm-rule-op" aria-label="Comparison"></select>' +
+            '<div class="edm-rule-value-wrap"></div>' +
+            '<button type="button" class="btn btn-sm btn-outline-danger edm-rule-del" title="Remove condition" aria-label="Remove condition"><i class="bi bi-x-lg"></i></button>';
+        var fieldSel = div.querySelector('.edm-rule-field');
+        var opSel = div.querySelector('.edm-rule-op');
+        var valWrap = div.querySelector('.edm-rule-value-wrap');
+
+        function fillOps(selected) {
+            var def = cat.fields[fieldSel.value];
+            var ops = def ? (cat.ops[def.type] || []) : [];
+            opSel.innerHTML = ops.map(function (o) {
+                return '<option value="' + esc(o) + '"' + (o === selected ? ' selected' : '') + '>' + esc(cat.op_labels[o] || o) + '</option>';
+            }).join('');
+            opSel.disabled = !ops.length;
+        }
+        function fillValue(value) {
+            var def = cat.fields[fieldSel.value];
+            if (!def || (cat.no_value || []).indexOf(opSel.value) !== -1) { valWrap.innerHTML = ''; return; }
+            var v = value == null ? '' : String(value);
+            if (def.type === 'select') {
+                valWrap.innerHTML = '<select class="form-select form-select-sm edm-rule-value" aria-label="Value">' +
+                    '<option value="">Choose an option</option>' +
+                    (def.options || []).map(function (o) {
+                        return '<option value="' + esc(o.value) + '"' + (String(o.value).toLowerCase() === v.toLowerCase() ? ' selected' : '') + '>' + esc(o.label) + '</option>';
+                    }).join('') + '</select>';
+                return;
+            }
+            var type = def.type === 'number' ? 'number' : def.type === 'date' ? 'date' : 'text';
+            if (type === 'date') {
+                var dm = /^(\d{2})-(\d{2})-(\d{4})$/.exec(v);
+                if (dm) { v = dm[3] + '-' + dm[2] + '-' + dm[1]; }
+            }
+            valWrap.innerHTML = '<input type="' + type + '" class="form-control form-control-sm edm-rule-value" aria-label="Value"' +
+                (type === 'number' ? ' step="any"' : '') + ' placeholder="Value" value="' + esc(v) + '">';
+        }
+
+        fieldSel.addEventListener('change', function () { fillOps(''); fillValue(''); });
+        opSel.addEventListener('change', function () {
+            var cur = valWrap.querySelector('.edm-rule-value');
+            fillValue(cur ? cur.value : '');
+        });
+        div.querySelector('.edm-rule-del').addEventListener('click', function () {
+            div.remove();
+            scheduleCount(f);
+        });
+        fillOps(op);
+        fillValue(rule.value);
+        el.querySelector('.edm-rules-rows').appendChild(div);
+    }
+
+    // Live "N of M contacts match" under the builder (debounced).
+    var countTimer = null;
+    var countSeq = 0;
+    function scheduleCount(f) {
+        if (!f.count) { return; }
+        clearTimeout(countTimer);
+        countTimer = setTimeout(function () { refreshCount(f); }, 350);
+    }
+    function refreshCount(f) {
+        var box = document.querySelector('#edm-f-' + f.name + ' .edm-rules-count');
+        if (!box) { return; }
+        var def = getValue(f);
+        var listEl = f.count.listField ? document.getElementById('edm-f-' + f.count.listField) : null;
+        var listId = listEl && listEl.value ? parseInt(listEl.value, 10) : null;
+        var scope = listId ? 'on this list' : 'across all lists';
+        if (!def.rules.length) {
+            box.className = 'edm-rules-count text-muted';
+            box.textContent = 'Add a condition to see how many contacts match.';
+            return;
+        }
+        var mine = ++countSeq;
+        box.className = 'edm-rules-count text-muted';
+        box.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Counting contacts...';
+        call(f.count.action, 'POST', { definition: def, list_id: listId }).then(function (res) {
+            if (mine !== countSeq) { return; }
+            if (!res.success) {
+                box.className = 'edm-rules-count is-warn';
+                box.innerHTML = '<i class="bi bi-exclamation-circle me-1"></i>' + esc(firstError(res));
+                return;
+            }
+            var d = res.data;
+            box.className = 'edm-rules-count' + (d.matched ? ' is-ok' : ' is-warn');
+            box.innerHTML = '<i class="bi bi-people me-1"></i><strong>' + Number(d.matched).toLocaleString('en-US') + '</strong> of ' +
+                Number(d.total).toLocaleString('en-US') + ' subscribed contacts ' + scope + ' match.' +
+                (d.sample && d.sample.length
+                    ? '<div class="edm-rules-sample">e.g. ' + d.sample.map(function (m) {
+                        return esc(m.name ? m.name + ' <' + m.email + '>' : m.email);
+                    }).join(', ') + '</div>'
+                    : '');
+        }).catch(function () {
+            if (mine !== countSeq) { return; }
+            box.className = 'edm-rules-count is-warn';
+            box.textContent = 'Could not count contacts.';
+        });
     }
 
     function setValue(f, row) {
@@ -348,7 +458,8 @@
             var def = (row && row[f.name]) || { match: 'all', rules: [] };
             el.querySelector('.edm-rules-match').value = def.match || 'all';
             el.querySelector('.edm-rules-rows').innerHTML = '';
-            (def.rules || []).forEach(function (r) { addRuleRow(r); });
+            (def.rules && def.rules.length ? def.rules : [null]).forEach(function (r) { addRuleRow(f, r); });
+            scheduleCount(f);
             return;
         }
         if (f.type === 'richtext') {
@@ -381,10 +492,11 @@
         if (f.type === 'checkbox') { return el.checked; }
         if (f.type === 'rules') {
             var rows = [].slice.call(el.querySelectorAll('.edm-rule-row')).map(function (r) {
+                var valEl = r.querySelector('.edm-rule-value');
                 return {
-                    field: r.querySelector('.edm-rule-field').value.trim(),
+                    field: r.querySelector('.edm-rule-field').value,
                     op: r.querySelector('.edm-rule-op').value,
-                    value: r.querySelector('.edm-rule-value').value.trim()
+                    value: valEl ? valEl.value.trim() : ''
                 };
             }).filter(function (r) { return r.field !== ''; });
             return { match: el.querySelector('.edm-rules-match').value, rules: rows };
@@ -402,6 +514,7 @@
         titleEl.textContent = (row ? 'Edit ' : 'Add ') + (cfg.entity || 'item');
         document.getElementById('edm-crud-id').value = row ? row[idKey] : '';
         cfg.fields.forEach(function (f) { setValue(f, row); });
+        if (cfg.onFormOpen) { cfg.onFormOpen(row, bodyEl); }
         modal.show();
     }
 

@@ -5,11 +5,13 @@ declare(strict_types=1);
 namespace Edm\Services\Ses;
 
 use Edm\Core\Database;
+use Edm\Core\ValidationException;
 use Edm\Models\Campaign;
 use Edm\Models\CampaignContent;
 use Edm\Models\ContactList;
 use Edm\Models\SendLog;
 use Edm\Models\Sender;
+use Edm\Services\SegmentQuery;
 
 /**
  * The send queue, run every minute by cron/send.php (spec 5.2 step 7: "SES
@@ -18,7 +20,9 @@ use Edm\Models\Sender;
  *   1. Scheduled (6) newsletters whose scheduled_at has passed and that pass
  *      the pre-send checks move to Sending (7).
  *   2. Sending newsletters are worked through in batches until the time
- *      budget runs out. Every list member gets exactly one edm_send_log row
+ *      budget runs out. With a segment, only list members matching its
+ *      conditions (SegmentQuery) are recipients; the conditions are read
+ *      at the start of each run. Every recipient gets exactly one edm_send_log row
  *      (sent, failed or skipped), so a run that stops part-way resumes where
  *      it left off. "Stop sending" (status leaves 7) is honoured per batch.
  *   3. A newsletter with no member left to process becomes Completed (8).
@@ -119,13 +123,26 @@ final class CampaignSender
             $sender === null => 'no sender.',
             $sender['status'] !== 2 => 'sender ' . $sender['email'] . ' is not verified in SES.',
             $c['list_id'] === null || ContactList::find((int) $c['list_id']) === null => 'no recipient list.',
-            // Segment rules are not evaluated yet; sending to the whole list
-            // instead would reach people the segment was meant to exclude.
-            $c['segment_id'] !== null => 'segments are not supported by the sender yet - remove the segment.',
+            ($segmentProblem = $this->segmentProblem($c)) !== null => $segmentProblem,
             trim((string) $c['subject']) === '' => 'no subject line.',
             trim((string) (CampaignContent::forCampaign((int) $c['id'])['html'] ?? '')) === '' => 'the design is empty.',
             default => null,
         };
+    }
+
+    /** Why the newsletter's segment cannot be used, or null. */
+    private function segmentProblem(array $c): ?string
+    {
+        try {
+            SegmentQuery::forNewsletter(
+                $c['segment_id'] !== null ? (int) $c['segment_id'] : null,
+                $c['list_id'] !== null ? (int) $c['list_id'] : null
+            );
+        } catch (ValidationException $e) {
+            return lcfirst(rtrim($e->getMessage(), '.')) . '.';
+        }
+
+        return null;
     }
 
     /** @return list<int> */
@@ -151,6 +168,8 @@ final class CampaignSender
             return 0;
         }
         $html = (string) CampaignContent::forCampaign($id)['html'];
+        // Checked by preflight() just above, so this does not throw.
+        $segment = SegmentQuery::forNewsletter($c['segment_id'] !== null ? (int) $c['segment_id'] : null, (int) $c['list_id']);
         $unsubscribe = new Unsubscribe($this->ses->config);
         $sent = 0;
 
@@ -159,7 +178,7 @@ final class CampaignSender
                 ($this->log)("Newsletter #{$id} was stopped.");
                 return $sent;
             }
-            $batch = $this->pending($id, (int) $c['list_id']);
+            $batch = $this->pending($id, (int) $c['list_id'], $segment);
             if ($batch === []) {
                 Campaign::update($id, ['status' => Campaign::COMPLETED]);
                 ($this->log)("Newsletter #{$id} completed.");
@@ -222,26 +241,33 @@ final class CampaignSender
     }
 
     /**
-     * Next subscribed list members without a send-log row for this newsletter.
+     * Next subscribed list members without a send-log row for this newsletter,
+     * limited to those matching the segment when there is one.
      *
      * One row per address (the oldest when a list holds it twice), with the
      * contact's name and custom field values for personalisation.
      *
+     * @param array{match: string, rules: list<array<string, string>>}|null $segment normalized definition
      * @return list<array{email: string, member_code: ?string, name: ?string, fields: ?string}>
      */
-    private function pending(int $campaignId, int $listId): array
+    private function pending(int $campaignId, int $listId, ?array $segment): array
     {
+        [$segmentSql, $segmentParams] = $segment !== null
+            ? (new SegmentQuery($this->db))->where($segment, 'm')
+            : ['1 = 1', []];
+
         return $this->db->select(
             'SELECT m.`member_code`, LOWER(TRIM(m.`email`)) AS email, m.`name`, m.`fields`
                FROM `edm_list_members` m
                JOIN (SELECT MIN(`id`) AS id FROM `edm_list_members`
                       WHERE `list_id` = ? AND `status` = 1 AND `deleted_at` IS NULL AND `email` <> \'\'
                       GROUP BY LOWER(TRIM(`email`))) oldest ON oldest.`id` = m.`id`
-              WHERE NOT EXISTS (SELECT 1 FROM `edm_send_log` s
+              WHERE ' . $segmentSql . '
+                AND NOT EXISTS (SELECT 1 FROM `edm_send_log` s
                                  WHERE s.`campaign_id` = ? AND s.`email` = LOWER(TRIM(m.`email`)) AND s.`deleted_at` IS NULL)
               ORDER BY m.`id`
               LIMIT ' . self::BATCH,
-            [$listId, $campaignId]
+            [$listId, ...$segmentParams, $campaignId]
         );
     }
 

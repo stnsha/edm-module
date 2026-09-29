@@ -91,19 +91,26 @@
                     '<td>' + esc(s.email) + '</td>' +
                     '<td>' + (s.reply_to ? esc(s.reply_to) : '<span class="text-muted">-</span>') + '</td>' +
                     '<td><span class="edm-pill ' + st.cls + '">' + st.label + '</span></td>' +
-                    '<td class="text-end">' +
-                        '<div class="d-flex justify-content-end align-items-center gap-2">' +
-                            (s.is_default ? '' :
-                                '<button type="button" class="btn btn-sm btn-outline-secondary" data-act="default">Set default</button>') +
-                            '<button type="button" class="btn btn-sm btn-outline-secondary" data-act="ses-check" title="Refresh the status from Amazon SES">Check SES</button>' +
-                            (s.status === 2 ? '' :
-                                '<button type="button" class="btn btn-sm btn-outline-primary" data-act="ses-request" title="Amazon SES emails this address a verification link">Request verification</button>') +
-                            '<button type="button" class="btn btn-sm btn-outline-secondary edm-icon-btn" data-act="edit" title="Edit"><i class="bi bi-pencil"></i></button>' +
-                            '<button type="button" class="btn btn-sm btn-outline-danger edm-icon-btn" data-act="delete" title="Delete"><i class="bi bi-trash"></i></button>' +
-                        '</div>' +
-                    '</td>' +
+                    '<td class="text-end">' + actionMenu(s) + '</td>' +
                 '</tr>';
         }).join('');
+    }
+
+    // Row actions in a vertical-ellipsis dropdown, same as js/edm-crud.js.
+    function actionMenu(s) {
+        var html =
+            '<li><button type="button" class="dropdown-item" data-act="edit">Edit</button></li>' +
+            (s.is_default ? '' : '<li><button type="button" class="dropdown-item" data-act="default">Set default</button></li>') +
+            '<li><button type="button" class="dropdown-item" data-act="ses-check" title="Refresh the status from Amazon SES">Check SES</button></li>' +
+            (s.status === 2 ? '' : '<li><button type="button" class="dropdown-item" data-act="ses-request" title="Amazon SES emails this address a verification link">Request verification</button></li>') +
+            '<li><hr class="dropdown-divider"></li>' +
+            '<li><button type="button" class="dropdown-item text-danger" data-act="delete">Delete</button></li>';
+        return '<div class="dropdown">' +
+            '<button type="button" class="edm-row-kebab" data-bs-toggle="dropdown" aria-expanded="false"' +
+                ' data-bs-popper-config=\'{"strategy":"fixed"}\' aria-label="Actions" title="Actions">' +
+                '<i class="bi bi-three-dots-vertical"></i></button>' +
+            '<ul class="dropdown-menu dropdown-menu-end edm-row-menu">' + html + '</ul>' +
+        '</div>';
     }
 
     function pageBtn(p) {

@@ -2179,7 +2179,8 @@ button {
 }
 
 /* ---------------------------------------------------------------
-   Row action menu (js/edm-crud.js actionMenu: true)
+   Row action menu (every listing's Action column; js/edm-crud.js,
+   settings/senders.js, email-builder/index.php)
 --------------------------------------------------------------- */
 .edm-row-kebab {
     border: 0;
@@ -2311,51 +2312,79 @@ button {
 }
 
 /* Contacts > Import contacts (audience/import.php) */
+/* Step breadcrumbs: pills with chevrons in a grey band */
+.edm-imp-steps-bar {
+    margin: 0 0 24px;
+    padding: 12px;
+    border-radius: 10px;
+    background: #f4f6f8;
+}
 .edm-imp-steps {
     display: flex;
     flex-wrap: wrap;
-    gap: 8px 28px;
-    list-style: none;
-    padding: 0 0 14px;
-    margin: 0 0 20px;
-    border-bottom: 1px solid #e9ecef;
-    font-size: 14px;
-    color: #6c757d;
-}
-.edm-imp-steps li {
-    display: flex;
-    align-items: center;
-    gap: 8px;
-}
-.edm-imp-steps li span {
-    display: inline-flex;
     align-items: center;
     justify-content: center;
-    width: 24px;
-    height: 24px;
-    border-radius: 50%;
-    border: 1px solid #ced4da;
+    gap: 8px 10px;
+    margin: 0;
+    padding: 0;
+    list-style: none;
+    font-size: 13px;
+    color: #6c757d;
+}
+.edm-imp-steps li[data-step] {
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 5px 12px 5px 8px;
+    border: 1px solid #dee2e6;
+    border-radius: 999px;
+    background: #f8f9fa;
+}
+.edm-imp-steps-sep {
+    color: #adb5bd;
     font-size: 12px;
-    font-weight: 600;
+}
+.edm-imp-step-dot {
+    display: inline-flex;
+    flex: 0 0 auto;
+    align-items: center;
+    justify-content: center;
+    width: 18px;
+    height: 18px;
+    border: 1.5px solid #ced4da;
+    border-radius: 50%;
+    font-size: 10px;
 }
 .edm-imp-steps li.active {
+    border-color: #0a5aa8;
+    background: #fff;
     color: #212529;
     font-weight: 600;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.06);
 }
-.edm-imp-steps li.active span {
-    background: #0d6efd;
-    border-color: #0d6efd;
-    color: #fff;
+.edm-imp-steps li.active .edm-imp-step-dot {
+    border: 4px solid #0a5aa8;
 }
-.edm-imp-steps li.done span {
-    background: #198754;
+.edm-imp-steps li.done {
+    color: #495057;
+}
+.edm-imp-steps li.done .edm-imp-step-dot {
     border-color: #198754;
+    background: #198754;
     color: #fff;
+}
+.edm-imp-steps li.done .edm-imp-step-dot::before {
+    content: "\F633"; /* bi-check-lg */
+    display: block;
+    font-family: "bootstrap-icons";
+    line-height: 1;
 }
 .edm-imp-drop {
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: center;
+    min-height: 200px;
     gap: 4px;
     padding: 32px 16px;
     border: 2px dashed #ced4da;
@@ -2387,22 +2416,419 @@ button {
     color: #0d6efd;
     text-decoration: underline;
 }
-.edm-imp-drop-file {
+/* Paste box: same height as the drop zone (overrides the legacy odb
+   textarea height) */
+#edm-imp-paste {
+    height: 200px;
+    min-height: 200px;
+    resize: vertical;
+}
+.edm-imp-drop-hint {
     margin-top: 6px;
+    font-size: 12px;
+    color: #6c757d;
+}
+/* Upload / check / import progress + log (audience/import.js) */
+.edm-imp-progress {
+    margin-top: 20px;
+    padding: 14px 16px;
+    border: 1px solid #e3e8ef;
+    border-radius: 10px;
+    background: #fbfcfe;
+}
+.edm-imp-progress-top {
+    display: flex;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 6px;
     font-size: 13px;
+    font-weight: 600;
+    color: #212529;
+}
+.edm-imp-progress .progress {
+    height: 8px;
+}
+.edm-imp-progress-meta {
+    min-height: 18px;
+    margin-top: 6px;
+    font-size: 12px;
+    color: #6c757d;
+}
+.edm-imp-log-head {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: 8px;
+    margin: 10px 0 6px;
+    font-size: 12px;
+    font-weight: 600;
     color: #495057;
+}
+.edm-imp-log {
+    max-height: 240px;
+    margin: 0;
+    padding: 6px 0;
+    overflow-y: auto;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+    background: #fff;
+    list-style: none;
+}
+.edm-imp-log:empty {
+    display: none;
+}
+/* Size set on each line and its spans: legacy odb li / span rules otherwise
+   win over the list (15px) */
+.edm-imp-progress .edm-imp-log li,
+.edm-imp-progress .edm-imp-log li span {
+    font-size: 12px;
+}
+.edm-imp-progress .edm-imp-log li {
+    display: flex;
+    gap: 10px;
+    padding: 1px 10px;
+    border-left: 3px solid transparent;
+    font-size: 12px;
+    line-height: 1.6;
+    font-variant-numeric: tabular-nums;
+}
+.edm-imp-log-time {
+    flex: 0 0 auto;
+    color: #adb5bd;
+}
+.edm-imp-log-row {
+    flex: 0 0 auto;
+    min-width: 72px;
+    font-weight: 600;
+}
+.edm-imp-log-msg {
+    min-width: 0;
+    word-break: break-word;
+}
+.edm-imp-log li.is-ok {
+    border-left-color: #198754;
+    color: #146c43;
+}
+.edm-imp-log li.is-warn {
+    border-left-color: #ffc107;
+    background: #fffbeb;
+    color: #664d03;
+}
+.edm-imp-log li.is-error {
+    border-left-color: #dc3545;
+    background: #fdf2f3;
+    color: #b02a37;
+}
+.edm-imp-log li.edm-imp-log-more {
+    color: #6c757d;
+    font-style: italic;
+}
+
+/* Step 2: file column -> contact field rows */
+.edm-imp-map-head,
+.edm-imp-map-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1fr) 20px minmax(0, 1fr) 20px;
+    align-items: center;
+    gap: 12px;
+}
+.edm-imp-map-head {
+    margin-bottom: 6px;
+    font-size: 12px;
+    font-weight: 600;
+    color: #6c757d;
+}
+.edm-imp-map-row + .edm-imp-map-row {
+    margin-top: 8px;
+}
+.edm-imp-map-src {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    min-height: 38px;
+    padding: 6px 12px;
+    border-radius: 8px;
+    background: #f4f6f8;
+}
+.edm-imp-map-src > .bi {
+    color: #198754;
+    font-size: 16px;
+}
+.edm-imp-map-name {
+    overflow: hidden;
+    font-weight: 500;
+    color: #212529;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.edm-imp-map-sample {
+    overflow: hidden;
+    font-size: 12px;
+    color: #6c757d;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+.edm-imp-map-arrow {
+    color: #6c757d;
+    text-align: center;
+}
+.edm-imp-map-state {
+    font-size: 16px;
+    text-align: center;
+}
+.edm-imp-map-row.is-skipped .edm-imp-map-src {
+    opacity: 0.55;
+}
+/* Import page: a field label reads above its help line (the global
+   .form-label is 12px, smaller than Bootstrap's .form-text) */
+.edm-imp-step .form-label,
+#edm-imp-field-modal .form-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #212529;
+}
+.edm-imp-step .form-text,
+#edm-imp-field-modal .form-text {
+    font-size: 12px;
+}
+#edm-imp-field-options {
+    height: 110px;
+    min-height: 110px;
+    resize: vertical;
+}
+/* "Create custom field" under an unmatched column's select */
+.edm-imp-map-new {
+    display: none;
+    margin-top: 4px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: #0d6efd;
+    font-size: 12px;
+}
+.edm-imp-map-new:hover {
+    text-decoration: underline;
+}
+.edm-imp-map-row.is-skipped .edm-imp-map-new {
+    display: inline-flex;
+    align-items: center;
+}
+.min-w-0 {
+    min-width: 0;
+}
+@media (max-width: 575.98px) {
+    .edm-imp-map-head {
+        display: none;
+    }
+    .edm-imp-map-row {
+        grid-template-columns: minmax(0, 1fr) 20px;
+    }
+    .edm-imp-map-arrow {
+        display: none;
+    }
+    .edm-imp-map-row .edm-imp-target {
+        grid-column: 1;
+    }
+    .edm-imp-map-row + .edm-imp-map-row {
+        margin-top: 16px;
+    }
+}
+.edm-imp-section + .edm-imp-section {
+    margin-top: 24px;
+}
+.edm-imp-section-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    color: #212529;
+}
+.edm-imp-section-title > span {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 22px;
+    height: 22px;
+    border-radius: 50%;
+    background: #e7f1ff;
+    color: #0a5aa8;
+    font-size: 12px;
+    font-weight: 700;
+}
+.edm-imp-narrow {
+    max-width: 420px;
+}
+/* Upload file / Paste switch */
+.edm-imp-seg {
+    display: inline-flex;
+    margin-bottom: 12px;
+    padding: 3px;
+    border-radius: 8px;
+    background: #f1f3f5;
+}
+.edm-imp-seg button {
+    padding: 5px 14px;
+    border: 0;
+    border-radius: 6px;
+    background: none;
+    color: #495057;
+    font-size: 13px;
+    font-weight: 500;
+}
+.edm-imp-seg button.active {
+    background: #fff;
+    color: #0a5aa8;
+    box-shadow: 0 1px 2px rgba(0, 0, 0, 0.08);
+}
+.edm-imp-file-chip {
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    margin-top: 10px;
+    padding: 8px 12px;
+    border: 1px solid #badbcc;
+    border-radius: 8px;
+    background: #f1f9f4;
+    font-size: 13px;
+}
+.edm-imp-file-chip > .bi {
+    font-size: 18px;
+    color: #198754;
+}
+.edm-imp-file-name {
+    flex-grow: 1;
+    min-width: 0;
     word-break: break-all;
 }
-.edm-imp-map th {
-    min-width: 170px;
-    vertical-align: top;
+.edm-imp-file-chip .btn-close {
+    font-size: 10px;
 }
-.edm-imp-map .edm-imp-skip {
-    opacity: 0.45;
+.edm-imp-actions {
+    display: flex;
+    justify-content: space-between;
+    gap: 8px;
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid #e9ecef;
+}
+/* Step 1 side column: template download + checklist */
+.edm-imp-aside {
+    padding: 14px 16px;
+    border: 1px solid #e3e8ef;
+    border-radius: 10px;
+    background: #fbfcfe;
+}
+.edm-imp-aside-title {
+    display: flex;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 6px;
+    font-weight: 600;
+    color: #212529;
+}
+.edm-imp-aside-title > .bi {
+    font-size: 18px;
+    color: #0a5aa8;
+}
+.edm-imp-guide-item {
+    border-top: 1px solid #e9ecef;
+}
+.edm-imp-guide-item > summary {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    padding: 8px 0;
+    font-size: 13px;
+    font-weight: 600;
+    color: #212529;
+    cursor: pointer;
+    list-style: none;
+}
+.edm-imp-guide-item > summary::-webkit-details-marker {
+    display: none;
+}
+.edm-imp-guide-item > summary::after {
+    content: "\F282"; /* bi-chevron-down */
+    font-family: "bootstrap-icons";
+    font-size: 11px;
+    color: #6c757d;
+    transition: transform 0.15s ease;
+}
+.edm-imp-guide-item[open] > summary::after {
+    transform: rotate(180deg);
+}
+.edm-imp-guide-item ul {
+    margin-bottom: 10px;
+    padding-left: 18px;
+    font-size: 12.5px;
+    color: #495057;
+}
+.edm-imp-guide-item li + li {
+    margin-top: 4px;
 }
 
 /* Calendar: a day with more than one send / reservation (calendar/calendar.js) */
 .edm-calendar td.edm-cal-conflict {
     background-color: #fff8e1;
     box-shadow: inset 0 0 0 2px #ffc107;
+}
+
+/* Segment condition builder (js/edm-crud.js type: 'rules') */
+.edm-rules-match-row {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    margin-bottom: 10px;
+    font-size: 13px;
+}
+.edm-rule-row {
+    display: grid;
+    grid-template-columns: minmax(0, 1.2fr) minmax(0, 1fr) minmax(0, 1.2fr) auto;
+    align-items: center;
+    gap: 8px;
+    margin-bottom: 8px;
+    padding: 8px;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    background: #fbfcfe;
+}
+.edm-rule-value-wrap:empty::after {
+    content: "No value needed";
+    font-size: 12px;
+    color: #adb5bd;
+}
+.edm-rules-count {
+    margin-top: 12px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: #f4f6f8;
+    font-size: 13px;
+}
+.edm-rules-count.is-ok {
+    background: #eef8f2;
+    color: #146c43;
+}
+.edm-rules-count.is-warn {
+    background: #fff8e1;
+    color: #664d03;
+}
+.edm-rules-sample {
+    margin-top: 2px;
+    overflow: hidden;
+    font-size: 12px;
+    color: #6c757d;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+}
+@media (max-width: 575.98px) {
+    .edm-rule-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+    .edm-rule-row .edm-rule-op,
+    .edm-rule-row .edm-rule-value-wrap {
+        grid-column: 1;
+    }
 }

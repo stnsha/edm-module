@@ -119,7 +119,8 @@ final class ImportFileReader
         };
         $reader->setReadDataOnly(true);
         try {
-            $sheet = $reader->load($path)->getActiveSheet();
+            // Only the first sheet of a multi-sheet workbook is imported.
+            $sheet = $reader->load($path)->getSheet(0);
         } catch (SpreadsheetReaderException | ValueError $e) {
             throw ValidationException::single('file', 'The file could not be read as .' . strtoupper($ext) . '.');
         }

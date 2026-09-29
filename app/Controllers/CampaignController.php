@@ -7,6 +7,7 @@ namespace Edm\Controllers;
 use Edm\Core\Controller;
 use Edm\Models\Campaign;
 use Edm\Models\CampaignContent;
+use Edm\Services\SegmentQuery;
 
 /**
  * Newsletters (campaign/). Actions:
@@ -51,6 +52,7 @@ final class CampaignController extends Controller
                 return Campaign::listing();
             case 'campaigns_create':
                 $data = $this->validator->validate($this->payload() + $this->stamp('requested_by'), self::RULES);
+                SegmentQuery::forNewsletter($data['segment_id'] ?? null, (int) $data['list_id']);
                 $template = $this->validator->validate(
                     $this->request->ids(['template_id']),
                     ['template_id' => ['sometimes', 'nullable', 'integer', 'exists:edm_templates,id']]
@@ -58,8 +60,13 @@ final class CampaignController extends Controller
                 return Campaign::createDraft($data, $template['template_id'] ?? null);
             case 'campaigns_update':
                 $id = $this->requireId('Newsletter');
-                Campaign::findOrFail($id);
-                Campaign::update($id, $this->validator->validate($this->payload(), self::UPDATE_RULES, $id));
+                $existing = Campaign::findOrFail($id);
+                $data = $this->validator->validate($this->payload(), self::UPDATE_RULES, $id);
+                SegmentQuery::forNewsletter(
+                    array_key_exists('segment_id', $data) ? $data['segment_id'] : $existing['segment_id'],
+                    array_key_exists('list_id', $data) ? $data['list_id'] : $existing['list_id']
+                );
+                Campaign::update($id, $data);
                 return Campaign::withDetails($id);
             case 'campaigns_delete':
                 Campaign::delete($this->requireId('Newsletter'));

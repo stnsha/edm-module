@@ -12,6 +12,7 @@ use Edm\Models\CampaignContent;
 use Edm\Models\Sender;
 use Edm\Models\Template;
 use Edm\Services\ScheduleConflicts;
+use Edm\Services\SegmentQuery;
 use Edm\Services\Ses\MessageRenderer;
 use Edm\Services\Ses\SesGateway;
 use Edm\Services\Ses\Unsubscribe;
@@ -21,7 +22,8 @@ use Edm\Services\Ses\Unsubscribe;
  * the body's `campaign`. Actions:
  *   campaigns_list  picker for the bare landing page
  *   load            newsletter + content + list
- *   settings_save   the settings panel above the builder
+ *   settings_save   the settings panel above the builder (segment_id is
+ *                   checked against the list, see SegmentQuery::forNewsletter)
  *   content_get     html + editor_json
  *   content_save    new body version (html + EmailBuilder.js editor_json)
  *   conflicts       calendar conflicts for ?date= (Scheduled send warning)
@@ -37,6 +39,7 @@ final class EmailBuilderController extends Controller
         'subject'      => ['sometimes', 'required', 'string', 'max:255'],
         'sender_id'    => ['sometimes', 'required', 'integer', 'exists:edm_senders,id'],
         'list_id'      => ['sometimes', 'required', 'integer', 'exists:edm_lists,id'],
+        'segment_id'   => ['nullable', 'integer', 'exists:edm_segments,id'],
         'scheduled_at' => ['nullable', 'date'],
     ];
 
@@ -55,10 +58,15 @@ final class EmailBuilderController extends Controller
             case 'load':
                 return Campaign::withDetails($id);
             case 'settings_save':
-                Campaign::findOrFail($id);
+                $existing = Campaign::findOrFail($id);
                 $payload = $this->request->only(['name', 'subject', 'scheduled_at'])
-                    + $this->request->ids(['sender_id', 'list_id']);
-                Campaign::update($id, $this->validator->validate($payload, self::SETTINGS_RULES, $id));
+                    + $this->request->ids(['sender_id', 'list_id', 'segment_id']);
+                $data = $this->validator->validate($payload, self::SETTINGS_RULES, $id);
+                SegmentQuery::forNewsletter(
+                    array_key_exists('segment_id', $data) ? $data['segment_id'] : $existing['segment_id'],
+                    array_key_exists('list_id', $data) ? $data['list_id'] : $existing['list_id']
+                );
+                Campaign::update($id, $data);
                 return Campaign::withDetails($id);
             case 'content_get':
                 Campaign::findOrFail($id);

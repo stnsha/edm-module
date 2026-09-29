@@ -17,6 +17,14 @@ foreach (\Edm\Models\Sender::all() as $row) {
 foreach (\Edm\Models\ContactList::all() as $row) {
     $edm_list_opts[] = array('value' => $row['id'], 'label' => $row['name']);
 }
+// Segment select: "whole list" first; each segment's list (null = any list)
+// drives js/edm-segment-picker.js, which hides segments of other lists.
+$edm_segment_opts  = array(array('value' => '', 'label' => 'None - send to the whole list'));
+$edm_segment_lists = array();
+foreach (\Edm\Models\Segment::all() as $row) {
+    $edm_segment_opts[] = array('value' => $row['id'], 'label' => $row['name']);
+    $edm_segment_lists[$row['id']] = $row['list_id'];
+}
 $edm_template_opts = array(array('value' => '', 'label' => 'Blank'));
 foreach (\Edm\Models\Template::options() as $row) {
     $edm_template_opts[] = array('value' => $row['id'], 'label' => $row['name'] . ($row['category'] ? ' (' . $row['category'] . ')' : ''));
@@ -65,6 +73,7 @@ edm_crud_screen(array(
     // Draft (1) and content revision (4) are the only states still being worked
     // on; later states are in review / scheduled / sent and stay read-only here.
     function editable(r) { return r.status === 1 || r.status === 4; }
+    var segmentPicker = null;
 
     window.EDM_CRUD_CONFIG = {
         api: 'campaign/api.php',
@@ -81,7 +90,6 @@ edm_crud_screen(array(
             8: { cls: 'edm-pill-success', label: 'Completed' },
             9: { cls: 'edm-pill-dark', label: 'Archived' }
         } },
-        actionMenu: true,
         // Edit = the Email creator page, which holds the settings and the
         // design together; the list's own edit modal is not used.
         noEdit: true,
@@ -93,11 +101,11 @@ edm_crud_screen(array(
         rowActions: [
             { label: 'Edit', visible: editable,
                 link: function (r) { return 'email-builder/index.php?campaign=' + r.id; } },
-            { label: 'Submit', className: 'btn-outline-success', action: 'campaigns_submit', confirm: 'Submit this newsletter for review?',
+            { label: 'Submit', action: 'campaigns_submit', confirm: 'Submit this newsletter for review?',
                 visible: editable },
             { label: 'Preview', handler: function (r) { openPreview(r); } },
             { label: 'Reuse', action: 'campaigns_duplicate', confirm: 'Create a copy of this newsletter as a new draft?' },
-            { label: 'Stop sending', className: 'btn-outline-danger', action: 'campaigns_stop',
+            { label: 'Stop sending', action: 'campaigns_stop',
                 confirm: 'Stop this newsletter? A scheduled newsletter goes back to Draft; one already sending is closed as completed.',
                 visible: function (r) { return r.status === 6 || r.status === 7; } }
         ],
@@ -112,14 +120,33 @@ edm_crud_screen(array(
             { name: 'name', label: 'Name', type: 'text', required: true },
             { name: 'sender_id', label: 'Sender', type: 'select', required: true, options: <?php echo json_encode($edm_sender_opts); ?> },
             { name: 'list_id', label: 'Recipient list', type: 'select', required: true, options: <?php echo json_encode($edm_list_opts); ?> },
+            { name: 'segment_id', label: 'Segment', type: 'select', options: <?php echo json_encode($edm_segment_opts); ?>,
+                help: 'Optional. Send only to the contacts on the list who match the segment (Contacts > Segments).' },
             { name: 'subject', label: 'Subject line', type: 'text', required: true },
             { name: 'template_id', label: 'Template', type: 'select', options: <?php echo json_encode($edm_template_opts); ?>,
                 help: 'Starting design, copied into the new newsletter. Blank starts empty.' },
             { name: 'scheduled_at', label: 'Scheduled send', type: 'datetime' }
-        ]
+        ],
+        // Segment picker: segments of other lists hidden, audience count below.
+        onFormOpen: function () {
+            if (!segmentPicker) {
+                var seg = document.getElementById('edm-f-segment_id');
+                var hint = document.createElement('div');
+                hint.className = 'form-text edm-segment-hint';
+                seg.parentNode.appendChild(hint);
+                segmentPicker = window.edmSegmentPicker({
+                    list: document.getElementById('edm-f-list_id'),
+                    segment: seg,
+                    hint: hint,
+                    segmentLists: <?php echo json_encode((object) $edm_segment_lists); ?>
+                });
+            }
+            segmentPicker.sync();
+        }
     };
 })();
 </script>
+<script src="<?php echo EDM_BASE; ?>js/edm-segment-picker.js"></script>
 <?php
 include __DIR__ . '/../footer.php';
 ?>

@@ -16,10 +16,9 @@ window.EDM_CRUD_CONFIG = {
     entity: 'list',
     actions: { list: 'lists_list', create: 'lists_create', update: 'lists_update', 'delete': 'lists_delete' },
     rowActions: [
-        { label: 'Import', className: 'btn-outline-primary',
-          link: function (r) { return 'audience/import.php?list=' + r.id; } },
+        { label: 'Contacts', link: function (r) { return 'audience/contacts.php?list=' + r.id; } },
+        { label: 'Import', link: function (r) { return 'audience/import.php?list=' + r.id; } },
         { label: function (r) { return r.is_active ? 'Set inactive' : 'Set active'; },
-          className: function (r) { return r.is_active ? 'btn-outline-danger' : 'btn-outline-success'; },
           body: function (r) { return { is_active: !r.is_active }; },
           action: 'lists_update', method: 'PUT' }
     ],

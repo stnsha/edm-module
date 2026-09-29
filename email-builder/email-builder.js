@@ -26,6 +26,7 @@
         name:      document.getElementById('edm-eb-f-name'),
         sender:    document.getElementById('edm-eb-f-sender'),
         list:      document.getElementById('edm-eb-f-list'),
+        segment:   document.getElementById('edm-eb-f-segment'),
         subject:   document.getElementById('edm-eb-f-subject'),
         scheduled: document.getElementById('edm-eb-f-scheduled')
     };
@@ -55,6 +56,15 @@
     // server-side by index.php. No custom fields = no Personalisation box.
     var VARIABLES = (window.EDM_EB_CUSTOM_VARS || []).map(function (v) {
         return { token: v.token, label: v.label };
+    });
+
+    // Segment select: segments of other lists hidden, audience count below
+    // (js/edm-segment-picker.js).
+    var segmentPicker = window.edmSegmentPicker({
+        list: f.list,
+        segment: f.segment,
+        hint: document.getElementById('edm-eb-segment-hint'),
+        segmentLists: window.EDM_EB_SEGMENT_LISTS || {}
     });
 
     var editorReady = false;
@@ -161,6 +171,8 @@
         f.name.value = c.name || '';
         f.sender.value = c.sender_id != null ? String(c.sender_id) : '';
         f.list.value = c.list_id != null ? String(c.list_id) : '';
+        f.segment.value = c.segment_id != null ? String(c.segment_id) : '';
+        segmentPicker.sync();
         f.subject.value = c.subject || '';
         f.scheduled.value = toInputDate(c.scheduled_at);
         checkConflicts();
@@ -171,6 +183,7 @@
             name: f.name.value.trim(),
             sender_id: f.sender.value,
             list_id: f.list.value,
+            segment_id: f.segment.value,
             subject: f.subject.value,
             scheduled_at: f.scheduled.value
         };
