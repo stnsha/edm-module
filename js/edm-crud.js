@@ -23,10 +23,12 @@
  *            // (see the .edm-pill note in css/style.css).
  *   fields:  [ { name, label, type, required, default, options, help } ]
  *            // type: text|textarea|number|email|checkbox|select|date|datetime|rules
- *            // rules: the segment condition builder. Needs
- *            //   catalog: { fields: { key: { label, type, group, options? } },
- *            //              ops: { type: [op] }, op_labels: { op: label }, no_value: [op] }
- *            // (SegmentQuery::fields() etc., rendered by audience/segments.php) and
+ *            // rules: the segment condition builder (AND / OR condition groups;
+ *            // value { match, groups: [ { match, rules: [ { field, op, value } ] } ] }).
+ *            // Needs catalog: { fields: { key: { label, type, group, options? } },
+ *            //   ops: { type: [op] }, op_labels: { op: label }, op_suffix: { op: unit },
+ *            //   no_value: [op], max_rules, max_groups }
+ *            // (SegmentQuery::catalog(), rendered by audience/segments.php) and
  *            // optionally count: { action, listField } for a live "N of M match"
  *            // line (POST { definition, list_id } -> { matched, total, sample }).
  *            // datetime: <input type="datetime-local">; the API's
@@ -257,14 +259,16 @@
                 }).join('') + '</select>';
         }
         if (f.type === 'rules') {
+            // Condition groups: the outer match combines the groups, each
+            // group's match its conditions. The outer row shows from 2 groups.
             return '<div id="' + id + '" class="edm-rules">' +
-                '<div class="edm-rules-match-row">Contacts must match ' +
-                    '<select class="form-select form-select-sm w-auto edm-rules-match" aria-label="Match all or any">' +
+                '<div class="edm-rules-match-row edm-rules-outer" hidden>Contacts must match ' +
+                    '<select class="form-select form-select-sm w-auto edm-rules-match" aria-label="Match all or any group">' +
                         '<option value="all">all</option><option value="any">any</option>' +
-                    '</select> of these conditions:' +
+                    '</select> of these groups:' +
                 '</div>' +
-                '<div class="edm-rules-rows"></div>' +
-                '<button type="button" class="btn btn-sm btn-outline-secondary edm-rules-add"><i class="bi bi-plus-lg me-1"></i>Add condition</button>' +
+                '<div class="edm-rules-groups"></div>' +
+                '<button type="button" class="btn btn-sm btn-outline-secondary edm-rules-add-group"><i class="bi bi-collection me-1"></i>Add condition group</button>' +
                 (f.count ? '<div class="edm-rules-count" aria-live="polite"></div>' : '') +
             '</div>';
         }
@@ -291,10 +295,12 @@
         cfg.fields.forEach(function (f) {
             if (f.type !== 'rules') { return; }
             var el = document.getElementById('edm-f-' + f.name);
-            el.querySelector('.edm-rules-add').addEventListener('click', function () {
-                addRuleRow(f);
+            el.querySelector('.edm-rules-add-group').addEventListener('click', function () {
+                var g = addRuleGroup(f, null);
+                addRuleRow(f, g, null);
                 scheduleCount(f);
             });
+            el.querySelector('.edm-rules-match').addEventListener('change', function () { syncRuleGroups(f); });
             if (f.count) {
                 bodyEl.addEventListener('change', function () { scheduleCount(f); });
                 bodyEl.addEventListener('input', function () { scheduleCount(f); });
@@ -324,10 +330,72 @@
     // ---- rules (segment conditions) ----
 
     var LEGACY_OPS = { 'is not': 'is_not', '>': 'gt', '<': 'lt' };
+    var MONTHS = ['January', 'February', 'March', 'April', 'May', 'June', 'July',
+        'August', 'September', 'October', 'November', 'December'];
 
-    function addRuleRow(f, rule) {
+    var DAY_OPS = ['in_last_days', 'older_than_days', 'within_days', 'not_within_days'];
+    var CAMPAIGN_OPS = ['in_campaign', 'not_in_campaign'];
+
+    function ruleCatalog(f) {
+        return f.catalog || { fields: {}, ops: {}, op_labels: {}, op_suffix: {}, no_value: [] };
+    }
+
+    // One condition group box: its own all / any select, its rows, an Add
+    // condition button and (from 2 groups) a remove-group button.
+    function addRuleGroup(f, group) {
         var el = document.getElementById('edm-f-' + f.name);
-        var cat = f.catalog || { fields: {}, ops: {}, op_labels: {}, no_value: [] };
+        var box = document.createElement('div');
+        box.className = 'edm-rule-group';
+        box.innerHTML =
+            '<div class="edm-rule-group-sep" aria-hidden="true"></div>' +
+            '<div class="edm-rules-match-row edm-rule-group-head">' +
+                '<span class="edm-rule-group-title"></span>' +
+                '<span>match</span>' +
+                '<select class="form-select form-select-sm w-auto edm-rule-group-match" aria-label="Match all or any condition">' +
+                    '<option value="all">all</option><option value="any">any</option>' +
+                '</select> <span>of these conditions:</span>' +
+                '<button type="button" class="btn btn-sm btn-link text-danger ms-auto edm-rule-group-del" title="Remove group">' +
+                    '<i class="bi bi-trash me-1"></i>Remove group</button>' +
+            '</div>' +
+            '<div class="edm-rules-rows"></div>' +
+            '<button type="button" class="btn btn-sm btn-outline-secondary edm-rules-add"><i class="bi bi-plus-lg me-1"></i>Add condition</button>';
+        box.querySelector('.edm-rule-group-match').value = (group && group.match) || 'all';
+        box.querySelector('.edm-rules-add').addEventListener('click', function () {
+            addRuleRow(f, box, null);
+            scheduleCount(f);
+        });
+        box.querySelector('.edm-rule-group-del').addEventListener('click', function () {
+            box.remove();
+            syncRuleGroups(f);
+            scheduleCount(f);
+        });
+        el.querySelector('.edm-rules-groups').appendChild(box);
+        syncRuleGroups(f);
+        return box;
+    }
+
+    // Titles, AND / OR separators and remove buttons follow the group count.
+    function syncRuleGroups(f) {
+        var el = document.getElementById('edm-f-' + f.name);
+        if (!el) { return; }
+        var boxes = [].slice.call(el.querySelectorAll('.edm-rule-group'));
+        var many = boxes.length > 1;
+        var cat = ruleCatalog(f);
+        var joiner = el.querySelector('.edm-rules-match').value === 'any' ? 'OR' : 'AND';
+        el.querySelector('.edm-rules-outer').hidden = !many;
+        el.querySelector('.edm-rules-add-group').disabled = boxes.length >= (cat.max_groups || 5);
+        boxes.forEach(function (box, i) {
+            box.classList.toggle('is-multi', many);
+            box.querySelector('.edm-rule-group-title').textContent = many ? 'Group ' + (i + 1) + ':' : 'Contacts must';
+            box.querySelector('.edm-rule-group-del').hidden = !many;
+            var sep = box.querySelector('.edm-rule-group-sep');
+            sep.hidden = i === 0;
+            sep.textContent = joiner;
+        });
+    }
+
+    function addRuleRow(f, groupEl, rule) {
+        var cat = ruleCatalog(f);
         rule = rule || {};
         // Rules from the first free-text builder: bare custom field key, old op names.
         var fieldKey = rule.field || '';
@@ -370,6 +438,42 @@
             var def = cat.fields[fieldSel.value];
             if (!def || (cat.no_value || []).indexOf(opSel.value) !== -1) { valWrap.innerHTML = ''; return; }
             var v = value == null ? '' : String(value);
+            var op = opSel.value;
+            var suffix = (cat.op_suffix || {})[op] || '';
+            if (op === 'age_between') {
+                // Two whole years, sent as "min-max".
+                var am = /^(\d+)-(\d+)$/.exec(v) || ['', '', ''];
+                valWrap.innerHTML = '<div class="input-group input-group-sm edm-rule-age">' +
+                    '<input type="number" class="form-control edm-rule-age-min" min="0" max="150" step="1" placeholder="From" aria-label="Age from" value="' + esc(am[1]) + '">' +
+                    '<span class="input-group-text">and</span>' +
+                    '<input type="number" class="form-control edm-rule-age-max" min="0" max="150" step="1" placeholder="To" aria-label="Age to" value="' + esc(am[2]) + '">' +
+                    '<span class="input-group-text">' + esc(suffix) + '</span></div>';
+                return;
+            }
+            if (DAY_OPS.indexOf(op) !== -1) {
+                valWrap.innerHTML = '<div class="input-group input-group-sm">' +
+                    '<input type="number" class="form-control edm-rule-value" min="1" step="1" placeholder="Days" aria-label="Number of days" value="' + esc(/^\d+$/.test(v) ? v : '') + '">' +
+                    '<span class="input-group-text">' + esc(suffix) + '</span></div>';
+                return;
+            }
+            if (CAMPAIGN_OPS.indexOf(op) !== -1) {
+                var camps = def.options || [];
+                valWrap.innerHTML = '<select class="form-select form-select-sm edm-rule-value" aria-label="Campaign">' +
+                    '<option value="">' + (camps.length ? 'Choose a campaign' : 'No sent campaigns yet') + '</option>' +
+                    camps.map(function (o) {
+                        return '<option value="' + esc(o.value) + '"' + (String(o.value) === v ? ' selected' : '') + '>' + esc(o.label) + '</option>';
+                    }).join('') + '</select>';
+                return;
+            }
+            if (op === 'in_month') {
+                // Month of a date in any year (e.g. birthdays in December); value 1-12.
+                valWrap.innerHTML = '<select class="form-select form-select-sm edm-rule-value" aria-label="Month">' +
+                    '<option value="">Choose a month</option>' +
+                    MONTHS.map(function (m, i) {
+                        return '<option value="' + (i + 1) + '"' + (String(i + 1) === v ? ' selected' : '') + '>' + m + '</option>';
+                    }).join('') + '</select>';
+                return;
+            }
             if (def.type === 'select') {
                 valWrap.innerHTML = '<select class="form-select form-select-sm edm-rule-value" aria-label="Value">' +
                     '<option value="">Choose an option</option>' +
@@ -398,7 +502,28 @@
         });
         fillOps(op);
         fillValue(rule.value);
-        el.querySelector('.edm-rules-rows').appendChild(div);
+        groupEl.querySelector('.edm-rules-rows').appendChild(div);
+    }
+
+    // Rows of one group as { field, op, value } (rows without a field skipped).
+    function readRuleRows(groupEl) {
+        return [].slice.call(groupEl.querySelectorAll('.edm-rule-row')).map(function (r) {
+            var value = '';
+            var age = r.querySelector('.edm-rule-age');
+            if (age) {
+                var lo = age.querySelector('.edm-rule-age-min').value.trim();
+                var hi = age.querySelector('.edm-rule-age-max').value.trim();
+                value = lo !== '' || hi !== '' ? lo + '-' + hi : '';
+            } else {
+                var valEl = r.querySelector('.edm-rule-value');
+                value = valEl ? valEl.value.trim() : '';
+            }
+            return {
+                field: r.querySelector('.edm-rule-field').value,
+                op: r.querySelector('.edm-rule-op').value,
+                value: value
+            };
+        }).filter(function (r) { return r.field !== ''; });
     }
 
     // Live "N of M contacts match" under the builder (debounced).
@@ -416,7 +541,7 @@
         var listEl = f.count.listField ? document.getElementById('edm-f-' + f.count.listField) : null;
         var listId = listEl && listEl.value ? parseInt(listEl.value, 10) : null;
         var scope = listId ? 'on this list' : 'across all lists';
-        if (!def.rules.length) {
+        if (!def.groups.length) {
             box.className = 'edm-rules-count text-muted';
             box.textContent = 'Add a condition to see how many contacts match.';
             return;
@@ -455,10 +580,15 @@
             return;
         }
         if (f.type === 'rules') {
-            var def = (row && row[f.name]) || { match: 'all', rules: [] };
-            el.querySelector('.edm-rules-match').value = def.match || 'all';
-            el.querySelector('.edm-rules-rows').innerHTML = '';
-            (def.rules && def.rules.length ? def.rules : [null]).forEach(function (r) { addRuleRow(f, r); });
+            var def = (row && row[f.name]) || { match: 'all', groups: [] };
+            // Saved before condition groups existed: { match, rules } is one group.
+            var groups = def.groups || (def.rules ? [{ match: def.match, rules: def.rules }] : []);
+            el.querySelector('.edm-rules-match').value = def.groups ? (def.match || 'all') : 'all';
+            el.querySelector('.edm-rules-groups').innerHTML = '';
+            (groups.length ? groups : [{ match: 'all', rules: [] }]).forEach(function (g) {
+                var box = addRuleGroup(f, g);
+                (g.rules && g.rules.length ? g.rules : [null]).forEach(function (r) { addRuleRow(f, box, r); });
+            });
             scheduleCount(f);
             return;
         }
@@ -491,15 +621,11 @@
         if (!el) { return undefined; }
         if (f.type === 'checkbox') { return el.checked; }
         if (f.type === 'rules') {
-            var rows = [].slice.call(el.querySelectorAll('.edm-rule-row')).map(function (r) {
-                var valEl = r.querySelector('.edm-rule-value');
-                return {
-                    field: r.querySelector('.edm-rule-field').value,
-                    op: r.querySelector('.edm-rule-op').value,
-                    value: valEl ? valEl.value.trim() : ''
-                };
-            }).filter(function (r) { return r.field !== ''; });
-            return { match: el.querySelector('.edm-rules-match').value, rules: rows };
+            // Groups without a chosen field are left out.
+            var groups = [].slice.call(el.querySelectorAll('.edm-rule-group')).map(function (box) {
+                return { match: box.querySelector('.edm-rule-group-match').value, rules: readRuleRows(box) };
+            }).filter(function (g) { return g.rules.length; });
+            return { match: el.querySelector('.edm-rules-match').value, groups: groups };
         }
         if (f.type === 'richtext') {
             var qf = quillFields[f.name];

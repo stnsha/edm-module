@@ -10,6 +10,7 @@ use Edm\Core\ValidationException;
 use Edm\Models\ContactList;
 use Edm\Models\CustomField;
 use Edm\Models\ListMember;
+use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 
 /**
  * Contacts > Import contacts, in two steps like GetResponse:
@@ -31,7 +32,8 @@ use Edm\Models\ListMember;
  * list) but the send queue never emails them.
  *
  * Custom field values are checked against the field type: text is clipped at
- * 255 characters, a date must be YYYY-MM-DD, a number numeric, a yes/no field
+ * 255 characters, a date YYYY-MM-DD or day-first D/M/YYYY (stored as
+ * YYYY-MM-DD), a number numeric, a yes/no field
  * 1/0 (true/false, yes/no accepted), a select field one of its options. A
  * value that does not fit is dropped (the contact is still imported) and
  * counted in the summary.
@@ -359,7 +361,7 @@ final class ContactImport
     {
         return match ($field['type'] ?? 'text') {
             'number'  => 'a number',
-            'date'    => 'a date as YYYY-MM-DD',
+            'date'    => 'a date as YYYY-MM-DD or D/M/YYYY',
             'boolean' => '1 or 0',
             'select'  => 'one of: ' . implode(', ', array_map('strval', (array) ($field['options'] ?? []))),
             default   => 'text',
@@ -410,7 +412,7 @@ final class ContactImport
             case 'number':
                 return is_numeric($value) ? $value : null;
             case 'date':
-                return preg_match('/^(\d{4})-(\d{2})-(\d{2})$/', $value, $m) === 1 && checkdate((int) $m[2], (int) $m[3], (int) $m[1]) ? $value : null;
+                return self::dateValue($value);
             case 'boolean':
                 return match (strtolower($value)) {
                     '1', 'true', 'yes' => '1',
@@ -428,6 +430,27 @@ final class ContactImport
             default:
                 return mb_substr($value, 0, self::MAX_VALUE);
         }
+    }
+
+    /**
+     * A date cell as YYYY-MM-DD, or null. Accepts YYYY-MM-DD (or / .),
+     * day-first D/M/YYYY (or - .) - the form Excel writes into a CSV under a
+     * Malaysian locale, so 2/12/1997 is 2 December 1997 - and an Excel date
+     * serial number (a spreadsheet date cell read without its formatting).
+     */
+    private static function dateValue(string $value): ?string
+    {
+        if (preg_match('/^(\d{4})[-\/.](\d{1,2})[-\/.](\d{1,2})$/', $value, $m) === 1) {
+            [$y, $mo, $d] = [(int) $m[1], (int) $m[2], (int) $m[3]];
+        } elseif (preg_match('/^(\d{1,2})[-\/.](\d{1,2})[-\/.](\d{4})$/', $value, $m) === 1) {
+            [$d, $mo, $y] = [(int) $m[1], (int) $m[2], (int) $m[3]];
+        } elseif (preg_match('/^\d{1,7}(\.\d+)?$/', $value) === 1 && (float) $value >= 1 && (float) $value < 2958466) {
+            return ExcelDate::excelToDateTimeObject((float) $value)->format('Y-m-d');
+        } else {
+            return null;
+        }
+
+        return checkdate($mo, $d, $y) ? sprintf('%04d-%02d-%02d', $y, $mo, $d) : null;
     }
 
     /**

@@ -170,7 +170,8 @@
     function fillSettings(c) {
         f.name.value = c.name || '';
         f.sender.value = c.sender_id != null ? String(c.sender_id) : '';
-        f.list.value = c.list_id != null ? String(c.list_id) : '';
+        // 'all' = Campaign::ALL_LISTS (all_lists, list_id null).
+        f.list.value = c.all_lists ? 'all' : (c.list_id != null ? String(c.list_id) : '');
         f.segment.value = c.segment_id != null ? String(c.segment_id) : '';
         segmentPicker.sync();
         f.subject.value = c.subject || '';
@@ -417,13 +418,27 @@
         });
     }
 
-    // Only a draft (1) or content revision (4) can go to review.
+    // Only a draft (1) or content revision (4) can go to review. From final
+    // approval on (scheduled 6, sending 7, completed 8, archived 9 -
+    // Campaign::isLocked()) the campaign is locked: the server refuses saves,
+    // so Save and Start from template are hidden and a notice says why.
+    var lockNotice = null;
     function setStatus(status) {
         var st = STATUS[status] || STATUS[1];
+        var locked = [6, 7, 8, 9].indexOf(status) !== -1;
         statusEl.className = 'edm-pill ' + st.cls;
         statusEl.textContent = st.label;
         statusEl.hidden = false;
         submitBtn.hidden = !(status === 1 || status === 4);
+        saveBtn.hidden = locked;
+        templateBtn.hidden = locked;
+        if (locked && !lockNotice) {
+            lockNotice = document.createElement('div');
+            lockNotice.className = 'alert alert-info py-2 px-3 small';
+            lockNotice.innerHTML = '<i class="bi bi-lock-fill me-1"></i>This campaign has final approval and is locked - changes are not saved.' +
+                (status === 6 ? ' To change it, use Stop sending on the Campaigns list (it returns to Draft and needs a new review).' : '');
+            alertEl.parentNode.insertBefore(lockNotice, alertEl);
+        }
     }
 
     // Submit = save everything first (so review sees the current version),

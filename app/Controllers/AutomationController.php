@@ -56,9 +56,10 @@ final class AutomationController extends Controller
     private function autoresponders(string $verb): mixed
     {
         $payload = $this->request->only(['name', 'subject'])
-            + $this->request->ids(['status', 'list_id', 'offset_days']);
+            + $this->request->ids(['status', 'workflow_id', 'list_id', 'offset_days']);
         $rules = [
             'name'        => ['required', 'string', 'max:255'],
+            'workflow_id' => ['nullable', 'integer', 'exists:edm_workflows,id'],
             'list_id'     => ['nullable', 'integer', 'exists:edm_lists,id'],
             'offset_days' => ['required', 'integer', 'min:-365', 'max:365'],
             'subject'     => ['nullable', 'string', 'max:255'],

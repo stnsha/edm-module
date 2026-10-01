@@ -22,22 +22,69 @@ final class Campaign extends Model
 
     public const DRAFT = 1;
     public const PENDING_SUBMISSION = 2;
+    public const UNDER_BPT_REVIEW = 3;
     public const CONTENT_REVISION = 4;
+    public const AUDIENCE_VALIDATION = 5;
     public const SCHEDULED = 6;
     public const SENDING = 7;
     public const COMPLETED = 8;
     public const ARCHIVED = 9;
 
+    /** Statuses a campaign can be raised for review from (approval/edit.php). */
+    public const REVIEWABLE = [self::DRAFT, self::PENDING_SUBMISSION, self::CONTENT_REVISION];
+
     protected const TABLE = 'edm_campaigns';
 
     protected const FILLABLE = [
-        'name', 'subject', 'subject_b', 'preheader', 'sender_id', 'list_id', 'segment_id',
+        'name', 'subject', 'subject_b', 'preheader', 'sender_id', 'list_id', 'all_lists', 'segment_id',
         'status', 'scheduled_at', 'requested_by', 'requested_by_name',
     ];
 
-    protected const CASTS = ['status' => 'int', 'scheduled_at' => 'datetime'];
+    protected const CASTS = ['status' => 'int', 'all_lists' => 'bool', 'scheduled_at' => 'datetime'];
+
+    /** Recipient list select value meaning "every list" (all_lists = 1, list_id NULL). */
+    public const ALL_LISTS = 'all';
+
+    /** Shown in place of a list name for an all-lists campaign. */
+    public const ALL_LISTS_LABEL = 'All lists';
 
     protected const ORDER = '`created_at` DESC, `id` DESC';
+
+    /** True when the campaign has recipients chosen: one list, or all lists. */
+    public static function hasAudience(array $campaign): bool
+    {
+        return $campaign['all_lists'] || $campaign['list_id'] !== null;
+    }
+
+    /**
+     * The list recipients come from: its id, or null for every list. Only
+     * meaningful when hasAudience() is true.
+     */
+    public static function audienceListId(array $campaign): ?int
+    {
+        return $campaign['all_lists'] || $campaign['list_id'] === null ? null : (int) $campaign['list_id'];
+    }
+
+    /**
+     * Recipient list fields from a request's list_id: ALL_LISTS sets
+     * all_lists, anything else is the list id (or null) and clears it. Empty
+     * when the request has no list_id.
+     *
+     * @param array<string, mixed> $input
+     * @return array{list_id?: ?int, all_lists?: bool}
+     */
+    public static function audienceInput(array $input): array
+    {
+        if (!array_key_exists('list_id', $input)) {
+            return [];
+        }
+        $v = $input['list_id'];
+        if ($v === self::ALL_LISTS) {
+            return ['list_id' => null, 'all_lists' => true];
+        }
+
+        return ['list_id' => ($v === '' || $v === null) ? null : (int) $v, 'all_lists' => false];
+    }
 
     /** Draft and content revision are the only states still being worked on. */
     public static function isEditable(array $campaign): bool
@@ -77,8 +124,11 @@ final class Campaign extends Model
             unset($row['list_name']);
             $row = self::present($row);
             $row['delivered'] = (int) $row['delivered'];
-            $row['list'] = $row['list_id'] !== null && $listName !== null
-                ? ['id' => (int) $row['list_id'], 'name' => $listName] : null;
+            $row['list'] = match (true) {
+                $row['all_lists']                              => ['id' => null, 'name' => self::ALL_LISTS_LABEL],
+                $row['list_id'] !== null && $listName !== null => ['id' => (int) $row['list_id'], 'name' => $listName],
+                default                                        => null,
+            };
 
             return $row;
         }, self::db()->select($sql, $params));
@@ -93,8 +143,10 @@ final class Campaign extends Model
     {
         $campaign = self::findOrFail($id);
         $campaign['content'] = CampaignContent::forCampaign($id);
-        $list = $campaign['list_id'] !== null ? ContactList::find((int) $campaign['list_id']) : null;
-        $campaign['list'] = $list ? ['id' => $list['id'], 'name' => $list['name']] : null;
+        $list = !$campaign['all_lists'] && $campaign['list_id'] !== null ? ContactList::find((int) $campaign['list_id']) : null;
+        $campaign['list'] = $campaign['all_lists']
+            ? ['id' => null, 'name' => self::ALL_LISTS_LABEL]
+            : ($list ? ['id' => $list['id'], 'name' => $list['name']] : null);
 
         return $campaign;
     }
@@ -143,6 +195,7 @@ final class Campaign extends Model
                 'preheader'    => $source['preheader'],
                 'sender_id'    => $source['sender_id'],
                 'list_id'      => $changeList ? $listId : $source['list_id'],
+                'all_lists'    => $changeList ? false : $source['all_lists'],
                 'segment_id'   => $changeList ? null : $source['segment_id'],
                 'status'       => self::DRAFT,
                 'scheduled_at' => null,
@@ -202,17 +255,56 @@ final class Campaign extends Model
             throw new HttpException('Only a draft or a campaign in revision can be submitted for review.', 422);
         }
         // Drafts may be saved half-filled; a submitted one must be complete.
-        $missing = array_keys(array_filter([
-            'a sender'         => $campaign['sender_id'] === null,
-            'a recipient list' => $campaign['list_id'] === null,
-            'a subject line'   => trim((string) $campaign['subject']) === '',
-            'a design'         => trim((string) (CampaignContent::forCampaign($id)['html'] ?? '')) === '',
-        ]));
+        $missing = self::missing($campaign);
         if ($missing !== []) {
             throw new HttpException('Before submitting, add ' . implode(', ', $missing) . '.', 422);
         }
 
         return self::update($id, ['status' => self::PENDING_SUBMISSION]);
+    }
+
+    /**
+     * What a campaign still lacks before it can be submitted or scheduled,
+     * e.g. ['a sender', 'a design']; empty when complete.
+     *
+     * @return list<string>
+     */
+    public static function missing(array $campaign): array
+    {
+        return array_keys(array_filter([
+            'a sender'         => $campaign['sender_id'] === null,
+            'a recipient list' => !self::hasAudience($campaign),
+            'a subject line'   => trim((string) $campaign['subject']) === '',
+            'a design'         => trim((string) (CampaignContent::forCampaign((int) $campaign['id'])['html'] ?? '')) === '',
+        ]));
+    }
+
+    /**
+     * Locked (spec 5.2 step 6): from final approval on - scheduled, sending,
+     * completed or archived - the settings and design can no longer change.
+     */
+    public static function isLocked(array $campaign): bool
+    {
+        return in_array($campaign['status'], [self::SCHEDULED, self::SENDING, self::COMPLETED, self::ARCHIVED], true);
+    }
+
+    /** @throws HttpException 422 when the campaign is locked (see isLocked()). */
+    public static function assertUnlocked(array $campaign): void
+    {
+        if (self::isLocked($campaign)) {
+            throw new HttpException('This campaign is scheduled or sent, so it is locked. Stop it first (scheduled only) to make changes.', 422);
+        }
+    }
+
+    /** Completed -> archived (spec 5.1 status 9): closed, kept for reporting. */
+    public static function archive(int $id): array
+    {
+        $campaign = self::findOrFail($id);
+        if ($campaign['status'] !== self::COMPLETED) {
+            throw new HttpException('Only a completed campaign can be archived.', 422);
+        }
+
+        return self::update($id, ['status' => self::ARCHIVED]);
     }
 
     /**

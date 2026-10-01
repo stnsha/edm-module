@@ -58,6 +58,7 @@ CREATE TABLE `edm_senders` (
 
 -- ----------------------------------------------------------------------
 -- edm_custom_fields: Contact field definitions; each key is a {{key}} personalisation variable.
+-- category: spec section 6 filter category grouping the field in the segment builder; NULL = Custom fields.
 -- ----------------------------------------------------------------------
 CREATE TABLE `edm_custom_fields` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -65,6 +66,7 @@ CREATE TABLE `edm_custom_fields` (
   `label` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `type` enum('text','number','date','boolean','select') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'text',
   `options` json DEFAULT NULL,
+  `category` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `is_active` tinyint(1) NOT NULL DEFAULT '1',
   `created_at` datetime NULL DEFAULT NULL,
   `updated_at` datetime NULL DEFAULT NULL,
@@ -261,6 +263,7 @@ CREATE TABLE `edm_ses_events` (
 
 -- ----------------------------------------------------------------------
 -- edm_campaigns: Campaigns. status: 1=draft, 2=pending_submission, 3=under_bpt_review, 4=content_revision, 5=audience_validation, 6=scheduled, 7=sending, 8=completed, 9=archived.
+-- all_lists: 1 = send to every list (list_id NULL), 0 = list_id is the recipient list.
 -- ----------------------------------------------------------------------
 CREATE TABLE `edm_campaigns` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -270,6 +273,7 @@ CREATE TABLE `edm_campaigns` (
   `preheader` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `sender_id` bigint unsigned DEFAULT NULL,
   `list_id` bigint unsigned DEFAULT NULL,
+  `all_lists` tinyint(1) NOT NULL DEFAULT '0',
   `segment_id` bigint unsigned DEFAULT NULL,
   `status` tinyint unsigned NOT NULL DEFAULT '1',
   `scheduled_at` datetime NULL DEFAULT NULL,
@@ -355,10 +359,12 @@ CREATE TABLE `edm_workflows` (
 
 -- ----------------------------------------------------------------------
 -- edm_autoresponders: Autoresponders. status: 1=draft, 2=active, 3=paused.
+-- workflow_id: the journey (edm_workflows) this timed email is a step of; offset_days from its trigger.
 -- ----------------------------------------------------------------------
 CREATE TABLE `edm_autoresponders` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `workflow_id` bigint unsigned DEFAULT NULL,
   `list_id` bigint unsigned DEFAULT NULL,
   `offset_days` int NOT NULL DEFAULT '0',
   `subject` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -367,7 +373,9 @@ CREATE TABLE `edm_autoresponders` (
   `updated_at` datetime NULL DEFAULT NULL,
   `deleted_at` datetime NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
+  KEY `edm_autoresponders_workflow_id_foreign` (`workflow_id`),
   KEY `edm_autoresponders_list_id_foreign` (`list_id`),
+  CONSTRAINT `edm_autoresponders_workflow_id_foreign` FOREIGN KEY (`workflow_id`) REFERENCES `edm_workflows` (`id`) ON DELETE SET NULL,
   CONSTRAINT `edm_autoresponders_list_id_foreign` FOREIGN KEY (`list_id`) REFERENCES `edm_lists` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 

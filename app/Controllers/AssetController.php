@@ -7,6 +7,7 @@ namespace Edm\Controllers;
 use Edm\Core\Controller;
 use Edm\Core\ValidationException;
 use Edm\Models\Asset;
+use Edm\Services\Ses\SesConfig;
 use finfo;
 
 /**
@@ -113,9 +114,18 @@ final class AssetController extends Controller
         ] + $this->stamp('uploaded_by'));
     }
 
-    /** Absolute URL of an uploaded file, following however odb is being served. */
+    /**
+     * Absolute URL of an uploaded file. Images go into emails, so they must
+     * load for recipients: EDM_PUBLIC_URL (the module's public base URL) when
+     * set; otherwise however odb is being served (on localhost the image then
+     * shows in the editor but not in a recipient's inbox - QA warns).
+     */
     private function publicUrl(string $stored): string
     {
+        $base = SesConfig::fromEnv()->publicUrl;
+        if ($base !== null) {
+            return $base . '/' . self::UPLOAD_DIR . '/' . $stored;
+        }
         $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
             || strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
         $host = (string) ($_SERVER['HTTP_HOST'] ?? 'localhost');

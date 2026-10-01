@@ -220,55 +220,112 @@
         });
     }
 
-    // ---- BPT Review (spec 5.2 steps 2-3): approve / reject ----
+    // ---- Stage decisions (spec 5.2): BPT review (steps 2-3), audience
+    // validation (step 4), final approval (step 6) - approve / reject ----
 
-    function bptDecide(decision) {
-        setError('edm-bpt-error', '');
-        var checks = [].map.call(document.querySelectorAll('.edm-bpt-check:checked'), function (c) { return c.value; });
-        var total = document.querySelectorAll('.edm-bpt-check').length;
-        var comment = $('edm-bpt-comment').value.trim();
-        if (decision === 2 && checks.length !== total) {
-            setError('edm-bpt-error', 'Tick every item on the checklist before approving.');
-            return;
+    // Per stage: element id prefix and the confirm / result wording.
+    var STAGES = {
+        bpt: {
+            prefix: 'edm-bpt', title: 'BPT review',
+            confirmApprove: 'Approve this request? It moves on to BI/CRM for audience validation.',
+            doneApprove: 'BPT review approved. The request is now with BI/CRM for audience validation.'
+        },
+        audience: {
+            prefix: 'edm-aud', title: 'audience validation', approveLabel: 'Validate',
+            confirmApprove: 'Validate this audience? The request moves on to final approval.',
+            doneApprove: 'Audience validated. The request is ready for final approval.'
+        },
+        final: {
+            prefix: 'edm-final', title: 'final approval', approveLabel: 'Approve & schedule',
+            confirmApprove: 'Approve and schedule this campaign? It is locked and Amazon SES sends it at the send date.',
+            doneApprove: 'Final approval given. The campaign is scheduled and locked.'
         }
-        if (decision === 3 && !comment) {
-            setError('edm-bpt-error', 'State the reason for rejection in the comment.');
-            $('edm-bpt-comment').focus();
-            return;
-        }
+    };
+
+    function decide(stage, decision) {
+        var s = STAGES[stage];
+        var errId = s.prefix + '-error';
+        setError(errId, '');
+        var boxes = document.querySelectorAll('.' + s.prefix + '-check');
+        var checks = [].map.call(document.querySelectorAll('.' + s.prefix + '-check:checked'), function (c) { return c.value; });
+        var comment = $(s.prefix + '-comment').value.trim();
         var approve = decision === 2;
+        var body = { id: CFG.id, stage: stage, decision: decision, comment: comment, checks: checks };
+        if (approve && checks.length !== boxes.length) {
+            setError(errId, 'Tick every item on the checklist before approving.');
+            return;
+        }
+        if (!approve && !comment) {
+            setError(errId, 'State the reason for rejection in the comment.');
+            $(s.prefix + '-comment').focus();
+            return;
+        }
+        if (approve && stage === 'final') {
+            body.scheduled_at = $('edm-final-at').value;
+            if (!body.scheduled_at) {
+                setError(errId, 'Choose the send date and time.');
+                $('edm-final-at').focus();
+                return;
+            }
+        }
         window.edmConfirm(approve
-            ? 'Approve this request? It moves on to BI/CRM for audience validation.'
+            ? s.confirmApprove
             : 'Reject this request? It goes back to the requester to change and resubmit, and the campaign returns to content revision.',
         function () {
             fetch(API + '?action=approvals_decide', {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-                body: JSON.stringify({ id: CFG.id, stage: 'bpt', decision: decision, comment: comment, checks: checks })
+                body: JSON.stringify(body)
             })
                 .then(function (r) { return r.json(); })
                 .then(function (res) {
                     if (!res.success) {
                         var errs = res.errors || {};
-                        setError('edm-bpt-error', (errs.checks || errs.comment || [res.message || 'The decision could not be saved.'])[0]);
+                        setError(errId, (errs.checks || errs.comment || errs.final || errs.scheduled_at || [res.message || 'The decision could not be saved.'])[0]);
                         return;
                     }
-                    window.edmAlert(approve
-                        ? 'BPT review approved. The request is now with BI/CRM for audience validation.'
-                        : 'BPT review rejected. The requester has been sent back the request.',
-                    { variant: approve ? 'success' : 'warning', title: approve ? 'Approved' : 'Rejected', onClose: function () { window.location.reload(); } });
+                    window.edmAlert(approve ? s.doneApprove : 'Rejected. The request has been sent back to the requester.',
+                        { variant: approve ? 'success' : 'warning', title: approve ? 'Approved' : 'Rejected', onClose: function () { window.location.reload(); } });
                 })
-                .catch(function () { setError('edm-bpt-error', 'Could not reach the server.'); });
+                .catch(function () { setError(errId, 'Could not reach the server.'); });
         }, {
-            title: approve ? 'Approve BPT review' : 'Reject BPT review',
+            title: (approve ? 'Approve ' : 'Reject ') + s.title,
             variant: approve ? 'success' : 'danger',
-            confirmLabel: approve ? 'Approve' : 'Reject'
+            confirmLabel: approve ? (s.approveLabel || 'Approve') : 'Reject'
         });
     }
-    if ($('edm-bpt-approve')) {
-        $('edm-bpt-approve').addEventListener('click', function () { bptDecide(2); });
-        $('edm-bpt-reject').addEventListener('click', function () { bptDecide(3); });
+    Object.keys(STAGES).forEach(function (stage) {
+        var p = STAGES[stage].prefix;
+        if ($(p + '-approve')) {
+            $(p + '-approve').addEventListener('click', function () { decide(stage, 2); });
+            $(p + '-reject').addEventListener('click', function () { decide(stage, 3); });
+        }
+    });
+
+    // Final approval: calendar clashes for the chosen send date (a warning only).
+    var finalAt = $('edm-final-at');
+    var conflictSeq = 0;
+    if (finalAt && !finalAt.disabled) {
+        finalAt.addEventListener('change', function () {
+            var box = $('edm-final-conflicts');
+            var v = finalAt.value;
+            var mine = ++conflictSeq;
+            if (!v) { box.textContent = 'Choose the date the campaign goes out.'; return; }
+            fetch(BASE + 'email-builder/api.php?action=conflicts&campaign=' + CFG.campaignId + '&date=' + encodeURIComponent(v),
+                { headers: { 'Accept': 'application/json' } })
+                .then(function (r) { return r.json(); })
+                .then(function (res) {
+                    if (mine !== conflictSeq) { return; }
+                    var list = (res.success && res.data) || [];
+                    box.innerHTML = list.length
+                        ? '<span class="text-warning-emphasis"><i class="bi bi-exclamation-triangle-fill"></i> Also on this day: ' +
+                            esc(list.map(function (x) { return (x.type === 'slot' ? 'Reserved: ' : '') + x.name; }).join(', ')) + '</span>'
+                        : '<span class="text-success"><i class="bi bi-check-circle-fill"></i> No other send or reservation that day.</span>';
+                })
+                .catch(function () { /* the warning is best-effort */ });
+        });
     }
+
 
     // ---- Automated QA (spec 5.2 step 5): status card, polled while running ----
 

@@ -20,12 +20,15 @@ edm_crud_screen(array(
     // STEP_AUDIENCE = 4). Decisions are made on the review page.
     // After BPT approval the latest automated QA run (qa_status: 1 queued,
     // 2 running, 5 failed) is shown alongside audience validation.
+    // Steps: 2 BPT review, 4 audience validation, 6 final approval
+    // (Approval::STEP_*); approved = campaign scheduled.
     function stage(r) {
-        if (r.status === 2) { return 'Approved'; }
+        if (r.status === 2) { return r.campaign_status === 6 ? 'Approved - scheduled' : 'Approved'; }
         if (r.status === 3) { return 'Returned to requester'; }
         if (r.step < 4) { return 'BPT review'; }
         if (r.qa_status === 5) { return 'QA failed'; }
         if (r.qa_status === 1 || r.qa_status === 2) { return 'QA running'; }
+        if (r.step >= 6) { return 'Final approval'; }
         return 'Audience validation (BI/CRM)';
     }
 

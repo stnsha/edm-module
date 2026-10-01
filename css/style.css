@@ -2758,6 +2758,21 @@ button {
 }
 
 /* Calendar: a day with more than one send / reservation (calendar/calendar.js) */
+/* Seven equal day columns whatever the content: a long campaign name is cut
+   with an ellipsis (full name in the title tooltip) instead of widening the
+   column. */
+.edm-calendar {
+    width: 100%;
+    table-layout: fixed;
+}
+.edm-calendar th,
+.edm-calendar td {
+    width: calc(100% / 7);
+    overflow: hidden;
+}
+.edm-calendar .edm-pill {
+    max-width: 100%;
+}
 .edm-calendar td.edm-cal-conflict {
     background-color: #fff8e1;
     box-shadow: inset 0 0 0 2px #ffc107;
@@ -2782,6 +2797,46 @@ button {
     border: 1px solid #e9ecef;
     border-radius: 8px;
     background: #fbfcfe;
+}
+/* Condition groups: plain while there is one, boxed from two, joined by an
+   AND / OR separator that follows the outer all / any select. */
+.edm-rule-group {
+    margin-bottom: 10px;
+}
+.edm-rule-group.is-multi {
+    margin-bottom: 16px;
+    padding: 10px 10px 2px;
+    border: 1px solid #dbe4f0;
+    border-radius: 10px;
+    background: #f7f9fc;
+}
+.edm-rule-group > .edm-rules-add {
+    margin-bottom: 8px;
+}
+.edm-rule-group-head .edm-rule-group-title {
+    font-weight: 600;
+}
+.edm-rule-group-del {
+    padding: 0 4px;
+    font-size: 12px;
+    text-decoration: none;
+}
+.edm-rule-group-sep {
+    width: max-content;
+    margin: -20px auto 8px;
+    padding: 2px 12px;
+    border-radius: 999px;
+    background: #e7f0ff;
+    color: #0b5ed7;
+    font-size: 11px;
+    font-weight: 700;
+    letter-spacing: 0.04em;
+}
+.edm-rule-group-sep[hidden] {
+    display: none;
+}
+.edm-rules-add-group {
+    margin-top: 2px;
 }
 .edm-rule-value-wrap:empty::after {
     content: "No value needed";
@@ -3364,10 +3419,10 @@ button {
 
 /* BPT Review card (approval/edit.php): checklist + sending slot, atem sizes */
 .edm-bpt-checks .form-check,
-#edm-bpt-card .form-check {
+.edm-decision-card .form-check {
     margin-bottom: 6px;
 }
-#edm-bpt-card .form-check-label {
+.edm-decision-card .form-check-label {
     font-size: 13px;
     cursor: pointer;
 }
@@ -3384,11 +3439,15 @@ button {
 .edm-bpt-slot a {
     font-size: 12px;
 }
-.edm-audit-bpt_approved .edm-audit-icon {
+.edm-audit-bpt_approved .edm-audit-icon,
+.edm-audit-audience_approved .edm-audit-icon,
+.edm-audit-final_approved .edm-audit-icon {
     background: #d1e7dd;
     color: #0a3622;
 }
-.edm-audit-bpt_rejected .edm-audit-icon {
+.edm-audit-bpt_rejected .edm-audit-icon,
+.edm-audit-audience_rejected .edm-audit-icon,
+.edm-audit-final_rejected .edm-audit-icon {
     background: #f8d7da;
     color: #58151c;
 }
@@ -3475,7 +3534,7 @@ button {
     color: #58151c;
 }
 /* odb's page.css strips the native checkbox look (same fix as the radios) */
-#edm-bpt-card .form-check-input[type="checkbox"] {
+.edm-decision-card .form-check-input[type="checkbox"] {
     width: 1em !important;
     height: 1em !important;
     margin-top: 0.25em;
@@ -3486,6 +3545,24 @@ button {
     -moz-appearance: checkbox !important;
     appearance: checkbox !important;
 }
-#edm-bpt-card .form-label span {
+.edm-decision-card .form-label span {
     font-size: 12px;
+}
+
+/* Final Approval card (approval/edit.php): readiness checks */
+.edm-final-checks {
+    margin: 0;
+    padding: 0;
+    list-style: none;
+}
+.edm-final-checks li {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    padding: 6px 0;
+    border-bottom: 1px solid #f1f3f5;
+    font-size: 13px;
+}
+.edm-final-checks li:last-child {
+    border-bottom: 0;
 }

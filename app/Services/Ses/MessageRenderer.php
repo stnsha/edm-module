@@ -7,11 +7,13 @@ namespace Edm\Services\Ses;
 /**
  * Fills personalisation variables ({{key}}) for one recipient.
  *
- * Known variables: {{email}}, {{name}}, {{first_name}} (first word of the
- * name), {{member_code}} / {{MemberCode}}, {{unsubscribe_url}} /
+ * Known variables: {{email}}, {{name}}, {{first_name}} / {{FirstName}}
+ * (first word of the name), {{last_name}} / {{LastName}} (the rest),
+ * {{member_code}} / {{MemberCode}}, {{unsubscribe_url}} /
  * {{UnsubscribeLink}}, and every Contacts > Custom field key from the
- * contact's stored values (edm_list_members.fields, filled by Import).
- * A variable with no value renders empty.
+ * contact's stored values (edm_list_members.fields, filled by Import),
+ * matched ignoring case and underscores (fieldKey(): {{PointsBalance}} =
+ * points_balance). A variable with no value renders empty.
  *
  * The unsubscribe footer is mandatory (spec, dynamic content variables): when
  * the design has no unsubscribe variable, a footer with the link is appended.
@@ -59,16 +61,38 @@ final class MessageRenderer
     private static function value(string $key, array $vars): string
     {
         $name = trim((string) ($vars['name'] ?? ''));
-        $fields = array_change_key_case(is_array($vars['fields'] ?? null) ? $vars['fields'] : [], CASE_LOWER);
+        $fields = is_array($vars['fields'] ?? null) ? $vars['fields'] : [];
+        $parts = $name !== '' ? preg_split('/\s+/', $name) : [];
 
         return match (true) {
             $key === 'email' => $vars['email'],
             $key === 'member_code', $key === 'membercode' => (string) ($vars['member_code'] ?? ''),
             $key === 'name' => $name,
-            $key === 'first_name', $key === 'firstname' => $name !== '' ? (string) preg_split('/\s+/', $name)[0] : '',
+            $key === 'first_name', $key === 'firstname' => (string) ($parts[0] ?? ''),
+            // Everything after the first word of the name (spec {{LastName}}).
+            $key === 'last_name', $key === 'lastname' => implode(' ', array_slice($parts, 1)),
             in_array($key, self::UNSUBSCRIBE_KEYS, true) => $vars['unsubscribe_url'],
-            default => (string) ($fields[$key] ?? ''),
+            default => (string) ($fields[self::fieldKey($key, array_keys($fields)) ?? ''] ?? ''),
         };
+    }
+
+    /**
+     * The custom field key a {{variable}} names, or null: matched ignoring
+     * case and underscores, so the spec's {{MembershipType}} / {{PointsBalance}}
+     * find the membership_type / points_balance fields.
+     *
+     * @param list<string> $keys custom field keys
+     */
+    public static function fieldKey(string $variable, array $keys): ?string
+    {
+        $want = str_replace('_', '', strtolower($variable));
+        foreach ($keys as $k) {
+            if (str_replace('_', '', strtolower((string) $k)) === $want) {
+                return (string) $k;
+            }
+        }
+
+        return null;
     }
 
     private static function appendFooter(string $html, string $url): string

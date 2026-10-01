@@ -26,12 +26,7 @@ final class AudienceController extends Controller
     protected function handle(string $action): mixed
     {
         if ($action === 'segments_fields') {
-            return [
-                'fields'    => SegmentQuery::fields(),
-                'ops'       => SegmentQuery::OPS,
-                'op_labels' => SegmentQuery::OP_LABELS,
-                'no_value'  => SegmentQuery::NO_VALUE,
-            ];
+            return SegmentQuery::catalog();
         }
         if ($action === 'segments_count') {
             return $this->segmentCount();
@@ -172,7 +167,7 @@ final class AudienceController extends Controller
 
     private function fields(string $verb): mixed
     {
-        $payload = $this->request->only(['label', 'type']);
+        $payload = $this->request->only(['label', 'type', 'category']);
         if ($this->request->has('is_active')) {
             $payload['is_active'] = !empty($this->request->get('is_active'));
         }
@@ -181,6 +176,7 @@ final class AudienceController extends Controller
             $payload['options'] = $lines ?: null;
         }
         $types = 'in:' . implode(',', CustomField::TYPES);
+        $categories = 'in:' . implode(',', CustomField::CATEGORIES);
 
         switch ($verb) {
             case 'list':
@@ -196,6 +192,7 @@ final class AudienceController extends Controller
                     'label'     => ['required', 'string', 'max:255'],
                     'type'      => ['required', $types],
                     'options'   => ['nullable', 'array'],
+                    'category'  => ['nullable', $categories],
                     'is_active' => ['sometimes', 'boolean'],
                 ]);
                 self::checkOptions($data['options'] ?? null);
@@ -211,6 +208,7 @@ final class AudienceController extends Controller
                     'label'     => ['sometimes', 'string', 'max:255'],
                     'type'      => ['sometimes', $types],
                     'options'   => ['nullable', 'array'],
+                    'category'  => ['nullable', $categories],
                     'is_active' => ['sometimes', 'boolean'],
                 ], $id);
                 self::checkOptions($data['options'] ?? null);

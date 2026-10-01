@@ -42,6 +42,7 @@ final class EmailBuilderController extends Controller
         'subject'      => ['nullable', 'string', 'max:255'],
         'sender_id'    => ['nullable', 'integer', 'exists:edm_senders,id'],
         'list_id'      => ['nullable', 'integer', 'exists:edm_lists,id'],
+        'all_lists'    => ['sometimes', 'boolean'],
         'segment_id'   => ['nullable', 'integer', 'exists:edm_segments,id'],
         'scheduled_at' => ['nullable', 'date'],
     ];
@@ -62,12 +63,15 @@ final class EmailBuilderController extends Controller
                 return Campaign::withDetails($id);
             case 'settings_save':
                 $existing = Campaign::findOrFail($id);
-                $payload = $this->request->only(['name', 'subject', 'scheduled_at'])
-                    + $this->request->ids(['sender_id', 'list_id', 'segment_id']);
+                Campaign::assertUnlocked($existing);
+                // list_id is a list id or Campaign::ALL_LISTS ("all").
+                $payload = $this->request->only(['name', 'subject', 'scheduled_at', 'list_id'])
+                    + $this->request->ids(['sender_id', 'segment_id']);
+                $payload = Campaign::audienceInput($payload) + $payload;
                 $data = $this->validator->validate($payload, self::SETTINGS_RULES, $id);
                 SegmentQuery::forCampaign(
                     array_key_exists('segment_id', $data) ? $data['segment_id'] : $existing['segment_id'],
-                    array_key_exists('list_id', $data) ? $data['list_id'] : $existing['list_id']
+                    Campaign::audienceListId($data + $existing)
                 );
                 Campaign::update($id, $data);
                 // Subject / list changes are part of the QA too.
@@ -77,7 +81,7 @@ final class EmailBuilderController extends Controller
                 Campaign::findOrFail($id);
                 return CampaignContent::forCampaign($id);
             case 'content_save':
-                Campaign::findOrFail($id);
+                Campaign::assertUnlocked(Campaign::findOrFail($id));
                 $json = $this->request->get('editor_json');
                 $saved = CampaignContent::saveBody($id, (string) $this->request->get('html', ''), is_array($json) ? $json : null);
                 // A fix after a failed automated QA run is checked again.

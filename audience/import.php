@@ -116,7 +116,7 @@ $edm_import_modes = \Edm\Services\Import\ContactImport::MODES;
                     <details class="edm-imp-guide-item">
                         <summary>Dates</summary>
                         <ul>
-                            <li>Date custom field values must use the <code>YYYY-MM-DD</code> format, e.g. <code>2026-01-31</code>.</li>
+                            <li>Date custom field values use <code>YYYY-MM-DD</code> (e.g. <code>2026-01-31</code>) or day-first <code>D/M/YYYY</code> (e.g. <code>31/1/2026</code>, as Excel saves it).</li>
                             <li>For Excel files (.xls and .xlsx), format date and number cells as text so the values are imported exactly as typed.</li>
                         </ul>
                     </details>

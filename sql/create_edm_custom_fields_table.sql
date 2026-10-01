@@ -1,5 +1,7 @@
 -- Table `edm_custom_fields` (EDM module, odb database).
 -- Contact field definitions; each key is a {{key}} personalisation variable.
+-- category: spec section 6 filter category (Demographic, Location, Membership, Purchase,
+-- Engagement, RFM / LOFRA) grouping the field in the segment builder; NULL = Custom fields.
 -- Drops and recreates the table (development: existing rows are lost).
 -- Datetime columns hold Asia/Kuala_Lumpur local time. deleted_at = soft delete (NULL = active).
 
@@ -13,6 +15,7 @@ CREATE TABLE `edm_custom_fields` (
   `label` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `type` enum('text','number','date','boolean','select') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'text',
   `options` json DEFAULT NULL,
+  `category` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `is_active` tinyint(1) NOT NULL DEFAULT '1',
   `created_at` datetime NULL DEFAULT NULL,
   `updated_at` datetime NULL DEFAULT NULL,

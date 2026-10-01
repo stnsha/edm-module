@@ -1,5 +1,6 @@
 -- Table `edm_campaigns` (EDM module, odb database).
 -- Campaigns. status: 1=draft, 2=pending_submission, 3=under_bpt_review, 4=content_revision, 5=audience_validation, 6=scheduled, 7=sending, 8=completed, 9=archived.
+-- all_lists: 1 = send to every list (list_id NULL), 0 = list_id is the recipient list.
 -- Drops and recreates the table (development: existing rows are lost).
 -- Datetime columns hold Asia/Kuala_Lumpur local time. deleted_at = soft delete (NULL = active).
 
@@ -15,6 +16,7 @@ CREATE TABLE `edm_campaigns` (
   `preheader` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `sender_id` bigint unsigned DEFAULT NULL,
   `list_id` bigint unsigned DEFAULT NULL,
+  `all_lists` tinyint(1) NOT NULL DEFAULT '0',
   `segment_id` bigint unsigned DEFAULT NULL,
   `status` tinyint unsigned NOT NULL DEFAULT '1',
   `scheduled_at` datetime NULL DEFAULT NULL,

@@ -18,6 +18,7 @@ use Edm\Services\Qa\QaQueue;
 use Edm\Services\Qa\UtmTagger;
 use Edm\Models\Campaign;
 use Edm\Services\RichText;
+use Edm\Services\ScheduleReadiness;
 use finfo;
 use Throwable;
 
@@ -32,13 +33,22 @@ use Throwable;
  *                      requested by the signed-in staff member. A pending
  *                      request can be edited by its requester or a superadmin.
  *   approvals_delete
- *   approvals_decide   { id, stage: bpt, decision: 2|3, comment, checks[] }
- *                      BPT review (spec 5.2 steps 2-3), BPT team or
- *                      superadmin: approve needs every BPT_CHECKS item ticked
- *                      and moves the request to step 4 (BI/CRM audience
- *                      validation); reject needs a comment, returns the
- *                      request to the requester (editable again - saving it
- *                      resubmits) and the campaign to content revision.
+ *   approvals_decide   { id, stage: bpt|audience|final, decision: 2|3, comment,
+ *                      checks[], scheduled_at (final) } - see decide():
+ *                      bpt (steps 2-3, BPT team): every BPT_CHECKS item ->
+ *                      step 4, campaign audience validation, QA queued;
+ *                      audience (step 4, BI/CRM = admin): every
+ *                      AUDIENCE_CHECKS item -> step 6; final (step 6, BPT
+ *                      team): ScheduleReadiness passes -> approved, campaign
+ *                      scheduled at scheduled_at and locked. Reject needs a
+ *                      comment, returns the request to the requester
+ *                      (editable again - saving it resubmits to BPT) and the
+ *                      campaign to content revision. A superadmin can decide
+ *                      every stage.
+ *
+ * Campaign status follows the request (spec 5.1): raising or resubmitting a
+ * review -> under BPT review (3); deleting a request still with BPT -> back
+ * to pending submission (2). One open request per campaign.
  *
  *   qa_status          ?id= latest automated QA run of the review's campaign;
  *                      a queued run is worked here when no cron did it
@@ -86,10 +96,12 @@ final class ApprovalController extends Controller
             case 'approvals_delete':
                 $id = $this->requireId('Review');
                 $this->assertCanEdit(Approval::findOrFail($id));
+                $approval = Approval::findOrFail($id);
                 foreach (ApprovalFile::where('`approval_id` = ?', [$id]) as $file) {
                     $this->removeFile($file);
                 }
                 Approval::delete($id);
+                $this->releaseCampaign((int) $approval['campaign_id']);
                 return null;
             case 'approvals_decide':
                 return $this->decide();
@@ -176,6 +188,20 @@ final class ApprovalController extends Controller
             throw new ValidationException($errors);
         }
 
+        // A campaign goes to review once at a time, and only while it is still being worked on.
+        $campaign = Campaign::findOrFail((int) $data['campaign_id']);
+        $changingCampaign = $existing === null || (int) $existing['campaign_id'] !== (int) $data['campaign_id'];
+        if ($changingCampaign) {
+            if (!in_array($campaign['status'], Campaign::REVIEWABLE, true)) {
+                throw ValidationException::single('campaign_id', 'Only a draft, pending submission or content revision campaign can go to review.');
+            }
+            $open = Approval::openFor((int) $campaign['id'], $id);
+            if ($open !== null) {
+                throw ValidationException::single('campaign_id', 'This campaign already has an open review (#RV' . $open['id'] . ').');
+            }
+        }
+        $resubmit = $existing !== null && (int) $existing['status'] === Approval::REJECTED;
+
         $uploads = $this->uploadedFiles();
         $remove = array_filter(array_map('intval', explode(',', (string) $this->request->get('remove_files', ''))));
         $kept = $existing !== null
@@ -189,7 +215,7 @@ final class ApprovalController extends Controller
 
         $stored = [];
         try {
-            $saved = $this->db->transaction(function () use ($existing, $id, $data, $checked, $remove, &$stored): array {
+            $saved = $this->db->transaction(function () use ($existing, $id, $data, $checked, $remove, $campaign, $changingCampaign, $resubmit, &$stored): array {
                 if ($existing === null) {
                     $row = Approval::create($data + [
                         'step'              => Approval::STEP_BPT,
@@ -202,7 +228,6 @@ final class ApprovalController extends Controller
                     $this->log($approvalId, 'created', 'Review raised for "' . ($campaign['name'] ?? 'campaign') . '".');
                 } else {
                     // A rejected request that is edited goes back to the BPT team.
-                    $resubmit = (int) $existing['status'] === Approval::REJECTED;
                     Approval::update($id, $data + ($resubmit ? ['status' => Approval::PENDING, 'step' => Approval::STEP_BPT] : []));
                     $approvalId = $id;
                     if ($resubmit) {
@@ -239,6 +264,14 @@ final class ApprovalController extends Controller
                     $this->log($approvalId, 'attachment_added', 'Added artwork: ' . implode(', ', array_column($checked, 'name')) . '.');
                 }
 
+                // Campaign status follows the request (spec 5.1): with BPT = under BPT review.
+                if (($changingCampaign || $resubmit) && in_array($campaign['status'], Campaign::REVIEWABLE, true)) {
+                    Campaign::update((int) $campaign['id'], ['status' => Campaign::UNDER_BPT_REVIEW]);
+                }
+                if ($existing !== null && $changingCampaign) {
+                    $this->releaseCampaign((int) $existing['campaign_id']);
+                }
+
                 return ['id' => $approvalId];
             });
         } catch (Throwable $e) {
@@ -261,65 +294,104 @@ final class ApprovalController extends Controller
         return $this->detail($saved['id']);
     }
 
-    /** BPT review decision (spec 5.2 steps 2-3). */
+    /**
+     * A stage decision (spec 5.2): bpt (steps 2-3), audience (step 4, BI/CRM)
+     * or final (step 6). Approving moves the request on - bpt -> audience
+     * (campaign: audience validation, QA queued), audience -> final, final ->
+     * approved with the campaign scheduled at scheduled_at and locked.
+     * Rejecting (comment required) returns the request to the requester and
+     * the campaign to content revision.
+     */
     private function decide(): array
     {
         $id = $this->requireId('Review');
         $approval = Approval::findOrFail($id);
-        if ((string) $this->request->get('stage', '') !== ApprovalDecision::STAGE_BPT) {
+        $stage = (string) $this->request->get('stage', '');
+        if (!in_array($stage, ApprovalDecision::STAGES, true)) {
             throw ValidationException::single('stage', 'Unknown review stage.');
         }
-        if (!$this->isBpt()) {
-            throw new HttpException('Only the BPT team (or a superadmin) can make the BPT review decision.', 403);
+        $owner = Approval::STAGE_OWNERS[$stage];
+        if (!Approval::canDecide($this->auth, $stage)) {
+            throw new HttpException('Only ' . $owner . ' (or a superadmin) can make this decision.', 403);
         }
-        if (!Approval::awaitingBpt($approval)) {
-            throw new HttpException('This request is not waiting for the BPT team.', 422);
+        if (Approval::pendingStage($approval) !== $stage) {
+            throw new HttpException('This request is not waiting for this decision.', 422);
         }
-        $data = $this->validator->validate($this->request->ids(['decision']) + $this->request->only(['comment']), [
-            'decision' => ['required', 'integer', 'in:2,3'],
-            'comment'  => ['nullable', 'string', 'max:1000'],
+        $data = $this->validator->validate($this->request->ids(['decision']) + $this->request->only(['comment', 'scheduled_at']), [
+            'decision'     => ['required', 'integer', 'in:2,3'],
+            'comment'      => ['nullable', 'string', 'max:1000'],
+            'scheduled_at' => ['nullable', 'date'],
         ]);
         $approve = $data['decision'] === Approval::APPROVED;
         $comment = trim((string) ($data['comment'] ?? ''));
-        $checks = array_values(array_intersect(
-            array_keys(Approval::BPT_CHECKS),
-            array_map('strval', (array) $this->request->get('checks', []))
-        ));
-        if ($approve && count($checks) !== count(Approval::BPT_CHECKS)) {
+        $list = match ($stage) {
+            ApprovalDecision::STAGE_BPT      => Approval::BPT_CHECKS,
+            ApprovalDecision::STAGE_AUDIENCE => Approval::AUDIENCE_CHECKS,
+            default                          => [],
+        };
+        $checks = array_values(array_intersect(array_keys($list), array_map('strval', (array) $this->request->get('checks', []))));
+        if ($approve && count($checks) !== count($list)) {
             throw ValidationException::single('checks', 'Tick every item on the checklist before approving.');
         }
         if (!$approve && $comment === '') {
             throw ValidationException::single('comment', 'State the reason for rejection.');
         }
 
-        $this->db->transaction(function () use ($id, $approval, $approve, $comment, $checks): void {
+        $campaignId = (int) $approval['campaign_id'];
+        $campaign = Campaign::findOrFail($campaignId);
+        $sendAt = null;
+        if ($approve && $stage === ApprovalDecision::STAGE_FINAL) {
+            $sendAt = Model::parseDate((string) ($data['scheduled_at'] ?? ''));
+            $problems = (new ScheduleReadiness())->problems($campaign, $sendAt);
+            if ($problems !== []) {
+                throw ValidationException::single('final', 'Cannot schedule yet: ' . implode(' ', $problems));
+            }
+        }
+
+        $this->db->transaction(function () use ($id, $stage, $approve, $comment, $checks, $campaign, $campaignId, $sendAt): void {
             ApprovalDecision::create([
                 'approval_id'     => $id,
-                'stage'           => ApprovalDecision::STAGE_BPT,
+                'stage'           => $stage,
                 'decision'        => $approve ? Approval::APPROVED : Approval::REJECTED,
                 'checks'          => $checks,
                 'comment'         => $comment !== '' ? $comment : null,
                 'decided_by'      => $this->auth->staffId,
                 'decided_by_name' => $this->auth->staffName,
             ]);
+            $next = match (true) {
+                !$approve                                 => ['status' => Approval::REJECTED],
+                $stage === ApprovalDecision::STAGE_BPT      => ['step' => Approval::STEP_AUDIENCE],
+                $stage === ApprovalDecision::STAGE_AUDIENCE => ['step' => Approval::STEP_FINAL],
+                default                                   => ['status' => Approval::APPROVED],
+            };
             Approval::update($id, [
                 'reviewer_id'   => $this->auth->staffId,
                 'reviewer_name' => $this->auth->staffName,
                 'comment'       => $comment !== '' ? $comment : null,
-            ] + ($approve ? ['step' => Approval::STEP_AUDIENCE] : ['status' => Approval::REJECTED]));
-            $this->log($id, $approve ? 'bpt_approved' : 'bpt_rejected',
-                ($approve
-                    ? 'BPT review approved - sent to BI/CRM for audience validation'
-                    : 'BPT review rejected - returned to the requester, campaign back to content revision')
-                . ($comment !== '' ? '. Comment: ' . $comment : '.'));
+            ] + $next);
+
+            $label = ['bpt' => 'BPT review', 'audience' => 'Audience validation', 'final' => 'Final approval'][$stage];
+            $summary = match (true) {
+                !$approve                                 => $label . ' rejected - returned to the requester, campaign back to content revision',
+                $stage === ApprovalDecision::STAGE_BPT      => 'BPT review approved - sent to BI/CRM for audience validation',
+                $stage === ApprovalDecision::STAGE_AUDIENCE => 'Audience validated - ready for final approval',
+                default                                   => 'Final approval given - campaign scheduled for ' . $sendAt?->format('d-m-Y H:i') . ' and locked',
+            };
+            $this->log($id, $stage . ($approve ? '_approved' : '_rejected'), $summary . ($comment !== '' ? '. Comment: ' . $comment : '.'));
+
             // A campaign already scheduled or sent is left alone.
-            $campaign = Campaign::find((int) $approval['campaign_id']);
-            if (!$approve && $campaign !== null && !in_array((int) $campaign['status'], [6, 7, 8, 9], true)) {
-                Campaign::update((int) $approval['campaign_id'], ['status' => Campaign::CONTENT_REVISION]);
+            if (!Campaign::isLocked($campaign)) {
+                if (!$approve) {
+                    Campaign::update($campaignId, ['status' => Campaign::CONTENT_REVISION]);
+                } elseif ($stage === ApprovalDecision::STAGE_BPT) {
+                    Campaign::update($campaignId, ['status' => Campaign::AUDIENCE_VALIDATION]);
+                } elseif ($stage === ApprovalDecision::STAGE_FINAL) {
+                    Campaign::update($campaignId, ['status' => Campaign::SCHEDULED, 'scheduled_at' => $sendAt?->format('Y-m-d H:i:s')]);
+                }
             }
             // Step 5: automated QA on the campaign design.
-            if ($approve) {
-                (new QaQueue($this->db))->queue((int) $approval['campaign_id'], $id, 'bpt_approved', $this->auth->staffId, $this->auth->staffName);
+            if ($approve && $stage === ApprovalDecision::STAGE_BPT) {
+                (new QaQueue($this->db))->queue($campaignId, $id, 'bpt_approved', $this->auth->staffId, $this->auth->staffName);
             }
         });
 
@@ -378,6 +450,15 @@ final class ApprovalController extends Controller
         }
     }
 
+    /** A campaign no longer under BPT review (request deleted or moved) goes back to pending submission. */
+    private function releaseCampaign(int $campaignId): void
+    {
+        $campaign = Campaign::find($campaignId);
+        if ($campaign !== null && $campaign['status'] === Campaign::UNDER_BPT_REVIEW) {
+            Campaign::update($campaignId, ['status' => Campaign::PENDING_SUBMISSION]);
+        }
+    }
+
     private function log(int $approvalId, string $event, ?string $summary, ?array $changes = null): void
     {
         ApprovalLog::create([
@@ -423,12 +504,6 @@ final class ApprovalController extends Controller
     {
         return (Approval::awaitingBpt($row) || (int) $row['status'] === Approval::REJECTED)
             && ($this->auth->isSuperadmin || ($row['requested_by'] !== null && (int) $row['requested_by'] === $this->auth->staffId));
-    }
-
-    /** BPT team (effective role 3, dev override included) or a superadmin. */
-    private function isBpt(): bool
-    {
-        return $this->auth->isSuperadmin || $this->auth->permission === 3;
     }
 
     private function assertCanEdit(array $row): void

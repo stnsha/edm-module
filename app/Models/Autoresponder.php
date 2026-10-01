@@ -7,7 +7,8 @@ namespace Edm\Models;
 use Edm\Core\Model;
 
 /**
- * A timed autoresponder (offset_days relative to the trigger date).
+ * A timed autoresponder: one email step of a journey (workflow_id ->
+ * edm_workflows), sent offset_days relative to the journey's trigger date.
  * Table: edm_autoresponders.
  */
 final class Autoresponder extends Model
@@ -16,9 +17,9 @@ final class Autoresponder extends Model
 
     protected const TABLE = 'edm_autoresponders';
 
-    protected const FILLABLE = ['name', 'list_id', 'offset_days', 'subject', 'status'];
+    protected const FILLABLE = ['name', 'workflow_id', 'list_id', 'offset_days', 'subject', 'status'];
 
-    protected const CASTS = ['status' => 'int', 'offset_days' => 'int'];
+    protected const CASTS = ['status' => 'int', 'workflow_id' => 'int', 'offset_days' => 'int'];
 
-    protected const ORDER = '`offset_days` ASC';
+    protected const ORDER = '`workflow_id` ASC, `offset_days` ASC';
 }

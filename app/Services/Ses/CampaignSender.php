@@ -122,7 +122,8 @@ final class CampaignSender
         return match (true) {
             $sender === null => 'no sender.',
             $sender['status'] !== 2 => 'sender ' . $sender['email'] . ' is not verified in SES.',
-            $c['list_id'] === null || ContactList::find((int) $c['list_id']) === null => 'no recipient list.',
+            !Campaign::hasAudience($c)
+                || (!$c['all_lists'] && ContactList::find((int) $c['list_id']) === null) => 'no recipient list.',
             ($segmentProblem = $this->segmentProblem($c)) !== null => $segmentProblem,
             trim((string) $c['subject']) === '' => 'no subject line.',
             trim((string) (CampaignContent::forCampaign((int) $c['id'])['html'] ?? '')) === '' => 'the design is empty.',
@@ -136,7 +137,7 @@ final class CampaignSender
         try {
             SegmentQuery::forCampaign(
                 $c['segment_id'] !== null ? (int) $c['segment_id'] : null,
-                $c['list_id'] !== null ? (int) $c['list_id'] : null
+                Campaign::audienceListId($c)
             );
         } catch (ValidationException $e) {
             return lcfirst(rtrim($e->getMessage(), '.')) . '.';
@@ -169,7 +170,8 @@ final class CampaignSender
         }
         $html = (string) CampaignContent::forCampaign($id)['html'];
         // Checked by preflight() just above, so this does not throw.
-        $segment = SegmentQuery::forCampaign($c['segment_id'] !== null ? (int) $c['segment_id'] : null, (int) $c['list_id']);
+        $listId = Campaign::audienceListId($c);
+        $segment = SegmentQuery::forCampaign($c['segment_id'] !== null ? (int) $c['segment_id'] : null, $listId);
         $unsubscribe = new Unsubscribe($this->ses->config);
         $sent = 0;
 
@@ -178,7 +180,7 @@ final class CampaignSender
                 ($this->log)("Campaign #{$id} was stopped.");
                 return $sent;
             }
-            $batch = $this->pending($id, (int) $c['list_id'], $segment);
+            $batch = $this->pending($id, $listId, $segment);
             if ($batch === []) {
                 Campaign::update($id, ['status' => Campaign::COMPLETED]);
                 ($this->log)("Campaign #{$id} completed.");
@@ -244,13 +246,14 @@ final class CampaignSender
      * Next subscribed list members without a send-log row for this campaign,
      * limited to those matching the segment when there is one.
      *
-     * One row per address (the oldest when a list holds it twice), with the
-     * contact's name and custom field values for personalisation.
+     * One row per address (the oldest when a list - or, with $listId null
+     * (all lists), several lists - hold it twice), with the contact's name and
+     * custom field values for personalisation.
      *
      * @param array{match: string, rules: list<array<string, string>>}|null $segment normalized definition
      * @return list<array{email: string, member_code: ?string, name: ?string, fields: ?string}>
      */
-    private function pending(int $campaignId, int $listId, ?array $segment): array
+    private function pending(int $campaignId, ?int $listId, ?array $segment): array
     {
         [$segmentSql, $segmentParams] = $segment !== null
             ? (new SegmentQuery($this->db))->where($segment, 'm')
@@ -260,14 +263,14 @@ final class CampaignSender
             'SELECT m.`member_code`, LOWER(TRIM(m.`email`)) AS email, m.`name`, m.`fields`
                FROM `edm_list_members` m
                JOIN (SELECT MIN(`id`) AS id FROM `edm_list_members`
-                      WHERE `list_id` = ? AND `status` = 1 AND `deleted_at` IS NULL AND `email` <> \'\'
+                      WHERE (? IS NULL OR `list_id` = ?) AND `status` = 1 AND `deleted_at` IS NULL AND `email` <> \'\'
                       GROUP BY LOWER(TRIM(`email`))) oldest ON oldest.`id` = m.`id`
               WHERE ' . $segmentSql . '
                 AND NOT EXISTS (SELECT 1 FROM `edm_send_log` s
                                  WHERE s.`campaign_id` = ? AND s.`email` = LOWER(TRIM(m.`email`)) AND s.`deleted_at` IS NULL)
               ORDER BY m.`id`
               LIMIT ' . self::BATCH,
-            [$listId, ...$segmentParams, $campaignId]
+            [$listId, $listId, ...$segmentParams, $campaignId]
         );
     }
 

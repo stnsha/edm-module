@@ -14,9 +14,15 @@ final class CustomField extends Model
 {
     public const TYPES = ['text', 'number', 'date', 'boolean', 'select'];
 
+    /**
+     * Audience Builder filter categories (spec section 6), in field picker
+     * order. A field without one is listed under "Custom fields".
+     */
+    public const CATEGORIES = ['Demographic', 'Location', 'Membership', 'Purchase', 'Engagement', 'RFM / LOFRA'];
+
     protected const TABLE = 'edm_custom_fields';
 
-    protected const FILLABLE = ['key', 'label', 'type', 'options', 'is_active'];
+    protected const FILLABLE = ['key', 'label', 'type', 'options', 'category', 'is_active'];
 
     protected const CASTS = ['options' => 'json', 'is_active' => 'bool'];
 

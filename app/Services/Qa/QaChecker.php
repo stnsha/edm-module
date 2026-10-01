@@ -12,6 +12,7 @@ use Edm\Models\Campaign;
 use Edm\Models\CampaignContent;
 use Edm\Models\CustomField;
 use Edm\Services\SegmentQuery;
+use Edm\Services\Ses\MessageRenderer;
 use Edm\Services\Ses\SesGateway;
 use Throwable;
 
@@ -40,7 +41,7 @@ final class QaChecker
     private const SPAM_FAIL = 5.0;
 
     private const BUILT_IN_VARS = [
-        'email', 'name', 'first_name', 'firstname', 'member_code', 'membercode',
+        'email', 'name', 'first_name', 'firstname', 'last_name', 'lastname', 'member_code', 'membercode',
         'unsubscribe_url', 'unsubscribelink', 'unsubscribe',
     ];
     private const UNSUBSCRIBE_VARS = ['unsubscribe_url', 'unsubscribelink', 'unsubscribe'];
@@ -120,11 +121,10 @@ final class QaChecker
         if ($tokens === []) {
             return $this->check('variables', 'Dynamic variables', 'pass', 'No personalisation variables used.');
         }
-        $known = array_merge(self::BUILT_IN_VARS, array_map(
-            static fn (array $f): string => strtolower((string) $f['key']),
-            CustomField::where('`is_active` = 1')
-        ));
-        $unknown = array_values(array_diff($tokens, $known));
+        // Custom fields match ignoring case and underscores ({{PointsBalance}} = points_balance).
+        $keys = array_map(static fn (array $f): string => (string) $f['key'], CustomField::where('`is_active` = 1'));
+        $unknown = array_values(array_filter($tokens, static fn (string $t): bool =>
+            !in_array($t, self::BUILT_IN_VARS, true) && MessageRenderer::fieldKey($t, $keys) === null));
 
         return $unknown !== []
             ? $this->check('variables', 'Dynamic variables', 'fail', count($unknown) . ' unknown variable(s) - they would be sent blank.',
@@ -146,18 +146,19 @@ final class QaChecker
         if ($tokens === []) {
             return $this->check('empty_values', $label, 'pass', 'No contact data variables used.');
         }
-        if ($campaign['list_id'] === null) {
+        if (!Campaign::hasAudience($campaign)) {
             return $this->check('empty_values', $label, 'warn', 'No recipient list chosen yet - cannot check the contacts.');
         }
+        $listId = Campaign::audienceListId($campaign);
         try {
             $segment = SegmentQuery::forCampaign(
                 $campaign['segment_id'] !== null ? (int) $campaign['segment_id'] : null,
-                (int) $campaign['list_id']
+                $listId
             );
         } catch (ValidationException $e) {
             return $this->check('empty_values', $label, 'fail', $e->getMessage());
         }
-        [$where, $params] = ['m.`deleted_at` IS NULL AND m.`status` = 1 AND m.`list_id` = ?', [(int) $campaign['list_id']]];
+        [$where, $params] = ['m.`deleted_at` IS NULL AND m.`status` = 1 AND (? IS NULL OR m.`list_id` = ?)', [$listId, $listId]];
         if ($segment !== null) {
             [$segSql, $segParams] = (new SegmentQuery($this->db))->where($segment, 'm');
             $where .= ' AND ' . $segSql;
@@ -169,11 +170,14 @@ final class QaChecker
         }
 
         $details = [];
+        $keys = array_map(static fn (array $f): string => (string) $f['key'], CustomField::where('`is_active` = 1'));
         foreach ($tokens as $t) {
+            // last_name: a one-word name has none.
             $expr = match ($t) {
                 'name', 'first_name', 'firstname' => ['m.`name`', []],
+                'last_name', 'lastname'           => ['SUBSTRING(TRIM(m.`name`), LOCATE(\' \', CONCAT(TRIM(m.`name`), \' \')) + 1)', []],
                 'member_code', 'membercode'       => ['m.`member_code`', []],
-                default                           => ['JSON_UNQUOTE(JSON_EXTRACT(m.`fields`, ?))', ['$."' . $t . '"']],
+                default                           => ['JSON_UNQUOTE(JSON_EXTRACT(m.`fields`, ?))', ['$."' . (MessageRenderer::fieldKey($t, $keys) ?? $t) . '"']],
             };
             $empty = (int) $this->db->scalar(
                 'SELECT COUNT(*) FROM `edm_list_members` m WHERE ' . $where . ' AND TRIM(COALESCE(' . $expr[0] . ", '')) = ''",
@@ -357,8 +361,13 @@ final class QaChecker
         $left = (int) max(0, $a['max_24h'] - $a['sent_24h']);
         $summary = 'SES quota OK: ' . number_format($left) . ' of ' . number_format((int) $a['max_24h']) . ' left in the last 24 hours'
             . ($a['production_access'] ? '.' : ' (sandbox - only verified recipients).');
-        $recipients = $campaign['list_id'] !== null
-            ? (int) $this->db->scalar('SELECT COUNT(*) FROM `edm_list_members` WHERE `list_id` = ? AND `status` = 1 AND `deleted_at` IS NULL', [(int) $campaign['list_id']])
+        $listId = Campaign::audienceListId($campaign);
+        $recipients = Campaign::hasAudience($campaign)
+            ? (int) $this->db->scalar(
+                'SELECT COUNT(DISTINCT LOWER(TRIM(`email`))) FROM `edm_list_members`
+                  WHERE (? IS NULL OR `list_id` = ?) AND `status` = 1 AND `deleted_at` IS NULL',
+                [$listId, $listId]
+            )
             : 0;
 
         return $recipients > $left

@@ -170,6 +170,7 @@ window.EDM_EB_SEGMENT_LISTS = <?php echo json_encode((object) $edm_segment_lists
             <label class="form-label" for="edm-eb-f-list">Recipient list <span class="text-danger" aria-hidden="true">*</span></label>
             <select class="form-select" id="edm-eb-f-list" required>
                 <option value="">Select a list</option>
+                <option value="<?php echo \Edm\Models\Campaign::ALL_LISTS; ?>"><?php echo \Edm\Models\Campaign::ALL_LISTS_LABEL; ?></option>
                 <?php foreach ($edm_lists as $o): ?>
                 <option value="<?php echo $o['id']; ?>"><?php echo htmlspecialchars($o['label']); ?></option>
                 <?php endforeach; ?>

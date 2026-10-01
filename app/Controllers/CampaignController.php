@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Edm\Controllers;
 
 use Edm\Core\Controller;
+use Edm\Core\ValidationException;
 use Edm\Models\Campaign;
 use Edm\Models\CampaignContent;
 use Edm\Services\SegmentQuery;
@@ -16,6 +17,9 @@ use Edm\Services\SegmentQuery;
  *   campaigns_submit    draft / revision -> pending submission
  *   campaigns_duplicate "Reuse" (same list) or copy to list_id
  *   campaigns_stop      scheduled -> draft, sending -> completed
+ *   campaigns_archive   completed -> archived
+ *   Scheduled is reached only by final approval (ApprovalController, spec
+ *   5.2 step 6); from then on the campaign is locked (Campaign::isLocked()).
  *   campaigns_preview   raw email HTML for an <iframe> (not JSON)
  *   campaigns_new    POST -> empty draft (default sender preset), opened in the
  *                    Email creator by the New campaign button
@@ -28,7 +32,9 @@ final class CampaignController extends Controller
         'subject_b'         => ['nullable', 'string', 'max:255'],
         'preheader'         => ['nullable', 'string', 'max:255'],
         'sender_id'         => ['required', 'integer', 'exists:edm_senders,id'],
-        'list_id'           => ['required', 'integer', 'exists:edm_lists,id'],
+        // A list id, or "all" (all_lists); one of the two is required.
+        'list_id'           => ['nullable', 'integer', 'exists:edm_lists,id'],
+        'all_lists'         => ['sometimes', 'boolean'],
         'segment_id'        => ['nullable', 'integer', 'exists:edm_segments,id'],
         'scheduled_at'      => ['nullable', 'date'],
         'requested_by'      => ['nullable', 'integer'],
@@ -41,10 +47,11 @@ final class CampaignController extends Controller
         'subject_b'    => ['nullable', 'string', 'max:255'],
         'preheader'    => ['nullable', 'string', 'max:255'],
         'sender_id'    => ['sometimes', 'required', 'integer', 'exists:edm_senders,id'],
-        'list_id'      => ['sometimes', 'required', 'integer', 'exists:edm_lists,id'],
+        'list_id'      => ['nullable', 'integer', 'exists:edm_lists,id'],
+        'all_lists'    => ['sometimes', 'boolean'],
         'segment_id'   => ['nullable', 'integer', 'exists:edm_segments,id'],
         'scheduled_at' => ['nullable', 'date'],
-        'status'       => ['sometimes', 'integer', 'in:1,2,3,4,5,6,7,8,9'],
+        'status'     => ['sometimes', 'integer', 'in:1,2,3,4,5,6,7,8,9'],
     ];
 
     protected function handle(string $action): mixed
@@ -56,7 +63,10 @@ final class CampaignController extends Controller
                 return Campaign::createBlank($this->stamp('requested_by'));
             case 'campaigns_create':
                 $data = $this->validator->validate($this->payload() + $this->stamp('requested_by'), self::RULES);
-                SegmentQuery::forCampaign($data['segment_id'] ?? null, (int) $data['list_id']);
+                if (!Campaign::hasAudience($data + ['list_id' => null, 'all_lists' => false])) {
+                    throw ValidationException::single('list_id', 'Choose a recipient list.');
+                }
+                SegmentQuery::forCampaign($data['segment_id'] ?? null, Campaign::audienceListId($data + ['all_lists' => false]));
                 $template = $this->validator->validate(
                     $this->request->ids(['template_id']),
                     ['template_id' => ['sometimes', 'nullable', 'integer', 'exists:edm_templates,id']]
@@ -65,10 +75,14 @@ final class CampaignController extends Controller
             case 'campaigns_update':
                 $id = $this->requireId('Campaign');
                 $existing = Campaign::findOrFail($id);
+                Campaign::assertUnlocked($existing);
                 $data = $this->validator->validate($this->payload(), self::UPDATE_RULES, $id);
+                if (array_key_exists('list_id', $data) && !Campaign::hasAudience($data)) {
+                    throw ValidationException::single('list_id', 'Choose a recipient list.');
+                }
                 SegmentQuery::forCampaign(
                     array_key_exists('segment_id', $data) ? $data['segment_id'] : $existing['segment_id'],
-                    array_key_exists('list_id', $data) ? $data['list_id'] : $existing['list_id']
+                    Campaign::audienceListId($data + $existing)
                 );
                 Campaign::update($id, $data);
                 return Campaign::withDetails($id);
@@ -86,6 +100,8 @@ final class CampaignController extends Controller
                 return Campaign::duplicate($this->requireId('Campaign'), $this->stamp('requested_by'), $changeList, $target);
             case 'campaigns_stop':
                 return Campaign::stop($this->requireId('Campaign'));
+            case 'campaigns_archive':
+                return Campaign::archive($this->requireId('Campaign'));
             case 'campaigns_preview':
                 $this->preview();
         }
@@ -95,8 +111,11 @@ final class CampaignController extends Controller
     /** @return array<string, mixed> */
     private function payload(): array
     {
-        return $this->request->only(['name', 'subject', 'subject_b', 'preheader', 'scheduled_at'])
-            + $this->request->ids(['sender_id', 'list_id', 'segment_id']);
+        // list_id is a list id or Campaign::ALL_LISTS ("all").
+        $payload = $this->request->only(['name', 'subject', 'subject_b', 'preheader', 'scheduled_at', 'list_id'])
+            + $this->request->ids(['sender_id', 'segment_id']);
+
+        return Campaign::audienceInput($payload) + $payload;
     }
 
     /**

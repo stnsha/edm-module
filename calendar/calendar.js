@@ -94,9 +94,9 @@
                 var clash = (byDay[k] || []).filter(function (x) { return x.counts; }).length > 1;
                 var chips = (byDay[k] || []).map(function (x) {
                     if (x.type === 'campaign') {
-                        return '<span class="edm-pill edm-pill-primary d-block text-truncate mb-1">' + esc(x.text) + '</span>';
+                        return '<span class="edm-pill edm-pill-primary d-block text-truncate mb-1" title="' + esc(x.text) + '">' + esc(x.text) + '</span>';
                     }
-                    return '<span class="edm-pill edm-pill-secondary d-block text-truncate mb-1 edm-cal-chip" style="cursor:pointer" data-id="' + x.id + '">' + esc(x.text) + '</span>';
+                    return '<span class="edm-pill edm-pill-secondary d-block text-truncate mb-1 edm-cal-chip" style="cursor:pointer" data-id="' + x.id + '" title="' + esc(x.text) + '">' + esc(x.text) + '</span>';
                 }).join('');
                 html += '<td class="edm-cal-cell' + muted + (clash ? ' edm-cal-conflict' : '') + '" data-date="' + k + '" style="height:6.5rem; cursor:pointer; vertical-align:top;">' +
                     '<div class="small fw-semibold mb-1 d-flex justify-content-between">' + d.getDate() +

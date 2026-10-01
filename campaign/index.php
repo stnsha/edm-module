@@ -97,7 +97,10 @@ edm_crud_screen(array(
             { label: 'Reuse', action: 'campaigns_duplicate', confirm: 'Create a copy of this campaign as a new draft?' },
             { label: 'Stop sending', action: 'campaigns_stop',
                 confirm: 'Stop this campaign? A scheduled campaign goes back to Draft; one already sending is closed as completed.',
-                visible: function (r) { return r.status === 6 || r.status === 7; } }
+                visible: function (r) { return r.status === 6 || r.status === 7; } },
+            { label: 'Archive', action: 'campaigns_archive',
+                confirm: 'Archive this campaign? It is closed and kept for reporting.',
+                visible: function (r) { return r.status === 8; } }
         ],
         columns: [
             { key: 'name', label: 'Name' },

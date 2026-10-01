@@ -7,7 +7,9 @@ namespace Edm\Models;
 use Edm\Core\Model;
 
 /**
- * An automation workflow.
+ * An automation workflow (journey, spec section 8). definition holds the
+ * journey plan: { entry, steps: [{ offset_days, type: email|retry|mark_inactive,
+ * name }], exit }; its email steps are edm_autoresponders rows (workflow_id).
  * Table: edm_workflows.
  */
 final class Workflow extends Model
@@ -23,4 +25,14 @@ final class Workflow extends Model
     protected const CASTS = ['status' => 'int', 'definition' => 'json'];
 
     protected const ORDER = '`name` ASC';
+
+    /** Soft delete; its steps stay as standalone autoresponders (FK cascades do not fire on a soft delete). */
+    public static function delete(int $id): void
+    {
+        self::findOrFail($id);
+        self::db()->transaction(static function () use ($id): void {
+            Autoresponder::unlinkWhere('workflow_id', $id);
+            parent::delete($id);
+        });
+    }
 }

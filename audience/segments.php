@@ -1,6 +1,6 @@
 <?php
 $page_title = 'Segments';
-$page_subtitle = 'Saved groups of contacts, picked by conditions on their details and custom fields. Choose one on a campaign to send only to the contacts on its list who match.';
+$page_subtitle = 'Saved groups of contacts, picked by conditions on their details, custom fields and email engagement, combined with AND / OR across condition groups. Choose one on a campaign to send only to the contacts on its list who match.';
 require __DIR__ . '/../partials.php';
 $page_title_actions = edm_title_button('New segment');
 include __DIR__ . '/../header.php';
@@ -11,12 +11,7 @@ $edm_segment_lists = array(array('value' => '', 'label' => 'All lists'));
 foreach (\Edm\Models\ContactList::all() as $row) {
     $edm_segment_lists[] = array('value' => $row['id'], 'label' => $row['name']);
 }
-$edm_segment_catalog = array(
-    'fields'    => \Edm\Services\SegmentQuery::fields(),
-    'ops'       => \Edm\Services\SegmentQuery::OPS,
-    'op_labels' => \Edm\Services\SegmentQuery::OP_LABELS,
-    'no_value'  => \Edm\Services\SegmentQuery::NO_VALUE,
-);
+$edm_segment_catalog = \Edm\Services\SegmentQuery::catalog();
 
 edm_crud_screen(array(
     'columns'    => array('Name', 'List', 'Conditions', 'Contacts'),
