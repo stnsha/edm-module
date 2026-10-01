@@ -43,6 +43,9 @@ if (!defined('EDM_BASE')) {
     <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.1/font/bootstrap-icons.css" rel="stylesheet">
     <link href="<?php echo EDM_BASE; ?>css/style.css?v=<?php echo time(); ?>" rel="stylesheet">
     <?php if (isset($extra_css)) echo $extra_css; ?>
+    <!-- Set in <head> so inline page scripts (which run before footer.php)
+         resolve this module's real folder (e.g. /odb/edm-ses/), not a fallback. -->
+    <script>window.EDM_MODULE_BASE = <?php echo json_encode(EDM_BASE); ?>;</script>
 </head>
 <?php
 require_once(dirname(__FILE__) . '/../lock_adv.php');
