@@ -34,7 +34,7 @@ if (!defined('EDM_BASE')) {
     <meta http-equiv="Pragma" content="no-cache">
     <meta http-equiv="Expires" content="0">
     <title><?php echo htmlspecialchars($page_title); ?></title>
-    <link rel="icon" type="image/svg+xml" href="<?php echo EDM_BASE; ?>css/logo.svg">
+    <link rel="icon" type="image/svg+xml" href="<?php echo EDM_BASE; ?>css/logo.svg?v=<?php echo filemtime(__DIR__ . '/css/logo.svg'); ?>">
     <base href="/odb/">
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
@@ -86,7 +86,7 @@ if ((int)$edm_permission === 0 && !$_is_superadmin) {
     <?php include(dirname(__FILE__) . '/getresponse-help.php'); ?>
     <div class="header" style="position: relative;">
         <b class="rtop"><b class="r1"></b><b class="r2"></b><b class="r3"></b><b class="r4"></b></b>
-        <h1 class="headerH1"><img src='<?php echo EDM_BASE; ?>css/logo.svg' width='20px'>EDM</h1>
+        <h1 class="headerH1"><img src='<?php echo EDM_BASE; ?>css/logo.svg?v=<?php echo filemtime(__DIR__ . '/css/logo.svg'); ?>' width='20px'>EDM</h1>
         <b class="rbottom"><b class="r4"></b><b class="r3"></b><b class="r2"></b><b class="r1"></b></b>
     </div>
     <div class="edm-container mb-3">
