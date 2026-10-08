@@ -1,10 +1,10 @@
 /**
  * Contacts > Import contacts (audience/import.php). Three steps, modelled on
  * GetResponse's import:
- *   1. list + file (drag and drop or picker) or pasted text
+ *   1. file (drag and drop or picker) or pasted text, into the masterlist
  *      -> audience/api.php import_preview (multipart, XHR for upload progress)
  *   2. update mode (add + update / only add / only update) and match each
- *      column to Email / Name / Member code / a custom field, optionally
+ *      column to Email / Name / a custom field, optionally
  *      "Check for errors" (import_run dry_run) -> import_run
  *   3. summary counts
  *
@@ -15,11 +15,11 @@
  * not fit a custom field, suppressed). The log downloads as a .txt file in
  * Laravel's log line format.
  *
- * The wizard state (step, staged token + preview, list, mapping, mode,
+ * The wizard state (step, staged token + preview, mapping, mode,
  * header row, progress, last log lines, summary) is kept in this tab's
  * sessionStorage, so a refresh on Match columns or Summary comes back where
  * it was; the staged rows stay on the server for 24 hours. Cancel, Back to
- * lists and Import another file clear it.
+ * contacts and Import another file clear it.
  */
 (function () {
     'use strict';
@@ -31,7 +31,6 @@
     var step1    = document.getElementById('edm-imp-step1');
     var step2    = document.getElementById('edm-imp-step2');
     var step3    = document.getElementById('edm-imp-step3');
-    var listEl   = document.getElementById('edm-imp-list');
     var fileEl   = document.getElementById('edm-imp-file');
     var fileName = document.getElementById('edm-imp-file-name');
     var fileChip = document.getElementById('edm-imp-file-chip');
@@ -201,7 +200,6 @@
             sessionStorage.setItem(STATE_KEY, JSON.stringify({
                 step: currentStep,
                 staged: staged,
-                list: listEl.value,
                 mapping: currentMapping(),
                 header: headerCb.checked,
                 mode: modeEl.value,
@@ -279,12 +277,10 @@
         e.preventDefault();
         clearAlert();
         if (running) { return; }
-        if (!listEl.value) { showAlert('Choose the list to import into.'); listEl.focus(); return; }
         if (mode === 'file' && !file) { showAlert('Choose a file to upload.'); return; }
         if (mode === 'paste' && !pasteEl.value.trim()) { showAlert('Paste at least one contact.'); pasteEl.focus(); return; }
 
         var fd = new FormData();
-        fd.append('list_id', listEl.value);
         if (mode === 'file') { fd.append('file', file); } else { fd.append('paste', pasteEl.value); }
 
         resetLog();
@@ -480,47 +476,79 @@
     function keyFromLabel(label) {
         return label.toLowerCase().normalize('NFD').replace(/[\u0300-\u036f]/g, '').replace(/[^a-z0-9]+/g, '_').replace(/^_+|_+$/g, '') || 'field';
     }
-    // Type suggested from the preview values: all dates, all numbers, all 1/0.
+    function uniqueValues(list) {
+        var seen = {};
+        return list.filter(function (v) {
+            var k = v.toLowerCase();
+            if (seen[k]) { return false; }
+            seen[k] = true;
+            return true;
+        });
+    }
+    // A multi-select cell "Alpro Apps, Xilnex" -> its options (same split as
+    // ContactImport::multiValue()).
+    function splitMulti(v) {
+        return v.split(/[,;]/).map(function (p) { return p.trim(); }).filter(Boolean);
+    }
+    // Type suggested from the preview values: all dates, all numbers, all 1/0,
+    // or comma-separated short values drawn from a small set (multi-select).
     function guessType(values) {
         if (!values.length) { return 'text'; }
         function all(re) { return values.every(function (v) { return re.test(v); }); }
         if (all(/^\d{4}-\d{2}-\d{2}$/)) { return 'date'; }
         if (all(/^(1|0|yes|no|true|false)$/i)) { return 'boolean'; }
         if (all(/^-?\d+(\.\d+)?$/)) { return 'number'; }
+        var parts = [];
+        values.forEach(function (v) { parts = parts.concat(splitMulti(v)); });
+        var hasList = values.some(function (v) { return splitMulti(v).length > 1; });
+        var options = uniqueValues(parts);
+        if (hasList && options.length <= 30 && parts.every(function (p) { return p.length <= 50; })) { return 'multiselect'; }
         return 'text';
     }
+    // Options prefilled from the preview: whole cells for a select, the
+    // comma-separated parts for a multi-select.
+    function fillOptions() {
+        var values = columnValues(fCol);
+        var list = [];
+        if (fType.value === 'multiselect') {
+            values.forEach(function (v) { list = list.concat(splitMulti(v)); });
+        } else {
+            list = values;
+        }
+        fOptions.value = uniqueValues(list).join('\n');
+    }
     function syncFieldForm() {
-        fOptWrap.hidden = fType.value !== 'select';
+        fOptWrap.hidden = fType.value !== 'select' && fType.value !== 'multiselect';
         fKey.textContent = '{{' + keyFromLabel(fLabel.value.trim()) + '}}';
     }
     function openFieldModal(col) {
         fCol = col;
         var values = columnValues(col);
-        var unique = values.filter(function (v, i) { return values.indexOf(v) === i; });
         var name = columnName(col).replace(/[_-]+/g, ' ').replace(/\s+/g, ' ');
         fLabel.value = name ? name.charAt(0).toUpperCase() + name.slice(1) : '';
         fType.value = guessType(values);
-        fOptions.value = unique.join('\n');
+        fillOptions();
         fErr.hidden = true;
         syncFieldForm();
         fModal.show();
     }
     fModalEl.addEventListener('shown.bs.modal', function () { fLabel.focus(); fLabel.select(); });
     fLabel.addEventListener('input', syncFieldForm);
-    fType.addEventListener('change', syncFieldForm);
+    fType.addEventListener('change', function () { fillOptions(); syncFieldForm(); });
 
     fForm.addEventListener('submit', function (e) {
         e.preventDefault();
         var label = fLabel.value.trim();
         var options = fOptions.value.split(/\r\n|\r|\n/).map(function (v) { return v.trim(); }).filter(Boolean);
         if (!label) { fErr.textContent = 'Enter a name for the field.'; fErr.hidden = false; fLabel.focus(); return; }
-        if (fType.value === 'select' && !options.length) { fErr.textContent = 'Add at least one option, one per line.'; fErr.hidden = false; fOptions.focus(); return; }
+        var hasOptions = fType.value === 'select' || fType.value === 'multiselect';
+        if (hasOptions && !options.length) { fErr.textContent = 'Add at least one option, one per line.'; fErr.hidden = false; fOptions.focus(); return; }
         fErr.hidden = true;
         fSave.disabled = true;
         fetch(API + '?action=fields_create', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
-            body: JSON.stringify({ label: label, type: fType.value, options: fType.value === 'select' ? options : null, is_active: true })
+            body: JSON.stringify({ label: label, type: fType.value, options: hasOptions ? options : null, is_active: true })
         })
             .then(function (r) { return r.json(); })
             .then(function (res) {
@@ -541,9 +569,9 @@
     headerCb.addEventListener('change', function () { checkRes.hidden = true; renderMapping(); saveState(); });
 
     var MODE_HELP = {
-        add_update: 'New email addresses are added; contacts already on the list are updated.',
-        add: 'Only new email addresses are added; contacts already on the list are left unchanged.',
-        update: 'Only contacts already on the list are updated; new email addresses are not added.'
+        add_update: 'New email addresses are added; existing contacts are updated.',
+        add: 'Only new email addresses are added; existing contacts are left unchanged.',
+        update: 'Only existing contacts are updated; new email addresses are not added.'
     };
     function renderModeHelp() { modeHelp.textContent = MODE_HELP[modeEl.value] || ''; }
     modeEl.addEventListener('change', function () { checkRes.hidden = true; renderModeHelp(); saveState(); });
@@ -587,7 +615,7 @@
         placePanel('edm-imp-progress-slot2');
         setStep2Busy(true, dry ? 'check' : 'import');
         setProgress(0, verb + ' contacts');
-        log('info', (dry ? 'Checking' : 'Importing into "' + listEl.options[listEl.selectedIndex].text + '"') +
+        log('info', (dry ? 'Checking' : 'Importing into all contacts') +
             ' - ' + modeEl.options[modeEl.selectedIndex].text.toLowerCase() + (dry ? ' (nothing is saved).' : '.'));
 
         function finish(state, total, done) {
@@ -630,7 +658,7 @@
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
                 body: JSON.stringify({
-                    token: staged.token, list_id: parseInt(listEl.value, 10), mapping: mapping,
+                    token: staged.token, mapping: mapping,
                     has_header: headerCb.checked, mode: modeEl.value, offset: offset, dry_run: dry
                 })
             })
@@ -676,9 +704,8 @@
     // --- Step 3: summary (atem stat cards) ---
 
     function renderSummary(s, problems) {
-        var listName = listEl.options[listEl.selectedIndex].text;
         document.getElementById('edm-imp-done-msg').textContent =
-            'Import finished: ' + fmt(s.added + s.updated) + ' contact(s) saved to "' + listName + '".' +
+            'Import finished: ' + fmt(s.added + s.updated) + ' contact(s) saved.' +
             (problems ? ' ' + fmt(problems) + ' problem row(s) are listed in the log below.' : '');
         function card(title, value, cls, label) {
             return '<div class="col-12 col-sm-6 col-xl"><div class="edm-card edm-dash-stat h-100">' +
@@ -688,9 +715,9 @@
         }
         document.getElementById('edm-imp-summary').innerHTML =
             card('Added', s.added, 'edm-stat-value--green', 'new contacts') +
-            card('Updated', s.updated, 'edm-stat-value--blue', 'already on the list') +
+            card('Updated', s.updated, 'edm-stat-value--blue', 'existing contacts') +
             (modeEl.value !== 'add_update'
-                ? card('Not changed', s.ignored, 'edm-stat-value--orange', modeEl.value === 'add' ? 'already on the list' : 'not on the list')
+                ? card('Not changed', s.ignored, 'edm-stat-value--orange', modeEl.value === 'add' ? 'existing contacts' : 'new addresses')
                 : '') +
             card('Skipped', s.invalid, 'edm-stat-value--red', 'missing or invalid email') +
             card('Duplicates', s.duplicates, 'edm-stat-value--orange', 'repeated in the file') +
@@ -698,7 +725,7 @@
             (s.values_dropped
                 ? card('Values left out', s.values_dropped, 'edm-stat-value--orange', 'did not fit the custom field')
                 : '');
-        document.getElementById('edm-imp-again').href = BASE + 'audience/import.php?list=' + encodeURIComponent(listEl.value);
+        document.getElementById('edm-imp-again').href = BASE + 'audience/import.php';
     }
 
     // --- Restore after a refresh ---
@@ -710,7 +737,6 @@
 
         staged = st.staged;
         summary = st.summary || null;
-        listEl.value = st.list;
         headerCb.checked = !!st.header;
         if (st.mode) { modeEl.value = st.mode; }
         renderModeHelp();
@@ -747,7 +773,7 @@
         } else {
             var last = logEntries[logEntries.length - 1];
             if (!last || last.message.indexOf('Page reloaded') !== 0) {
-                log('info', 'Page reloaded - your upload, list and column matches were kept.');
+                log('info', 'Page reloaded - your upload and column matches were kept.');
             }
         }
         saveState();

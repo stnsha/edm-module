@@ -1,37 +1,74 @@
-import React from 'react';
+import React, { useEffect } from 'react';
 
-import { Stack, useTheme } from '@mui/material';
+import { Stack } from '@mui/material';
 
-import { useInspectorDrawerOpen } from '../documents/editor/EditorContext';
+import { redo, setDragging, undo } from '../documents/editor/EditorContext';
 
-import InspectorDrawer, { INSPECTOR_DRAWER_WIDTH } from './InspectorDrawer';
+import SidebarPanel, { SIDEBAR_WIDTH } from './SidebarPanel';
 import TemplatePanel from './TemplatePanel';
 
-// EDM: upstream's left-hand SamplesDrawer (Waypoint sample gallery) is removed.
+// EDM: upstream's left-hand SamplesDrawer (Waypoint sample gallery) is removed,
+// and the right-hand inspector is replaced by a Brevo-style left panel
+// (SidebarPanel: block tiles, layouts, email styles, or the selected block's
+// settings).
 
-function useDrawerTransition(cssProperty: 'margin-left' | 'margin-right', open: boolean) {
-  const { transitions } = useTheme();
-  return transitions.create(cssProperty, {
-    easing: !open ? transitions.easing.sharp : transitions.easing.easeOut,
-    duration: !open ? transitions.duration.leavingScreen : transitions.duration.enteringScreen,
-  });
+/** Ctrl/Cmd+Z undo, Ctrl/Cmd+Shift+Z or Ctrl+Y redo - outside text fields. */
+function useUndoKeys() {
+  useEffect(() => {
+    const onKey = (ev: KeyboardEvent) => {
+      if (!(ev.ctrlKey || ev.metaKey)) {
+        return;
+      }
+      const t = ev.target as HTMLElement | null;
+      if (t && (t.isContentEditable || ['INPUT', 'TEXTAREA', 'SELECT'].includes(t.tagName))) {
+        return; // the field's own undo
+      }
+      const key = ev.key.toLowerCase();
+      if (key === 'z' && !ev.shiftKey) {
+        ev.preventDefault();
+        undo();
+      } else if ((key === 'z' && ev.shiftKey) || key === 'y') {
+        ev.preventDefault();
+        redo();
+      }
+    };
+    window.addEventListener('keydown', onKey);
+    return () => window.removeEventListener('keydown', onKey);
+  }, []);
+}
+
+/**
+ * Drop zones show while something is dragged (EditorContext dragging). A drag
+ * that ends anywhere - dropped outside a zone, cancelled with Esc, or its
+ * source re-rendered away - must still hide them.
+ */
+function useDragReset() {
+  useEffect(() => {
+    const reset = () => setDragging(null);
+    const onKey = (ev: KeyboardEvent) => {
+      if (ev.key === 'Escape') {
+        reset();
+      }
+    };
+    window.addEventListener('dragend', reset);
+    window.addEventListener('drop', reset);
+    window.addEventListener('keydown', onKey);
+    return () => {
+      window.removeEventListener('dragend', reset);
+      window.removeEventListener('drop', reset);
+      window.removeEventListener('keydown', onKey);
+    };
+  }, []);
 }
 
 export default function App() {
-  const inspectorDrawerOpen = useInspectorDrawerOpen();
-
-  const marginRightTransition = useDrawerTransition('margin-right', inspectorDrawerOpen);
+  useUndoKeys();
+  useDragReset();
 
   return (
     <>
-      <InspectorDrawer />
-
-      <Stack
-        sx={{
-          marginRight: inspectorDrawerOpen ? `${INSPECTOR_DRAWER_WIDTH}px` : 0,
-          transition: marginRightTransition,
-        }}
-      >
+      <SidebarPanel />
+      <Stack sx={{ marginLeft: `${SIDEBAR_WIDTH}px` }}>
         <TemplatePanel />
       </Stack>
     </>

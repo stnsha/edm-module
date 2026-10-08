@@ -52,7 +52,7 @@
         return q;
     }
     var editors = {
-        objective:      editor('edm-rv-objective', CFG.objective, 'What should this campaign achieve? e.g. drive sign-ups for the year-end promotion.'),
+        objective:      editor('edm-rv-objective', CFG.objective, 'What should this newsletter achieve? e.g. drive sign-ups for the year-end promotion.'),
         audience_brief: editor('edm-rv-audience', CFG.audience_brief, 'Who should receive it? e.g. members in Klang Valley, active in the last 6 months.'),
         copywriting:    editor('edm-rv-copy', CFG.copywriting, 'Subject line, headline, body copy and call to action.')
     };
@@ -165,7 +165,7 @@
     function validate() {
         var ok = true;
         if (!$('edm-rv-title').value.trim()) { setError('edm-rv-title-error', 'Title is required.'); ok = false; }
-        if (!$('edm-rv-campaign').value) { setError('edm-rv-campaign-error', 'Choose a campaign.'); ok = false; }
+        if (!$('edm-rv-campaign').value) { setError('edm-rv-campaign-error', 'Choose a newsletter.'); ok = false; }
         if (!html(editors.objective)) { setError('edm-rv-objective-error', 'Objective is required.'); ok = false; }
         if (!html(editors.audience_brief)) { setError('edm-rv-audience_brief-error', 'Audience brief is required.'); ok = false; }
         if (!html(editors.copywriting)) { setError('edm-rv-copywriting-error', 'Copywriting is required.'); ok = false; }
@@ -236,9 +236,9 @@
             doneApprove: 'Audience validated. The request is ready for final approval.'
         },
         final: {
-            prefix: 'edm-final', title: 'final approval', approveLabel: 'Approve & schedule',
-            confirmApprove: 'Approve and schedule this campaign? It is locked and Amazon SES sends it at the send date.',
-            doneApprove: 'Final approval given. The campaign is scheduled and locked.'
+            prefix: 'edm-final', title: 'final approval', approveLabel: 'Approve & send',
+            confirmApprove: 'Approve this newsletter? It is locked and Amazon SES sends it at the chosen time. You can still recall it until sending starts.',
+            doneApprove: 'Final approval given. The newsletter is scheduled and locked.'
         }
     };
 
@@ -261,16 +261,17 @@
             return;
         }
         if (approve && stage === 'final') {
-            body.scheduled_at = $('edm-final-at').value;
-            if (!body.scheduled_at) {
-                setError(errId, 'Choose the send date and time.');
+            body.send_now = $('edm-final-now').checked;
+            body.scheduled_at = body.send_now ? '' : $('edm-final-at').value;
+            if (!body.send_now && !body.scheduled_at) {
+                setError(errId, 'Choose Send now, or the send date and time.');
                 $('edm-final-at').focus();
                 return;
             }
         }
         window.edmConfirm(approve
             ? s.confirmApprove
-            : 'Reject this request? It goes back to the requester to change and resubmit, and the campaign returns to content revision.',
+            : 'Reject this request? It goes back to the requester to change and resubmit, and the newsletter returns to content revision.',
         function () {
             fetch(API + '?action=approvals_decide', {
                 method: 'POST',
@@ -282,6 +283,12 @@
                     if (!res.success) {
                         var errs = res.errors || {};
                         setError(errId, (errs.checks || errs.comment || errs.final || errs.scheduled_at || [res.message || 'The decision could not be saved.'])[0]);
+                        return;
+                    }
+                    // Final approval: the email preview with the recall
+                    // countdown ("Don't send it") instead of a plain alert.
+                    if (approve && stage === 'final') {
+                        openRecall(body.send_now ? null : body.scheduled_at, true);
                         return;
                     }
                     window.edmAlert(approve ? s.doneApprove : 'Rejected. The request has been sent back to the requester.',
@@ -302,6 +309,105 @@
         }
     });
 
+    // Final approval: Send now hides the date.
+    [$('edm-final-now'), $('edm-final-later')].forEach(function (r) {
+        if (!r) { return; }
+        r.addEventListener('change', function () { $('edm-final-at-wrap').hidden = $('edm-final-now').checked; });
+    });
+
+    // Recall window (Newsletter recall, CampaignSender::RECALL_SECONDS): the
+    // email as it will be sent and "Don't send it". sendAt null = Send now
+    // (the countdown runs from the approval); a date = scheduled, recallable
+    // until it starts. reloadOnClose: the page changed (just approved).
+    var recallModal = null;
+    var recallTimer = null;
+    function openRecall(sendAt, reloadOnClose) {
+        var el = $('edm-recall-modal');
+        if (!recallModal) { recallModal = new bootstrap.Modal(el); }
+        var secs = CFG.recallSeconds || 60;
+        var bar = $('edm-recall-bar');
+        var btn = $('edm-recall-btn');
+        btn.disabled = false;
+        btn.hidden = false;
+        $('edm-recall-inbox').innerHTML = '<div><strong>' + (esc(CFG.subject) || '<span class="text-muted">No subject</span>') + '</strong>' +
+            (CFG.preheader ? ' <span class="text-muted">- ' + esc(CFG.preheader) + '</span>' : '') + '</div>';
+        $('edm-recall-frame').src = BASE + 'campaign/api.php?action=campaigns_preview&id=' + CFG.campaignId + '&t=' + Date.now();
+        clearInterval(recallTimer);
+        if (sendAt === null) {
+            var left = secs;
+            $('edm-recall-title').textContent = 'Approved - sending in ' + left + ' seconds';
+            bar.className = 'edm-recall-bar is-live';
+            var paint = function () {
+                bar.innerHTML = '<i class="bi bi-hourglass-split me-1"></i>Sending starts in <strong>' + left + 's</strong>. ' +
+                    'Spotted a mistake? Click <strong>Don’t send it</strong> - nothing goes out and the newsletter returns to content revision.' +
+                    '<div class="edm-recall-progress"><span style="width:' + (left / secs * 100) + '%"></span></div>';
+            };
+            paint();
+            recallTimer = setInterval(function () {
+                left -= 1;
+                if (left <= 0) {
+                    clearInterval(recallTimer);
+                    $('edm-recall-title').textContent = 'Sending';
+                    bar.className = 'edm-recall-bar is-done';
+                    bar.innerHTML = '<i class="bi bi-send-check me-1"></i>The recall window has passed - Amazon SES is sending the newsletter.';
+                    btn.hidden = true;
+                    return;
+                }
+                $('edm-recall-title').textContent = 'Approved - sending in ' + left + ' seconds';
+                paint();
+            }, 1000);
+        } else {
+            $('edm-recall-title').textContent = 'Scheduled' + (sendAt ? ' for ' + String(sendAt).replace('T', ' ') : '');
+            bar.className = 'edm-recall-bar';
+            bar.innerHTML = '<i class="bi bi-calendar-check me-1"></i>Scheduled and locked. You can recall it until sending starts (' + secs +
+                ' seconds after the send time) - it then returns to content revision.';
+        }
+        el.addEventListener('hidden.bs.modal', function onHide() {
+            el.removeEventListener('hidden.bs.modal', onHide);
+            clearInterval(recallTimer);
+            $('edm-recall-frame').src = 'about:blank';
+            if (reloadOnClose) { window.location.reload(); }
+        });
+        recallModal.show();
+    }
+    function recall(onDone) {
+        fetch(API + '?action=approvals_recall', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
+            body: JSON.stringify({ id: CFG.id })
+        })
+            .then(function (r) { return r.json(); })
+            .then(function (res) {
+                if (!res.success) { window.edmAlert(res.message || 'Could not recall the newsletter.', { variant: 'danger', title: 'Not recalled' }); return; }
+                onDone();
+            })
+            .catch(function () { window.edmAlert('Could not reach the server.', { variant: 'danger', title: 'Not recalled' }); });
+    }
+    if ($('edm-recall-btn')) {
+        $('edm-recall-btn').addEventListener('click', function () {
+            var btn = this;
+            btn.disabled = true;
+            clearInterval(recallTimer);
+            recall(function () {
+                var bar = $('edm-recall-bar');
+                bar.className = 'edm-recall-bar is-recalled';
+                bar.innerHTML = '<i class="bi bi-x-octagon me-1"></i>Recalled - nothing was sent. The newsletter is back in content revision; the requester can edit and resubmit it.';
+                $('edm-recall-title').textContent = 'Recalled';
+                btn.hidden = true;
+            });
+        });
+    }
+    if ($('edm-final-preview')) {
+        $('edm-final-preview').addEventListener('click', function () { openRecall($('edm-final-at').value || '', false); });
+    }
+    if ($('edm-final-recall')) {
+        $('edm-final-recall').addEventListener('click', function () {
+            window.edmConfirm('Recall this newsletter? Nothing is sent; it returns to content revision and needs a new review.', function () {
+                recall(function () { window.location.reload(); });
+            }, { title: 'Recall - don’t send it', variant: 'danger', confirmLabel: 'Recall' });
+        });
+    }
+
     // Final approval: calendar clashes for the chosen send date (a warning only).
     var finalAt = $('edm-final-at');
     var conflictSeq = 0;
@@ -310,7 +416,7 @@
             var box = $('edm-final-conflicts');
             var v = finalAt.value;
             var mine = ++conflictSeq;
-            if (!v) { box.textContent = 'Choose the date the campaign goes out.'; return; }
+            if (!v) { box.textContent = 'Choose the date the newsletter goes out.'; return; }
             fetch(BASE + 'email-builder/api.php?action=conflicts&campaign=' + CFG.campaignId + '&date=' + encodeURIComponent(v),
                 { headers: { 'Accept': 'application/json' } })
                 .then(function (r) { return r.json(); })
@@ -341,7 +447,7 @@
         warn: 'bi-exclamation-triangle-fill text-warning',
         fail: 'bi-x-circle-fill text-danger'
     };
-    var QA_TRIGGER = { bpt_approved: 'after the BPT approval', resaved: 'after the campaign was saved again', manual: 'run by hand' };
+    var QA_TRIGGER = { bpt_approved: 'after the BPT approval', resaved: 'after the newsletter was saved again', manual: 'run by hand' };
     var qaTimer = null;
 
     function renderQa(run) {
@@ -389,7 +495,7 @@
         }).join('');
         note.innerHTML = run.status === 5
             ? '<div class="alert alert-danger py-2 px-3 small mt-3 mb-0"><i class="bi bi-x-octagon me-1"></i>Scheduling is blocked until the failed checks are fixed. ' +
-                '<a href="' + BASE + 'email-builder/index.php?campaign=' + CFG.campaignId + '" target="_blank" rel="noopener">Open the campaign in the Email creator</a> - saving the fix runs the check again.</div>'
+                '<a href="' + BASE + 'email-builder/index.php?campaign=' + CFG.campaignId + '" target="_blank" rel="noopener">Open the newsletter in the Email creator</a> - saving the fix runs the check again.</div>'
             : '';
     }
 
@@ -432,7 +538,7 @@
         $('edm-qa-list').addEventListener('click', function (e) {
             var b = e.target.closest('.edm-qa-utm');
             if (!b) { return; }
-            window.edmConfirm('Add utm_source=edm, utm_medium=email and utm_campaign to every link in the campaign design? The design is saved as a new version and checked again.', function () {
+            window.edmConfirm('Add utm_source=edm, utm_medium=email and utm_campaign to every link in the newsletter design? The design is saved as a new version and checked again.', function () {
                 qaAction('qa_utm', b, 'Tagging...');
             }, { title: 'Add UTM tags', variant: 'info', confirmLabel: 'Add tags' });
         });

@@ -46,7 +46,7 @@ if not defined PHP_EXE (
 set "RC=%ERRORLEVEL%"
 if not "%RC%"=="0" >>"%CRON_LOG%" echo [%DATE% %TIME%] send.php exited with code %RC% (%PHP_EXE%).
 
-rem Automated QA checks on queued campaigns (log: edm\logs\qa.log).
+rem Automated QA checks on queued newsletters (log: edm\logs\qa.log).
 "%PHP_EXE%" "%~dp0qa.php" >>"%CRON_LOG%" 2>&1
 
 endlocal & exit /b %RC%

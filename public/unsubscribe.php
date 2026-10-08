@@ -10,14 +10,13 @@ declare(strict_types=1);
  *   GET   signed link -> confirmation page with an Unsubscribe button (link
  *         scanners and prefetchers must not unsubscribe anyone)
  *   POST  signed link -> suppress the address (reason: unsubscribed), mark the
- *         list member unsubscribed and stamp the send log
+ *         contact unsubscribed and stamp the send log
  *
- * Links are signed per campaign + address by Edm\Services\Ses\Unsubscribe.
+ * Links are signed per newsletter + address by Edm\Services\Ses\Unsubscribe.
  */
 
 use Edm\Core\Database;
-use Edm\Models\Campaign;
-use Edm\Models\ListMember;
+use Edm\Models\Contact;
 use Edm\Models\Suppression;
 use Edm\Services\Ses\SesConfig;
 use Edm\Services\Ses\Unsubscribe;
@@ -33,14 +32,9 @@ $link = (new Unsubscribe(SesConfig::fromEnv()))->verify(
 $done = false;
 if ($link !== null && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $email = strtolower($link['email']);
-    $campaign = Campaign::find($link['campaign_id']);
-    Suppression::suppress($email, 'unsubscribed', 'Unsubscribe link', 'Campaign #' . $link['campaign_id']);
-    if ($campaign !== null && Campaign::hasAudience($campaign)) {
-        // An all-lists campaign unsubscribes the address from every list.
-        $listId = Campaign::audienceListId($campaign);
-        foreach (ListMember::where('(? IS NULL OR `list_id` = ?) AND LOWER(`email`) = ?', [$listId, $listId, $email]) as $m) {
-            ListMember::update((int) $m['id'], ['status' => 2]); // 2 = unsubscribed
-        }
+    Suppression::suppress($email, 'unsubscribed', 'Unsubscribe link', 'Newsletter #' . $link['campaign_id']);
+    foreach (Contact::where('LOWER(`email`) = ?', [$email]) as $m) {
+        Contact::update((int) $m['id'], ['status' => Contact::UNSUBSCRIBED]);
     }
     Database::get()->execute(
         'UPDATE `edm_send_log` SET `unsubscribed_at` = COALESCE(`unsubscribed_at`, ?), `updated_at` = ?

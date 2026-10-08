@@ -1,5 +1,5 @@
 <?php
-$page_title = 'Suppression lists';
+$page_title = 'Exclusion lists';
 $page_subtitle = 'Addresses that are never sent to. Hard bounces and spam complaints are added automatically once SES events are wired; add manual entries here. Delete to recover an address.';
 require __DIR__ . '/../partials.php';
 $page_title_actions = edm_title_button('Add address');

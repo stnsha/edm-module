@@ -6,7 +6,8 @@
  *
  * The postMessage protocol is documented in editor-src/src/bridge.ts; this is
  * the Email creator's host logic (email-builder/email-builder.js) without the
- * campaign-only parts (status, submit for review).
+ * campaign-only parts (status, submit for review), as a 3-step wizard:
+ * Details, Design, Review (summary, preview, save).
  */
 (function () {
     'use strict';
@@ -96,6 +97,8 @@
         });
         setDirty(false);
         saveBtn.disabled = false;
+        // Wizard: Design check / Review summary need the loaded design.
+        refreshDesignState();
     }
 
     function setHeading() {
@@ -153,6 +156,7 @@
     function save() {
         if (saving || saveBtn.disabled) { return; }
         if (!f.name.value.trim()) {
+            goStep(1);
             f.name.focus();
             showAlert('Name is required.');
             return;
@@ -182,6 +186,126 @@
     }
 
     saveBtn.addEventListener('click', save);
+
+    // Wizard: Details, Design, Review (same look as the Email creator). Steps
+    // never block each other; the step is kept in the URL hash.
+    var LAST_STEP = 3;
+    var wizSteps = [].slice.call(document.querySelectorAll('.edm-wiz-step'));
+    var wizPanes = [].slice.call(document.querySelectorAll('.edm-wiz-pane'));
+    var summaryEl = document.getElementById('edm-wiz-summary');
+    var wizStep = 1;
+    var designBlocks = null; // top-level blocks in the design; null until known
+
+    function exportDesign(cb) {
+        var id = 'w' + (++seq);
+        pending[id] = cb;
+        toEditor({ type: 'export', requestId: id });
+    }
+    function refreshDesignState(done) {
+        if (!editorReady) { if (done) { done(); } return; }
+        exportDesign(function (out) {
+            var root = out.document && out.document.root;
+            designBlocks = root && root.data && root.data.childrenIds ? root.data.childrenIds.length : 0;
+            paintSteps();
+            if (done) { done(out); }
+        });
+    }
+    function stepComplete(n) {
+        if (n === 1) { return f.name.value.trim() !== ''; }
+        if (n === 2) { return designBlocks !== null && designBlocks > 0; }
+        return false;
+    }
+    function paintSteps() {
+        wizSteps.forEach(function (b) {
+            var n = parseInt(b.getAttribute('data-step'), 10);
+            var done = n !== wizStep && n < LAST_STEP && stepComplete(n);
+            b.classList.toggle('is-active', n === wizStep);
+            b.classList.toggle('is-done', done);
+            b.querySelector('.edm-wiz-dot').innerHTML = done ? '<i class="bi bi-check-lg"></i>' : String(n);
+            b.setAttribute('aria-current', n === wizStep ? 'step' : 'false');
+        });
+    }
+    function goStep(n, scroll) {
+        wizStep = Math.min(LAST_STEP, Math.max(1, n));
+        wizPanes.forEach(function (p) {
+            p.hidden = parseInt(p.getAttribute('data-pane'), 10) !== wizStep;
+        });
+        // Full path: the odb layout sets a <base>.
+        try { window.history.replaceState(null, '', window.location.pathname + window.location.search + '#step-' + wizStep); } catch (err) { /* ignore */ }
+        if (wizStep === LAST_STEP) { renderSummary(); }
+        paintSteps();
+        if (scroll !== false) {
+            document.getElementById('edm-wiz-steps').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+    }
+    function esc(v) {
+        return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+    function renderSummary() {
+        function row(label, value, step, missing) {
+            return '<div class="edm-wiz-row' + (missing ? ' is-missing' : '') + '">' +
+                '<dt>' + esc(label) + '</dt>' +
+                '<dd>' + (missing ? '<i class="bi bi-exclamation-circle me-1"></i>' : '') + value + '</dd>' +
+                '<dd class="edm-wiz-row-edit"><button type="button" class="btn btn-link btn-sm p-0" data-wiz-go="' + step + '">Edit</button></dd>' +
+            '</div>';
+        }
+        function draw() {
+            var thumb = f.thumbnail.value.trim();
+            summaryEl.innerHTML =
+                row('Name', esc(f.name.value.trim()) || 'Not set', 1, !f.name.value.trim()) +
+                row('Category', esc(f.category.value.trim()) || '<span class="text-muted">None</span>', 1, false) +
+                row('Thumbnail', thumb && /^https?:\/\//i.test(thumb)
+                    ? '<img src="' + esc(thumb) + '" alt="" class="edm-wiz-thumb">' : (esc(thumb) || '<span class="text-muted">None</span>'), 1, false) +
+                row('Design', designBlocks === null ? 'Checking...'
+                    : designBlocks > 0 ? designBlocks + ' block' + (designBlocks === 1 ? '' : 's') : 'Empty - add content in Design',
+                    2, designBlocks === 0);
+        }
+        draw();
+        refreshDesignState(draw);
+    }
+
+    wizSteps.forEach(function (b) {
+        b.addEventListener('click', function () { goStep(parseInt(b.getAttribute('data-step'), 10)); });
+    });
+    document.addEventListener('click', function (e) {
+        var t = e.target.closest('[data-wiz-next], [data-wiz-prev], [data-wiz-go]');
+        if (!t) { return; }
+        if (t.hasAttribute('data-wiz-go')) { goStep(parseInt(t.getAttribute('data-wiz-go'), 10)); return; }
+        if (t.hasAttribute('data-wiz-prev')) { goStep(wizStep - 1); return; }
+        if (wizStep === 1 && !f.name.value.trim()) {
+            f.name.focus();
+            showAlert('Name is required.');
+            return;
+        }
+        alertEl.hidden = true;
+        if (wizStep === 2) { refreshDesignState(); }
+        goStep(wizStep + 1);
+    });
+    Object.keys(f).forEach(function (k) {
+        f[k].addEventListener('input', paintSteps);
+    });
+    document.getElementById('edm-eb-save-final').addEventListener('click', save);
+
+    // Preview: the current design, unsaved edits included, in a sandboxed frame.
+    var previewModalEl = document.getElementById('edm-eb-preview-modal');
+    var previewFrame = document.getElementById('edm-eb-preview-frame');
+    var previewModal = null;
+    previewModalEl.addEventListener('hidden.bs.modal', function () { previewFrame.removeAttribute('srcdoc'); });
+    document.getElementById('edm-eb-preview').addEventListener('click', function () {
+        if (!editorReady) { showAlert('The editor is still loading.'); return; }
+        if (!previewModal) { previewModal = new bootstrap.Modal(previewModalEl); }
+        exportDesign(function (out) {
+            previewFrame.srcdoc = out.html || '';
+            previewModal.show();
+        });
+    });
+
+    (function initialStep() {
+        var m = /^#step-([1-3])$/.exec(window.location.hash);
+        goStep(m ? parseInt(m[1], 10) : 1, false);
+    })();
 
     // Ctrl+S / Cmd+S saves - on this page and inside the editor iframe
     // (same origin, so its document can be listened to directly).

@@ -9,7 +9,7 @@ use Edm\Core\Model;
 /**
  * A stage decision on a review request: stage bpt (BPT team, spec 5.2 steps
  * 2-3), audience (BI/CRM, step 4) or final (final approval, step 6 - sets
- * the campaign Scheduled); decision 2 approved / 3 rejected.
+ * the newsletter Scheduled); decision 2 approved / 3 rejected.
  * Table: edm_approval_decisions.
  */
 final class ApprovalDecision extends Model

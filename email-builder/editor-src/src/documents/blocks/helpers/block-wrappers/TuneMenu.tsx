@@ -1,10 +1,16 @@
 import React from 'react';
 
-import { ArrowDownwardOutlined, ArrowUpwardOutlined, ContentCopyOutlined, DeleteOutlined } from '@mui/icons-material';
-import { IconButton, Paper, Stack, SxProps, Tooltip } from '@mui/material';
+import {
+  ArrowDownwardOutlined,
+  ArrowUpwardOutlined,
+  ContentCopyOutlined,
+  DeleteOutlined,
+  DragIndicatorOutlined,
+} from '@mui/icons-material';
+import { Box, IconButton, Paper, Stack, SxProps, Tooltip } from '@mui/material';
 
 import { TEditorBlock, TEditorConfiguration } from '../../../editor/core';
-import { resetDocument, setSelectedBlockId, useDocument } from '../../../editor/EditorContext';
+import { resetDocument, setDragging, setSelectedBlockId, useDocument } from '../../../editor/EditorContext';
 import { ColumnsContainerProps } from '../../ColumnsContainer/ColumnsContainerPropsSchema';
 import cloneDocumentBlock from '../cloneDocumentBlock';
 
@@ -229,6 +235,22 @@ export default function TuneMenu({ blockId }: Props) {
   return (
     <Paper sx={sx} onClick={(ev) => ev.stopPropagation()}>
       <Stack>
+        {/* EDM: drag this handle onto a drop zone to move the block (Brevo-style). */}
+        <Tooltip title="Drag to move" placement="left-start">
+          <Box
+            draggable
+            onDragStart={(ev) => {
+              ev.dataTransfer.setData('text/plain', 'edm-move');
+              ev.dataTransfer.effectAllowed = 'move';
+              // After the drag image is taken: showing the drop zones re-renders the canvas.
+              setTimeout(() => setDragging({ kind: 'move', blockId }), 0);
+            }}
+            onDragEnd={() => setDragging(null)}
+            sx={{ display: 'flex', justifyContent: 'center', py: 0.75, cursor: 'grab', color: 'text.secondary' }}
+          >
+            <DragIndicatorOutlined fontSize="small" />
+          </Box>
+        </Tooltip>
         <Tooltip title="Move up" placement="left-start">
           <IconButton onClick={() => handleMoveClick('up')} sx={{ color: 'text.primary' }}>
             <ArrowUpwardOutlined fontSize="small" />

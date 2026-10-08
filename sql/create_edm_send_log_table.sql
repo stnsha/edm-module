@@ -12,7 +12,6 @@ SET FOREIGN_KEY_CHECKS = 1;
 CREATE TABLE `edm_send_log` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `campaign_id` bigint unsigned DEFAULT NULL,
-  `member_code` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `sent_at` datetime NOT NULL,
   `status` tinyint unsigned NOT NULL DEFAULT '1',

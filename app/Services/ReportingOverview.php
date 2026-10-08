@@ -30,8 +30,8 @@ final class ReportingOverview
                 'completed' => $statusCounts['completed'],
             ],
             'audience' => [
-                'lists'        => $this->count('edm_lists'),
-                'list_members' => $this->count('edm_list_members'),
+                'contacts'     => $this->count('edm_contacts'),
+                'subscribed'   => $this->count('edm_contacts', '`status` = 1'), // 1 = subscribed
                 'suppressed'   => $this->count('edm_suppressions'),
             ],
             'senders' => [

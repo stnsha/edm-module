@@ -5,34 +5,41 @@ declare(strict_types=1);
 namespace Edm\Services\Ses;
 
 use Edm\Core\Database;
-use Edm\Core\ValidationException;
 use Edm\Models\Campaign;
 use Edm\Models\CampaignContent;
-use Edm\Models\ContactList;
 use Edm\Models\SendLog;
 use Edm\Models\Sender;
-use Edm\Services\SegmentQuery;
+use Edm\Services\CampaignRecipients;
 
 /**
  * The send queue, run every minute by cron/send.php (spec 5.2 step 7: "SES
  * queue triggered at scheduled datetime").
  *
- *   1. Scheduled (6) campaigns whose scheduled_at has passed and that pass
- *      the pre-send checks move to Sending (7).
- *   2. Sending campaigns are worked through in batches until the time
- *      budget runs out. With a segment, only list members matching its
- *      conditions (SegmentQuery) are recipients; the conditions are read
- *      at the start of each run. Every recipient gets exactly one edm_send_log row
+ *   1. Scheduled (6) newsletters whose scheduled_at passed at least
+ *      RECALL_SECONDS ago (the recall window) and that pass the pre-send
+ *      checks move to Sending (7).
+ *   2. Sending newsletters are worked through in batches until the time
+ *      budget runs out. Recipients are the newsletter's audience
+ *      (CampaignRecipients: included / excluded segments and contacts);
+ *      segment conditions are read at the start of each run. Preview text,
+ *      UTM tags and open / click tracking come from CampaignMessage. Every recipient gets exactly one edm_send_log row
  *      (sent, failed or skipped), so a run that stops part-way resumes where
  *      it left off. "Stop sending" (status leaves 7) is honoured per batch.
- *   3. A campaign with no member left to process becomes Completed (8).
+ *   3. A newsletter with no contact left to process becomes Completed (8).
  *
  * Suppression rules applied at queue time (spec, hard, no override):
  * suppressed address, 1 send per rolling 24 hours, 2 per rolling 7 days,
- * 8 per calendar month - counted over every campaign's actual sends.
+ * 8 per calendar month - counted over every newsletter's actual sends.
  */
 final class CampaignSender
 {
+    /**
+     * A scheduled newsletter starts this long after its send time, so it can
+     * still be recalled ("Don't send it", Campaign::recall()) - also right
+     * after final approval of a Send now newsletter.
+     */
+    public const RECALL_SECONDS = 60;
+
     private const BATCH = 100;
     private const CAP_DAY = 1;
     private const CAP_WEEK = 2;
@@ -96,25 +103,25 @@ final class CampaignSender
             'SELECT `id` FROM `edm_campaigns`
               WHERE `deleted_at` IS NULL AND `status` = ? AND `scheduled_at` IS NOT NULL AND `scheduled_at` <= ?
               ORDER BY `scheduled_at`, `id`',
-            [Campaign::SCHEDULED, date('Y-m-d H:i:s')]
+            [Campaign::SCHEDULED, date('Y-m-d H:i:s', time() - self::RECALL_SECONDS)]
         );
         foreach ($due as $row) {
             $id = (int) $row['id'];
             $problem = $this->preflight(Campaign::findOrFail($id));
             if ($problem !== null) {
-                ($this->log)("Campaign #{$id} not started: {$problem}");
+                ($this->log)("Newsletter #{$id} not started: {$problem}");
                 continue;
             }
-            // Conditional on the status, so a campaign stopped meanwhile stays stopped.
+            // Conditional on the status, so a newsletter stopped meanwhile stays stopped.
             $this->db->execute(
                 'UPDATE `edm_campaigns` SET `status` = ?, `updated_at` = ? WHERE `id` = ? AND `status` = ?',
                 [Campaign::SENDING, date('Y-m-d H:i:s'), $id, Campaign::SCHEDULED]
             );
-            ($this->log)("Campaign #{$id} started sending.");
+            ($this->log)("Newsletter #{$id} started sending.");
         }
     }
 
-    /** Why a campaign cannot be sent, or null when it can. */
+    /** Why a newsletter cannot be sent, or null when it can. */
     private function preflight(array $c): ?string
     {
         $sender = $c['sender_id'] !== null ? Sender::find((int) $c['sender_id']) : null;
@@ -122,28 +129,12 @@ final class CampaignSender
         return match (true) {
             $sender === null => 'no sender.',
             $sender['status'] !== 2 => 'sender ' . $sender['email'] . ' is not verified in SES.',
-            !Campaign::hasAudience($c)
-                || (!$c['all_lists'] && ContactList::find((int) $c['list_id']) === null) => 'no recipient list.',
-            ($segmentProblem = $this->segmentProblem($c)) !== null => $segmentProblem,
+            ($audienceProblem = CampaignRecipients::problem(CampaignRecipients::of($c))) !== null
+                => lcfirst(rtrim($audienceProblem, '.')) . '.',
             trim((string) $c['subject']) === '' => 'no subject line.',
             trim((string) (CampaignContent::forCampaign((int) $c['id'])['html'] ?? '')) === '' => 'the design is empty.',
             default => null,
         };
-    }
-
-    /** Why the campaign's segment cannot be used, or null. */
-    private function segmentProblem(array $c): ?string
-    {
-        try {
-            SegmentQuery::forCampaign(
-                $c['segment_id'] !== null ? (int) $c['segment_id'] : null,
-                Campaign::audienceListId($c)
-            );
-        } catch (ValidationException $e) {
-            return lcfirst(rtrim($e->getMessage(), '.')) . '.';
-        }
-
-        return null;
     }
 
     /** @return list<int> */
@@ -158,32 +149,37 @@ final class CampaignSender
         );
     }
 
-    /** Send one campaign's next batches. Returns emails sent. */
+    /** Send one newsletter's next batches. Returns emails sent. */
     private function work(int $id, float $deadline, float $gap, int &$room): int
     {
         $c = Campaign::findOrFail($id);
         $sender = Sender::find((int) $c['sender_id']);
         $problem = $this->preflight($c);
         if ($problem !== null || $sender === null) {
-            ($this->log)("Campaign #{$id} paused: " . ($problem ?? 'no sender.'));
+            ($this->log)("Newsletter #{$id} paused: " . ($problem ?? 'no sender.'));
             return 0;
         }
-        $html = (string) CampaignContent::forCampaign($id)['html'];
+        // Preview text, UTM tags and click tracking, once for the whole run.
+        $html = CampaignMessage::html($c, (string) CampaignContent::forCampaign($id)['html']);
+        $configurationSet = CampaignMessage::configurationSet($c, $this->ses->config);
+        if (CampaignMessage::opensForcedOn($c, $this->ses->config)) {
+            ($this->log)("Newsletter #{$id}: open tracking is off but SES_CONFIGURATION_SET_NO_OPENS is not set - opens are still tracked.");
+        }
         // Checked by preflight() just above, so this does not throw.
-        $listId = Campaign::audienceListId($c);
-        $segment = SegmentQuery::forCampaign($c['segment_id'] !== null ? (int) $c['segment_id'] : null, $listId);
+        $audience = CampaignRecipients::of($c);
+        $replyTo = Campaign::replyTo($c);
         $unsubscribe = new Unsubscribe($this->ses->config);
         $sent = 0;
 
         while (microtime(true) < $deadline && $room > 0) {
             if ((int) $this->db->scalar('SELECT `status` FROM `edm_campaigns` WHERE `id` = ?', [$id]) !== Campaign::SENDING) {
-                ($this->log)("Campaign #{$id} was stopped.");
+                ($this->log)("Newsletter #{$id} was stopped.");
                 return $sent;
             }
-            $batch = $this->pending($id, $listId, $segment);
+            $batch = $this->pending($id, $audience);
             if ($batch === []) {
                 Campaign::update($id, ['status' => Campaign::COMPLETED]);
-                ($this->log)("Campaign #{$id} completed.");
+                ($this->log)("Newsletter #{$id} completed.");
                 return $sent;
             }
 
@@ -200,7 +196,6 @@ final class CampaignSender
 
                 $vars = [
                     'email'           => $email,
-                    'member_code'     => $m['member_code'],
                     'name'            => $m['name'],
                     'fields'          => json_decode((string) $m['fields'], true) ?: [],
                     'unsubscribe_url' => $unsubscribe->url($id, $email),
@@ -213,12 +208,13 @@ final class CampaignSender
                         $email,
                         MessageRenderer::subject((string) $c['subject'], $vars),
                         MessageRenderer::html($html, $vars),
-                        $sender['reply_to'],
+                        $replyTo,
                         [
                             'List-Unsubscribe'      => '<' . $vars['unsubscribe_url'] . '>',
                             'List-Unsubscribe-Post' => 'List-Unsubscribe=One-Click',
                         ],
-                        ['campaign_id' => (string) $id]
+                        ['campaign_id' => (string) $id],
+                        $configurationSet
                     );
                     $this->record($id, $m, SendLog::SENT, $messageId, null);
                     $sent++;
@@ -227,7 +223,7 @@ final class CampaignSender
                     if (self::isRetryable($e)) {
                         // Throttled / account-level pause: nothing is recorded,
                         // the recipient is retried on the next run.
-                        ($this->log)("Campaign #{$id} paused: " . $e->getMessage());
+                        ($this->log)("Newsletter #{$id} paused: " . $e->getMessage());
                         return $sent;
                     }
                     $this->record($id, $m, SendLog::FAILED, null, mb_substr($e->getMessage(), 0, 255));
@@ -243,34 +239,30 @@ final class CampaignSender
     }
 
     /**
-     * Next subscribed list members without a send-log row for this campaign,
-     * limited to those matching the segment when there is one.
+     * Next recipients (the newsletter's audience, CampaignRecipients) without
+     * a send-log row for this newsletter.
      *
-     * One row per address (the oldest when a list - or, with $listId null
-     * (all lists), several lists - hold it twice), with the contact's name and
-     * custom field values for personalisation.
+     * One row per address (the oldest if the masterlist holds it twice), with
+     * the contact's name and custom field values for personalisation.
      *
-     * @param array{match: string, rules: list<array<string, string>>}|null $segment normalized definition
-     * @return list<array{email: string, member_code: ?string, name: ?string, fields: ?string}>
+     * @return list<array{email: string, name: ?string, fields: ?string}>
      */
-    private function pending(int $campaignId, ?int $listId, ?array $segment): array
+    private function pending(int $campaignId, array $audience): array
     {
-        [$segmentSql, $segmentParams] = $segment !== null
-            ? (new SegmentQuery($this->db))->where($segment, 'm')
-            : ['1 = 1', []];
+        [$audienceSql, $audienceParams] = (new CampaignRecipients($this->db))->where($audience, 'm');
 
         return $this->db->select(
-            'SELECT m.`member_code`, LOWER(TRIM(m.`email`)) AS email, m.`name`, m.`fields`
-               FROM `edm_list_members` m
-               JOIN (SELECT MIN(`id`) AS id FROM `edm_list_members`
-                      WHERE (? IS NULL OR `list_id` = ?) AND `status` = 1 AND `deleted_at` IS NULL AND `email` <> \'\'
+            'SELECT LOWER(TRIM(m.`email`)) AS email, m.`name`, m.`fields`
+               FROM `edm_contacts` m
+               JOIN (SELECT MIN(`id`) AS id FROM `edm_contacts`
+                      WHERE `status` = 1 AND `deleted_at` IS NULL AND `email` <> \'\'
                       GROUP BY LOWER(TRIM(`email`))) oldest ON oldest.`id` = m.`id`
-              WHERE ' . $segmentSql . '
+              WHERE ' . $audienceSql . '
                 AND NOT EXISTS (SELECT 1 FROM `edm_send_log` s
                                  WHERE s.`campaign_id` = ? AND s.`email` = LOWER(TRIM(m.`email`)) AND s.`deleted_at` IS NULL)
               ORDER BY m.`id`
               LIMIT ' . self::BATCH,
-            [$listId, $listId, ...$segmentParams, $campaignId]
+            [...$audienceParams, $campaignId]
         );
     }
 
@@ -311,12 +303,11 @@ final class CampaignSender
         };
     }
 
-    /** @param array{email: string, member_code: ?string} $member */
+    /** @param array{email: string} $member */
     private function record(int $campaignId, array $member, int $status, ?string $messageId, ?string $error): void
     {
         SendLog::create([
             'campaign_id'    => $campaignId,
-            'member_code'    => $member['member_code'],
             'email'          => strtolower(trim((string) $member['email'])),
             'sent_at'        => date('Y-m-d H:i:s'),
             'status'         => $status,

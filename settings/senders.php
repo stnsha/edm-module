@@ -1,6 +1,6 @@
 <?php
 $page_title = 'Senders';
-$page_subtitle = 'From-addresses available to campaigns. Each must be verified in Amazon SES before it can send: Request verification makes SES email the address a link, Check SES refreshes the status. A verified sending domain covers every address on it.';
+$page_subtitle = 'Email addresses available to newsletters, as the Sender and the Reply-to. A Sender must be verified in Amazon SES before it can send: Request verification makes SES email the address a link, Check SES refreshes the status. A verified sending domain covers every address on it. A Reply-to does not need verification.';
 $page_js    = null; // set after header.php once EDM_BASE is defined
 require __DIR__ . '/../partials.php';
 $page_title_actions = edm_title_button('Add sender', 'edm-sender-add');
@@ -27,13 +27,12 @@ $page_js = EDM_BASE . 'settings/senders.js';
                 <th style="width:2.5rem;"></th>
                 <th>From name</th>
                 <th>Email</th>
-                <th>Reply-to</th>
                 <th>Status</th>
                 <th class="text-end">Action</th>
             </tr>
         </thead>
         <tbody id="edm-sender-rows">
-            <tr><td colspan="7" class="text-center text-muted py-4">Loading...</td></tr>
+            <tr><td colspan="6" class="text-center text-muted py-4">Loading...</td></tr>
         </tbody>
     </table>
 </div>
@@ -58,13 +57,9 @@ $page_js = EDM_BASE . 'settings/senders.js';
                         <label class="form-label" for="edm-sender-email">Email <span class="text-danger" aria-hidden="true">*</span></label>
                         <input type="email" class="form-control" id="edm-sender-email" maxlength="255" required>
                     </div>
-                    <div class="mb-3">
-                        <label class="form-label" for="edm-sender-reply-to">Reply-to</label>
-                        <input type="email" class="form-control" id="edm-sender-reply-to" maxlength="255">
-                    </div>
                     <div class="form-check">
                         <input class="form-check-input" type="checkbox" id="edm-sender-default">
-                        <label class="form-check-label" for="edm-sender-default">Default sender for new campaigns</label>
+                        <label class="form-check-label" for="edm-sender-default">Default sender for new newsletters</label>
                     </div>
                     <div id="edm-sender-form-error" class="text-danger small mt-2" hidden></div>
                 </div>

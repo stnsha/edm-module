@@ -18,10 +18,12 @@ DROP TABLE IF EXISTS `edm_approval_files`;
 DROP TABLE IF EXISTS `edm_approvals`;
 DROP TABLE IF EXISTS `edm_autoresponders`;
 DROP TABLE IF EXISTS `edm_workflows`;
+DROP TABLE IF EXISTS `edm_triggers`;
 DROP TABLE IF EXISTS `edm_assets`;
 DROP TABLE IF EXISTS `edm_templates`;
 DROP TABLE IF EXISTS `edm_campaign_content`;
 DROP TABLE IF EXISTS `edm_campaigns`;
+DROP TABLE IF EXISTS `edm_master_tags`;
 DROP TABLE IF EXISTS `edm_ses_events`;
 DROP TABLE IF EXISTS `edm_send_log`;
 DROP TABLE IF EXISTS `edm_suppressions`;
@@ -29,6 +31,8 @@ DROP TABLE IF EXISTS `edm_settings`;
 DROP TABLE IF EXISTS `edm_sending_domains`;
 DROP TABLE IF EXISTS `edm_member_tags`;
 DROP TABLE IF EXISTS `edm_segments`;
+DROP TABLE IF EXISTS `edm_contacts`;
+-- Replaced by edm_contacts (one masterlist); dropped so an older database is cleaned up.
 DROP TABLE IF EXISTS `edm_list_members`;
 DROP TABLE IF EXISTS `edm_lists`;
 DROP TABLE IF EXISTS `edm_tags`;
@@ -43,7 +47,6 @@ CREATE TABLE `edm_senders` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `from_name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `reply_to` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `status` tinyint unsigned NOT NULL DEFAULT '1',
   `verified_at` datetime NULL DEFAULT NULL,
   `is_default` tinyint(1) NOT NULL DEFAULT '0',
@@ -64,7 +67,7 @@ CREATE TABLE `edm_custom_fields` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `key` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `label` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `type` enum('text','number','date','boolean','select') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'text',
+  `type` enum('text','number','date','boolean','select','multiselect') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'text',
   `options` json DEFAULT NULL,
   `category` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `is_active` tinyint(1) NOT NULL DEFAULT '1',
@@ -91,28 +94,11 @@ CREATE TABLE `edm_tags` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------
--- edm_lists: Contact lists.
+-- edm_contacts: The contact masterlist: one row per email address. status: 1=subscribed, 2=unsubscribed, 3=bounced.
+-- fields: Contacts > Custom fields values keyed by field key (JSON).
 -- ----------------------------------------------------------------------
-CREATE TABLE `edm_lists` (
+CREATE TABLE `edm_contacts` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `description` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `is_active` tinyint(1) NOT NULL DEFAULT '1',
-  `created_by` int unsigned DEFAULT NULL,
-  `created_by_name` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `created_at` datetime NULL DEFAULT NULL,
-  `updated_at` datetime NULL DEFAULT NULL,
-  `deleted_at` datetime NULL DEFAULT NULL,
-  PRIMARY KEY (`id`)
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ----------------------------------------------------------------------
--- edm_list_members: Members of a list. status: 1=subscribed, 2=unsubscribed, 3=bounced.
--- ----------------------------------------------------------------------
-CREATE TABLE `edm_list_members` (
-  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `list_id` bigint unsigned NOT NULL,
-  `member_code` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `name` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `fields` json DEFAULT NULL,
@@ -123,42 +109,38 @@ CREATE TABLE `edm_list_members` (
   `updated_at` datetime NULL DEFAULT NULL,
   `deleted_at` datetime NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
-  KEY `edm_list_members_list_id_member_code_index` (`list_id`,`member_code`),
-  KEY `edm_list_members_member_code_index` (`member_code`),
-  CONSTRAINT `edm_list_members_list_id_foreign` FOREIGN KEY (`list_id`) REFERENCES `edm_lists` (`id`) ON DELETE CASCADE
+  KEY `edm_contacts_email_index` (`email`),
+  KEY `edm_contacts_status_index` (`status`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------
--- edm_segments: Saved AND/OR segment definitions (definition = {match, rules}).
+-- edm_segments: Saved AND/OR segment definitions (definition = {match, groups}); applied to the contact masterlist.
 -- ----------------------------------------------------------------------
 CREATE TABLE `edm_segments` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `description` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `definition` json NOT NULL,
-  `list_id` bigint unsigned DEFAULT NULL,
   `created_by` int unsigned DEFAULT NULL,
   `created_by_name` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `created_at` datetime NULL DEFAULT NULL,
   `updated_at` datetime NULL DEFAULT NULL,
   `deleted_at` datetime NULL DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  KEY `edm_segments_list_id_foreign` (`list_id`),
-  CONSTRAINT `edm_segments_list_id_foreign` FOREIGN KEY (`list_id`) REFERENCES `edm_lists` (`id`) ON DELETE SET NULL
+  PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------
--- edm_member_tags: Tag assignments per member_code.
+-- edm_member_tags: Tag assignments per contact email address.
 -- ----------------------------------------------------------------------
 CREATE TABLE `edm_member_tags` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `member_code` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `tag_id` bigint unsigned NOT NULL,
   `created_at` datetime NULL DEFAULT NULL,
   `updated_at` datetime NULL DEFAULT NULL,
   `deleted_at` datetime NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
-  KEY `edm_member_tags_member_code_tag_id_index` (`member_code`,`tag_id`),
+  KEY `edm_member_tags_email_tag_id_index` (`email`,`tag_id`),
   KEY `edm_member_tags_tag_id_foreign` (`tag_id`),
   CONSTRAINT `edm_member_tags_tag_id_foreign` FOREIGN KEY (`tag_id`) REFERENCES `edm_tags` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
@@ -222,7 +204,6 @@ CREATE TABLE `edm_suppressions` (
 CREATE TABLE `edm_send_log` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `campaign_id` bigint unsigned DEFAULT NULL,
-  `member_code` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `sent_at` datetime NOT NULL,
   `status` tinyint unsigned NOT NULL DEFAULT '1',
@@ -262,8 +243,31 @@ CREATE TABLE `edm_ses_events` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------
--- edm_campaigns: Campaigns. status: 1=draft, 2=pending_submission, 3=under_bpt_review, 4=content_revision, 5=audience_validation, 6=scheduled, 7=sending, 8=completed, 9=archived.
--- all_lists: 1 = send to every list (list_id NULL), 0 = list_id is the recipient list.
+-- edm_master_tags: Master list of newsletter tags (edm_campaigns.tag_ids).
+-- ----------------------------------------------------------------------
+CREATE TABLE `edm_master_tags` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `created_by` int unsigned DEFAULT NULL,
+  `created_by_name` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` datetime NULL DEFAULT NULL,
+  `updated_at` datetime NULL DEFAULT NULL,
+  `deleted_at` datetime NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `edm_master_tags_name_index` (`name`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------------------------------------------------------------
+-- edm_campaigns: Newsletters. status: 1=draft, 2=pending_submission, 3=under_bpt_review, 4=content_revision, 5=audience_validation, 6=scheduled, 7=sending, 8=completed, 9=archived.
+-- audience: JSON { include: { segments: [id], contacts: [id] }, exclude: { segments: [id], contacts: [id] } };
+--   NULL / empty include = every subscribed contact (edm_contacts), minus the excluded ones.
+-- archived_from: the status before archiving (9); unarchiving restores it.
+-- tag_ids: JSON list of edm_master_tags ids (newsletter tags, optional).
+-- send_now: 1 = send as soon as final approval is given, 0 = at scheduled_at. Every send waits
+--   60 seconds after its time so it can be recalled (CampaignSender::RECALL_SECONDS).
+-- track_opens / track_clicks: SES open / click tracking; utm_enabled + utm (JSON source, medium,
+--   campaign, content): UTM parameters added to every link when sent.
+-- sender_id: From address; reply_to_id: Reply-to address (NULL = replies go to the sender). Both edm_senders.
 -- ----------------------------------------------------------------------
 CREATE TABLE `edm_campaigns` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -271,11 +275,17 @@ CREATE TABLE `edm_campaigns` (
   `subject` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `subject_b` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `preheader` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `tag_ids` json DEFAULT NULL,
   `sender_id` bigint unsigned DEFAULT NULL,
-  `list_id` bigint unsigned DEFAULT NULL,
-  `all_lists` tinyint(1) NOT NULL DEFAULT '0',
-  `segment_id` bigint unsigned DEFAULT NULL,
+  `reply_to_id` bigint unsigned DEFAULT NULL,
+  `audience` json DEFAULT NULL,
+  `send_now` tinyint(1) NOT NULL DEFAULT '0',
+  `track_opens` tinyint(1) NOT NULL DEFAULT '1',
+  `track_clicks` tinyint(1) NOT NULL DEFAULT '1',
+  `utm_enabled` tinyint(1) NOT NULL DEFAULT '1',
+  `utm` json DEFAULT NULL,
   `status` tinyint unsigned NOT NULL DEFAULT '1',
+  `archived_from` tinyint unsigned DEFAULT NULL,
   `scheduled_at` datetime NULL DEFAULT NULL,
   `requested_by` int unsigned DEFAULT NULL,
   `requested_by_name` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -288,7 +298,7 @@ CREATE TABLE `edm_campaigns` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------
--- edm_campaign_content: Campaign body: html (sent) + editor_json (EmailBuilder.js block tree).
+-- edm_campaign_content: Newsletter body: html (sent) + editor_json (EmailBuilder.js block tree).
 -- ----------------------------------------------------------------------
 CREATE TABLE `edm_campaign_content` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -340,15 +350,37 @@ CREATE TABLE `edm_assets` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------
+-- edm_triggers: Custom workflow triggers (built-ins live in code,
+-- Workflow::BUILT_IN_TRIGGERS); key is what edm_workflows.trigger stores.
+-- ----------------------------------------------------------------------
+CREATE TABLE `edm_triggers` (
+  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
+  `key` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `label` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
+  `description` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_by` int unsigned DEFAULT NULL,
+  `created_by_name` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `created_at` datetime NULL DEFAULT NULL,
+  `updated_at` datetime NULL DEFAULT NULL,
+  `deleted_at` datetime NULL DEFAULT NULL,
+  PRIMARY KEY (`id`),
+  KEY `edm_triggers_key_index` (`key`)
+) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+-- ----------------------------------------------------------------------
 -- edm_workflows: Automation workflows. status: 1=draft, 2=active, 3=paused.
 -- ----------------------------------------------------------------------
 CREATE TABLE `edm_workflows` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `description` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `trigger` enum('new_member','birthday','inactivity','cart_abandonment','soft_bounce','manual') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'manual',
+  `trigger_type` varchar(10) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'event',
+  `trigger` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `timing` json DEFAULT NULL,
   `status` tinyint unsigned NOT NULL DEFAULT '1',
   `definition` json DEFAULT NULL,
+  `content_type` varchar(20) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `content_id` bigint unsigned DEFAULT NULL,
   `created_by` int unsigned DEFAULT NULL,
   `created_by_name` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `created_at` datetime NULL DEFAULT NULL,
@@ -365,7 +397,6 @@ CREATE TABLE `edm_autoresponders` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `workflow_id` bigint unsigned DEFAULT NULL,
-  `list_id` bigint unsigned DEFAULT NULL,
   `offset_days` int NOT NULL DEFAULT '0',
   `subject` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `status` tinyint unsigned NOT NULL DEFAULT '1',
@@ -374,13 +405,11 @@ CREATE TABLE `edm_autoresponders` (
   `deleted_at` datetime NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `edm_autoresponders_workflow_id_foreign` (`workflow_id`),
-  KEY `edm_autoresponders_list_id_foreign` (`list_id`),
-  CONSTRAINT `edm_autoresponders_workflow_id_foreign` FOREIGN KEY (`workflow_id`) REFERENCES `edm_workflows` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `edm_autoresponders_list_id_foreign` FOREIGN KEY (`list_id`) REFERENCES `edm_lists` (`id`) ON DELETE SET NULL
+  CONSTRAINT `edm_autoresponders_workflow_id_foreign` FOREIGN KEY (`workflow_id`) REFERENCES `edm_workflows` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------
--- edm_approvals: Approval steps per campaign. status: 1=pending, 2=approved, 3=rejected.
+-- edm_approvals: Approval steps per newsletter. status: 1=pending, 2=approved, 3=rejected.
 -- ----------------------------------------------------------------------
 CREATE TABLE `edm_approvals` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -464,7 +493,7 @@ CREATE TABLE `edm_approval_decisions` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------
--- edm_campaign_qa: Automated QA runs per campaign (1 queued, 2 running, 3 passed, 4 warnings, 5 failed).
+-- edm_campaign_qa: Automated QA runs per newsletter (1 queued, 2 running, 3 passed, 4 warnings, 5 failed).
 -- ----------------------------------------------------------------------
 CREATE TABLE `edm_campaign_qa` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -487,7 +516,7 @@ CREATE TABLE `edm_campaign_qa` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------
--- edm_revisions: Revision requests on a campaign.
+-- edm_revisions: Revision requests on a newsletter.
 -- ----------------------------------------------------------------------
 CREATE TABLE `edm_revisions` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
@@ -504,7 +533,7 @@ CREATE TABLE `edm_revisions` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------
--- edm_calendar_slots: Campaign calendar slots.
+-- edm_calendar_slots: Newsletter calendar slots.
 -- ----------------------------------------------------------------------
 CREATE TABLE `edm_calendar_slots` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,

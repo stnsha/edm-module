@@ -1,6 +1,6 @@
 <?php
 // Raise / edit a review request (spec 5.2 step 1: Project PIC submits the
-// campaign request with objective, audience brief, artwork and copywriting).
+// newsletter request with objective, audience brief, artwork and copywriting).
 // Layout, classes and font sizes follow atem/edit.php. approval/edit.js.
 $review_id  = isset($_GET['id']) ? (int)$_GET['id'] : 0;
 $page_title = $review_id > 0 ? 'Review Request' : 'Raise Review';
@@ -37,6 +37,7 @@ $audit_icons = array(
     'audience_rejected'  => 'bi-person-x',
     'final_approved'     => 'bi-calendar-check',
     'final_rejected'     => 'bi-calendar-x',
+    'recalled'           => 'bi-x-octagon',
 );
 $bpt_decision = null;
 $audience_decision = null;
@@ -69,7 +70,7 @@ $awaiting_audience = $review !== null && \Edm\Models\Approval::awaitingAudience(
 $awaiting_final = $review !== null && \Edm\Models\Approval::awaitingFinal($review);
 $audience_checks = \Edm\Models\Approval::AUDIENCE_CHECKS;
 $bpt_checks = \Edm\Models\Approval::BPT_CHECKS;
-// Sending slot (spec 5.2 step 3): the campaign's send date + calendar clashes.
+// Sending slot (spec 5.2 step 3): the newsletter's send date + calendar clashes.
 $slot_campaign = $review !== null ? \Edm\Models\Campaign::find((int)$review['campaign_id']) : null;
 $slot_date = $slot_campaign !== null && !empty($slot_campaign['scheduled_at']) ? \Edm\Core\Model::parseDate((string)$slot_campaign['scheduled_at']) : null;
 $slot_conflicts = $slot_date !== null
@@ -78,7 +79,7 @@ $slot_conflicts = $slot_date !== null
 $mode = $can_edit ? 'edit' : 'read';
 $requester = $review !== null ? (string)($review['requested_by_name'] ?? '') : (string)$edm_auth->staffName;
 
-// Campaigns that can go to review (Campaign::REVIEWABLE: draft / pending
+// Newsletters that can go to review (Campaign::REVIEWABLE: draft / pending
 // submission / content revision) without another open review, plus the one
 // this request is for.
 $campaigns = array();
@@ -98,8 +99,10 @@ if ($review !== null && $slot_campaign !== null && ((int)$review['step'] >= \Edm
     $readiness = (new \Edm\Services\ScheduleReadiness())->checks($slot_campaign);
 }
 $show_final = $review !== null && ((int)$review['step'] >= \Edm\Models\Approval::STEP_FINAL || $final_decision !== null);
-// datetime-local value of the campaign's send date, or empty.
+// datetime-local value of the newsletter's send date, or empty.
 $final_at = $slot_date !== null ? $slot_date->format('Y-m-d\TH:i') : '';
+// Send now (wizard Send step) is the default choice on the Final Approval card.
+$final_send_now = $slot_campaign !== null && !empty($slot_campaign['send_now']);
 
 $status_pills = array(
     1 => array('cls' => 'edm-pill-warning', 'label' => 'Pending'),
@@ -121,7 +124,7 @@ $page_js = EDM_BASE . 'approval/edit.js';
                 <?php endif; ?>
             </h6>
             <p class="edm-card-hint">
-                <?php echo $can_edit ? 'Raise a review for a campaign. Fields marked' : 'Viewing a review request (read only).'; ?>
+                <?php echo $can_edit ? 'Raise a review for a newsletter. Fields marked' : 'Viewing a review request (read only).'; ?>
                 <?php if ($can_edit): ?><span class="edm-req">*</span> are required.<?php endif; ?>
             </p>
             <div class="row g-3 mt-1">
@@ -136,9 +139,9 @@ $page_js = EDM_BASE . 'approval/edit.js';
                     <input type="text" class="form-control" id="edm-rv-requester" value="<?php echo htmlspecialchars($requester); ?>" disabled>
                 </div>
                 <div class="col-12">
-                    <label for="edm-rv-campaign" class="form-label">Campaign <span class="edm-req">*</span></label>
+                    <label for="edm-rv-campaign" class="form-label">Newsletter <span class="edm-req">*</span></label>
                     <select class="form-select" id="edm-rv-campaign"<?php echo $can_edit ? '' : ' disabled'; ?>>
-                        <option value="">Select campaign</option>
+                        <option value="">Select newsletter</option>
                         <?php foreach ($campaigns as $c): ?>
                         <option value="<?php echo (int)$c['id']; ?>"<?php echo $review !== null && (int)$c['id'] === (int)$review['campaign_id'] ? ' selected' : ''; ?>><?php echo htmlspecialchars($c['name']); ?></option>
                         <?php endforeach; ?>
@@ -158,7 +161,7 @@ $page_js = EDM_BASE . 'approval/edit.js';
     <div class="edm-bento-item edm-span-12">
         <div class="edm-card">
             <h6 class="edm-card-title"><i class="bi bi-paperclip"></i> Artwork</h6>
-            <p class="edm-card-hint mb-3">Banners, visuals and drafts for this campaign.</p>
+            <p class="edm-card-hint mb-3">Banners, visuals and drafts for this newsletter.</p>
             <?php if ($can_edit): ?>
             <!-- Same drop zone and file cards as Files > Upload images (assets/). -->
             <label class="edm-up-drop" id="edm-rv-dropzone" for="edm-rv-file-input">
@@ -181,7 +184,7 @@ $page_js = EDM_BASE . 'approval/edit.js';
     <div class="edm-bento-item edm-span-12">
         <div class="edm-card">
             <h6 class="edm-card-title"><i class="bi bi-people"></i> Audience Brief <span class="edm-req">*</span></h6>
-            <p class="edm-card-hint mb-3">Who the campaign is for: segment, filters and exclusions.</p>
+            <p class="edm-card-hint mb-3">Who the newsletter is for: segment, filters and exclusions.</p>
             <div id="edm-rv-audience" class="edm-rv-editor"></div>
             <div class="edm-form-error" id="edm-rv-audience_brief-error"></div>
         </div>
@@ -245,7 +248,7 @@ $page_js = EDM_BASE . 'approval/edit.js';
                     <label class="form-label">Sending slot <?php if ($show_form): ?><span class="edm-req">*</span><?php endif; ?></label>
                     <div class="edm-bpt-slot">
                         <?php if ($slot_date === null): ?>
-                        <p class="mb-1">No send date set on the campaign yet.</p>
+                        <p class="mb-1">No send date set on the newsletter yet.</p>
                         <?php else: ?>
                         <p class="mb-1"><strong>Send date:</strong> <span><?php echo htmlspecialchars($slot_date->format('d-m-Y H:i')); ?></span></p>
                         <?php if ($slot_conflicts): ?>
@@ -289,7 +292,7 @@ $page_js = EDM_BASE . 'approval/edit.js';
     <?php endif; ?>
 
     <!-- Audience Validation (spec 5.2 step 4): BI/CRM confirms who the
-         campaign goes to - list, segment, recipients after suppression -
+         newsletter goes to - segment, recipients after suppression -
          then approves (-> final approval) or rejects (-> requester). -->
     <?php if ($audience !== null):
         $aud_form = $awaiting_audience && $can_audience;
@@ -308,11 +311,13 @@ $page_js = EDM_BASE . 'approval/edit.js';
             <div class="row g-3">
                 <div class="col-md-6">
                     <div class="edm-bpt-slot">
-                        <p class="mb-1"><strong>Recipient list:</strong> <?php echo htmlspecialchars($audience['list']); ?></p>
-                        <p class="mb-1"><strong>Segment:</strong> <?php echo htmlspecialchars($audience['segment'] ?? 'None - the whole list'); ?></p>
-                        <?php if ($audience['conditions'] !== null): ?>
-                        <p class="mb-1"><strong>Conditions:</strong> <?php echo htmlspecialchars($audience['conditions']); ?></p>
+                        <p class="mb-1"><strong>Send to:</strong> <?php echo htmlspecialchars(implode(', ', $audience['include'])); ?></p>
+                        <?php if ($audience['exclude']): ?>
+                        <p class="mb-1"><strong>Don't send to:</strong> <?php echo htmlspecialchars(implode(', ', $audience['exclude'])); ?></p>
                         <?php endif; ?>
+                        <?php foreach ($audience['conditions'] as $cond): ?>
+                        <p class="mb-1 small text-muted"><i class="bi bi-funnel me-1"></i><?php echo htmlspecialchars($cond); ?></p>
+                        <?php endforeach; ?>
                         <?php if ($audience['problem'] !== null): ?>
                         <p class="mb-1 text-danger"><i class="bi bi-x-circle-fill"></i> <?php echo htmlspecialchars($audience['problem']); ?></p>
                         <?php else: ?>
@@ -322,7 +327,7 @@ $page_js = EDM_BASE . 'approval/edit.js';
                             <span class="text-muted">(send limits per contact can lower this)</span></p>
                         <?php endif; ?>
                         <?php if ($slot_campaign !== null && !\Edm\Models\Campaign::isLocked($slot_campaign)): ?>
-                        <a href="<?php echo EDM_BASE; ?>email-builder/index.php?campaign=<?php echo (int)$slot_campaign['id']; ?>" target="_blank" rel="noopener">Change list or segment</a>
+                        <a href="<?php echo EDM_BASE; ?>email-builder/index.php?campaign=<?php echo (int)$slot_campaign['id']; ?>#step-2" target="_blank" rel="noopener">Change recipients</a>
                         <?php endif; ?>
                     </div>
                 </div>
@@ -370,7 +375,7 @@ $page_js = EDM_BASE . 'approval/edit.js';
                 </h6>
                 <button type="button" class="btn btn-outline-primary btn-sm" id="edm-qa-run"><i class="bi bi-arrow-repeat me-1"></i>Run again</button>
             </div>
-            <p class="edm-card-hint mb-2">Step 5 of the approval chain: automatic checks on the campaign's saved design. Failed checks block scheduling; warnings do not. Runs after the BPT approval, and again by itself after a fix is saved.</p>
+            <p class="edm-card-hint mb-2">Step 5 of the approval chain: automatic checks on the newsletter's saved design. Failed checks block scheduling; warnings do not. Runs after the BPT approval, and again by itself after a fix is saved.</p>
             <div class="edm-qa-meta" id="edm-qa-meta"></div>
             <ul class="edm-qa-list" id="edm-qa-list"></ul>
             <div id="edm-qa-note"></div>
@@ -380,7 +385,7 @@ $page_js = EDM_BASE . 'approval/edit.js';
 
     <!-- Final Approval (spec 5.2 step 6): readiness (ScheduleReadiness:
          complete, verified sender, usable segment, QA passed on the current
-         design) + send date; approving schedules the campaign and locks it. -->
+         design) + send date; approving schedules the newsletter and locks it. -->
     <?php if ($show_final):
         $fin_form = $awaiting_final && $can_final;
     ?>
@@ -393,7 +398,7 @@ $page_js = EDM_BASE . 'approval/edit.js';
                 <span class="edm-pill <?php echo (int)$final_decision['decision'] === 2 ? 'edm-pill-success' : 'edm-pill-danger'; ?> ms-2"><?php echo (int)$final_decision['decision'] === 2 ? 'Approved - scheduled' : 'Rejected'; ?></span>
                 <?php endif; ?>
             </h6>
-            <p class="edm-card-hint mb-3">Step 6 of the approval chain: once every check passes, approve to schedule the campaign. It is then locked and Amazon SES sends it at the send date (step 7).</p>
+            <p class="edm-card-hint mb-3">Step 6 of the approval chain: once every check passes, approve to schedule the newsletter. It is then locked and Amazon SES sends it at the send date (step 7).</p>
             <div class="row g-3">
                 <div class="col-md-7">
                     <label class="form-label">Ready to schedule</label>
@@ -407,7 +412,19 @@ $page_js = EDM_BASE . 'approval/edit.js';
                     </ul>
                 </div>
                 <div class="col-md-5">
-                    <label class="form-label" for="edm-final-at">Send date and time <?php if ($fin_form): ?><span class="edm-req">*</span><?php endif; ?></label>
+                    <label class="form-label">When <?php if ($fin_form): ?><span class="edm-req">*</span><?php endif; ?></label>
+                    <div class="d-flex flex-wrap gap-3 mb-2">
+                        <div class="form-check m-0">
+                            <input class="form-check-input" type="radio" name="edm-final-when" id="edm-final-now" value="now" autocomplete="off"<?php echo $final_send_now ? ' checked' : ''; ?><?php echo $fin_form ? '' : ' disabled'; ?>>
+                            <label class="form-check-label" for="edm-final-now">Send now</label>
+                        </div>
+                        <div class="form-check m-0">
+                            <input class="form-check-input" type="radio" name="edm-final-when" id="edm-final-later" value="later" autocomplete="off"<?php echo $final_send_now ? '' : ' checked'; ?><?php echo $fin_form ? '' : ' disabled'; ?>>
+                            <label class="form-check-label" for="edm-final-later">Schedule</label>
+                        </div>
+                    </div>
+                    <div id="edm-final-at-wrap"<?php echo $final_send_now ? ' hidden' : ''; ?>>
+                    <label class="form-label" for="edm-final-at">Send date and time</label>
                     <input type="datetime-local" class="form-control" id="edm-final-at" value="<?php echo htmlspecialchars($final_at); ?>"<?php echo $fin_form ? '' : ' disabled'; ?>>
                     <div class="edm-bpt-slot mt-2" id="edm-final-conflicts">
                         <?php if ($slot_date !== null && $slot_conflicts): ?>
@@ -416,9 +433,11 @@ $page_js = EDM_BASE . 'approval/edit.js';
                         <?php elseif ($slot_date !== null): ?>
                         <span class="text-success"><i class="bi bi-check-circle-fill"></i> No other send or reservation that day.</span>
                         <?php else: ?>
-                        <span>Choose the date the campaign goes out.</span>
+                        <span>Choose the date the newsletter goes out.</span>
                         <?php endif; ?>
                     </div>
+                    </div>
+                    <div class="form-text">Either way, sending starts <?php echo \Edm\Services\Ses\CampaignSender::RECALL_SECONDS; ?> seconds after the send time - until then it can be recalled ("Don't send it").</div>
                 </div>
                 <div class="col-12">
                     <label class="form-label" for="edm-final-comment">Comment <?php if ($fin_form): ?><span class="text-muted fw-normal">(required when rejecting)</span><?php endif; ?></label>
@@ -428,7 +447,7 @@ $page_js = EDM_BASE . 'approval/edit.js';
                 <?php if ($fin_form): ?>
                 <div class="col-12 d-flex justify-content-end gap-2">
                     <button type="button" class="btn btn-outline-danger" id="edm-final-reject">Reject</button>
-                    <button type="button" class="btn btn-success" id="edm-final-approve"><i class="bi bi-calendar-check me-1"></i>Approve &amp; schedule</button>
+                    <button type="button" class="btn btn-success" id="edm-final-approve"><i class="bi bi-calendar-check me-1"></i>Approve &amp; send</button>
                 </div>
                 <?php elseif ($awaiting_final): ?>
                 <div class="col-12 edm-card-hint mb-0">Waiting for <?php echo htmlspecialchars(\Edm\Models\Approval::STAGE_OWNERS['final']); ?> to give final approval.</div>
@@ -437,6 +456,12 @@ $page_js = EDM_BASE . 'approval/edit.js';
                     <?php echo (int)$final_decision['decision'] === 2 ? 'Approved and scheduled' : 'Rejected'; ?> by
                     <strong><?php echo htmlspecialchars((string)$final_decision['decided_by_name']); ?></strong> on <?php echo htmlspecialchars((string)$final_decision['created_at']); ?>.
                 </div>
+                <?php if ($can_final && $slot_campaign !== null && (int)$slot_campaign['status'] === \Edm\Models\Campaign::SCHEDULED): ?>
+                <div class="col-12 d-flex justify-content-end gap-2">
+                    <button type="button" class="btn btn-outline-secondary" id="edm-final-preview"><i class="bi bi-eye me-1"></i>Preview message</button>
+                    <button type="button" class="btn btn-outline-danger" id="edm-final-recall"><i class="bi bi-x-octagon me-1"></i>Recall - don't send it</button>
+                </div>
+                <?php endif; ?>
                 <?php endif; ?>
             </div>
         </div>
@@ -524,10 +549,37 @@ $page_js = EDM_BASE . 'approval/edit.js';
     <?php endif; ?>
 </div>
 
+<!-- Recall window: opens right after "Approve & send" (and from Preview /
+     Recall on an approved review). The email as it will be sent, with a
+     countdown to the moment the send queue picks it up and "Don't send it". -->
+<div class="modal fade" id="edm-recall-modal" tabindex="-1" aria-labelledby="edm-recall-title" aria-hidden="true" data-bs-backdrop="static">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="edm-recall-title">Preview message</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0">
+                <div class="edm-recall-bar" id="edm-recall-bar"></div>
+                <div class="edm-wiz-inbox" id="edm-recall-inbox"></div>
+                <iframe class="edm-nl-preview-frame" id="edm-recall-frame" sandbox="" title="Email preview"></iframe>
+            </div>
+            <div class="modal-footer">
+                <button type="button" class="btn btn-outline-secondary" data-bs-dismiss="modal">Close</button>
+                <button type="button" class="btn btn-danger" id="edm-recall-btn"><i class="bi bi-x-octagon me-1"></i>Don't send it</button>
+            </div>
+        </div>
+    </div>
+</div>
+
 <script>
 window.EDM_REVIEW = <?php echo json_encode(array(
     'id'             => $review_id,
     'campaignId'     => $review !== null ? (int)$review['campaign_id'] : 0,
+    'recallSeconds'  => \Edm\Services\Ses\CampaignSender::RECALL_SECONDS,
+    'campaignName'   => (string)($slot_campaign['name'] ?? ''),
+    'subject'        => (string)($slot_campaign['subject'] ?? ''),
+    'preheader'      => (string)($slot_campaign['preheader'] ?? ''),
     'canEdit'        => $can_edit,
     'objective'      => (string)($review['objective'] ?? ''),
     'audience_brief' => (string)($review['audience_brief'] ?? ''),

@@ -1,5 +1,5 @@
 -- Table `edm_approvals` (EDM module, odb database).
--- Review requests / approval steps per campaign. status: 1=pending, 2=approved, 3=rejected.
+-- Review requests / approval steps per newsletter. status: 1=pending, 2=approved, 3=rejected.
 -- A request raised from approval/edit.php carries title, requester, objective,
 -- audience brief and copywriting (HTML from the Quill editors); artwork files
 -- are in edm_approval_files.

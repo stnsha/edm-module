@@ -10,7 +10,6 @@ $page_js = EDM_BASE . 'calendar/calendar.js';
         <button type="button" class="btn btn-sm btn-outline-secondary" id="edm-cal-next">&rsaquo;</button>
         <button type="button" class="btn btn-sm btn-link" id="edm-cal-today">Today</button>
     </div>
-    <button type="button" class="btn btn-sm btn-primary" id="edm-cal-add">Add slot</button>
 </div>
 
 <div id="edm-cal-alert" class="alert alert-danger py-2 px-3 small" hidden></div>
@@ -46,7 +45,7 @@ $page_js = EDM_BASE . 'calendar/calendar.js';
                     </div>
                     <div class="mb-3">
                         <label class="form-label" for="edm-cal-category">Category</label>
-                        <input type="text" class="form-control" id="edm-cal-category" maxlength="50" placeholder="promo, campaign, ...">
+                        <input type="text" class="form-control" id="edm-cal-category" maxlength="50" placeholder="promo, newsletter, ...">
                     </div>
                     <div class="mb-3">
                         <label class="form-label" for="edm-cal-note">Note</label>

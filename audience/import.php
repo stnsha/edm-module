@@ -1,12 +1,10 @@
 <?php
 $page_title = 'Import contacts';
-$page_subtitle = 'Add contacts to a list from a file or pasted text, then match each column to a contact field.';
+$page_subtitle = 'Add or update contacts on the masterlist from a file or pasted text, then match each column to a contact field.';
 include __DIR__ . '/../header.php';
 $page_js = EDM_BASE . 'audience/import.js';
 
 require __DIR__ . '/../app/bootstrap.php';
-$edm_import_lists = \Edm\Models\ContactList::all();
-$edm_import_list = isset($_GET['list']) ? (int)$_GET['list'] : 0;
 $edm_import_modes = \Edm\Services\Import\ContactImport::MODES;
 ?>
 <div id="edm-imp-alert" class="alert alert-danger py-2 px-3 small" hidden></div>
@@ -21,25 +19,12 @@ $edm_import_modes = \Edm\Services\Import\ContactImport::MODES;
     </ol>
 </nav>
 
-<!-- Step 1: list + file / paste, with the template and checklist beside it -->
+<!-- Step 1: file / paste, with the template and checklist beside it -->
 <form id="edm-imp-step1" class="edm-imp-step" novalidate>
     <div class="row g-4">
         <div class="col-lg-8">
             <div class="edm-imp-section">
-                <h2 class="edm-imp-section-title"><span>1</span>Choose a list</h2>
-                <select class="form-select edm-imp-narrow" id="edm-imp-list" required aria-label="List">
-                    <option value="">Select a list</option>
-                    <?php foreach ($edm_import_lists as $l): ?>
-                    <option value="<?php echo (int)$l['id']; ?>"<?php echo (int)$l['id'] === $edm_import_list ? ' selected' : ''; ?>><?php echo htmlspecialchars($l['name']); ?></option>
-                    <?php endforeach; ?>
-                </select>
-                <?php if (!$edm_import_lists): ?>
-                <div class="form-text">No lists yet - <a href="<?php echo EDM_BASE; ?>audience/index.php">create a list</a> first.</div>
-                <?php endif; ?>
-            </div>
-
-            <div class="edm-imp-section">
-                <h2 class="edm-imp-section-title"><span>2</span>Add contacts</h2>
+                <h2 class="edm-imp-section-title"><span>1</span>Add contacts</h2>
                 <div class="edm-imp-seg" role="tablist" aria-label="How to add contacts">
                     <button type="button" class="active" data-imp-mode="file" role="tab" aria-selected="true"><i class="bi bi-upload me-1"></i>Upload file</button>
                     <button type="button" data-imp-mode="paste" role="tab" aria-selected="false"><i class="bi bi-clipboard me-1"></i>Paste</button>
@@ -61,7 +46,7 @@ $edm_import_modes = \Edm\Services\Import\ContactImport::MODES;
                 </div>
 
                 <div id="edm-imp-paste-pane" hidden>
-                    <textarea class="form-control font-monospace" id="edm-imp-paste" rows="9" placeholder="email, name, member_code&#10;jane@example.com, Jane Tan, M0001&#10;ali@example.com, Ali Ahmad, M0002"></textarea>
+                    <textarea class="form-control font-monospace" id="edm-imp-paste" rows="9" placeholder="email, name&#10;jane@example.com, Jane Tan&#10;ali@example.com, Ali Ahmad"></textarea>
                     <div class="form-text">One contact per line. Separate values with commas, semicolons or tabs - copying cells from Excel works.</div>
                 </div>
             </div>
@@ -77,7 +62,7 @@ $edm_import_modes = \Edm\Services\Import\ContactImport::MODES;
         <aside class="col-lg-4">
             <div class="edm-imp-aside">
                 <div class="edm-imp-aside-title"><i class="bi bi-file-earmark-spreadsheet"></i>Import template</div>
-                <p class="small text-muted mb-2">Column headers for email, name, member code and every active custom field, matched automatically. Replace the two sample rows with your contacts.</p>
+                <p class="small text-muted mb-2">Column headers for email, name and every active custom field, matched automatically. Replace the two sample rows with your contacts.</p>
                 <a class="btn btn-outline-primary btn-sm w-100" href="<?php echo EDM_BASE; ?>audience/api.php?action=import_template"><i class="bi bi-download me-1"></i>Download template (.csv)</a>
             </div>
 
@@ -109,6 +94,7 @@ $edm_import_modes = \Edm\Services\Import\ContactImport::MODES;
                         <ul>
                             <li>You can import values for any active custom field (Contacts &gt; Custom fields).</li>
                             <li>For a select field, the values in the file must match the field's options exactly (letter case does not matter). For example, if the options are "Male" and "Female", the values "man" and "woman" are not imported.</li>
+                            <li>For a multi-select field, put several options in one cell separated by commas, e.g. "Alpro Apps, Xilnex" (a spreadsheet saves it in quotes). Every part must be one of the options.</li>
                             <li>Yes/no fields take <code>1</code> or <code>0</code> (<code>yes</code> / <code>no</code> and <code>true</code> / <code>false</code> are also accepted); number fields take numbers only.</li>
                             <li>A value that does not fit its field is left out, but the contact is still imported; the summary shows how many values were left out.</li>
                         </ul>
@@ -178,7 +164,7 @@ $edm_import_modes = \Edm\Services\Import\ContactImport::MODES;
     <div id="edm-imp-progress-slot3"></div>
     <div class="edm-imp-actions justify-content-end">
         <a class="btn btn-primary" href="<?php echo EDM_BASE; ?>audience/import.php" id="edm-imp-again" data-imp-reset>Import another file</a>
-        <a class="btn btn-outline-secondary" href="<?php echo EDM_BASE; ?>audience/index.php" data-imp-reset>Back to lists</a>
+        <a class="btn btn-outline-secondary" href="<?php echo EDM_BASE; ?>audience/index.php" data-imp-reset>Back to contacts</a>
     </div>
 </div>
 
@@ -205,12 +191,13 @@ $edm_import_modes = \Edm\Services\Import\ContactImport::MODES;
                         <option value="date">Date (YYYY-MM-DD)</option>
                         <option value="boolean">Yes / No (1 or 0)</option>
                         <option value="select">Select (one of a list of options)</option>
+                        <option value="multiselect">Multi-select (several options, comma-separated)</option>
                     </select>
                 </div>
                 <div id="edm-imp-field-options-wrap" hidden>
                     <label class="form-label" for="edm-imp-field-options">Options</label>
                     <textarea class="form-control" id="edm-imp-field-options" rows="4"></textarea>
-                    <div class="form-text">One per line. Filled from the values in the preview - add any missing ones; values in the file that match no option are left out.</div>
+                    <div class="form-text" id="edm-imp-field-options-help">One per line. Filled from the values in the preview - add any missing ones; values in the file that match no option are left out.</div>
                 </div>
             </div>
             <div class="modal-footer">

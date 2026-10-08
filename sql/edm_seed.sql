@@ -139,49 +139,49 @@ UPDATE `edm_custom_fields` SET `category` = 'RFM / LOFRA', `updated_at` = @now W
 UPDATE `edm_custom_fields` SET `category` = 'RFM / LOFRA', `updated_at` = @now WHERE `key` = 'lofra' AND `category` IS NULL AND `deleted_at` IS NULL;
 
 -- ----------------------------------------------------------------------
--- Pre-built segments (all lists)
+-- Pre-built segments
 -- ----------------------------------------------------------------------
-INSERT INTO `edm_segments` (`name`, `description`, `definition`, `list_id`, `created_by_name`, `created_at`, `updated_at`)
-SELECT 'VIP customers', 'RFM segment VIP.', '{"match":"all","groups":[{"match":"all","rules":[{"field":"field:rfm_segment","op":"is","value":"VIP"}]}]}', NULL, 'System', @now, @now FROM DUAL
+INSERT INTO `edm_segments` (`name`, `description`, `definition`, `created_by_name`, `created_at`, `updated_at`)
+SELECT 'VIP customers', 'RFM segment VIP.', '{"match":"all","groups":[{"match":"all","rules":[{"field":"field:rfm_segment","op":"is","value":"VIP"}]}]}', 'System', @now, @now FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM `edm_segments` WHERE `name` = 'VIP customers' AND `deleted_at` IS NULL);
-INSERT INTO `edm_segments` (`name`, `description`, `definition`, `list_id`, `created_by_name`, `created_at`, `updated_at`)
-SELECT 'Loyal (LOFRA)', 'LOFRA segment Loyal.', '{"match":"all","groups":[{"match":"all","rules":[{"field":"field:lofra","op":"is","value":"Loyal"}]}]}', NULL, 'System', @now, @now FROM DUAL
+INSERT INTO `edm_segments` (`name`, `description`, `definition`, `created_by_name`, `created_at`, `updated_at`)
+SELECT 'Loyal (LOFRA)', 'LOFRA segment Loyal.', '{"match":"all","groups":[{"match":"all","rules":[{"field":"field:lofra","op":"is","value":"Loyal"}]}]}', 'System', @now, @now FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM `edm_segments` WHERE `name` = 'Loyal (LOFRA)' AND `deleted_at` IS NULL);
-INSERT INTO `edm_segments` (`name`, `description`, `definition`, `list_id`, `created_by_name`, `created_at`, `updated_at`)
-SELECT 'At risk', 'RFM At Risk or LOFRA Risk - win-back candidates.', '{"match":"all","groups":[{"match":"any","rules":[{"field":"field:rfm_segment","op":"is","value":"At Risk"},{"field":"field:lofra","op":"is","value":"Risk"}]}]}', NULL, 'System', @now, @now FROM DUAL
+INSERT INTO `edm_segments` (`name`, `description`, `definition`, `created_by_name`, `created_at`, `updated_at`)
+SELECT 'At risk', 'RFM At Risk or LOFRA Risk - win-back candidates.', '{"match":"all","groups":[{"match":"any","rules":[{"field":"field:rfm_segment","op":"is","value":"At Risk"},{"field":"field:lofra","op":"is","value":"Risk"}]}]}', 'System', @now, @now FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM `edm_segments` WHERE `name` = 'At risk' AND `deleted_at` IS NULL);
-INSERT INTO `edm_segments` (`name`, `description`, `definition`, `list_id`, `created_by_name`, `created_at`, `updated_at`)
-SELECT 'Dormant members', 'Dormant flag set.', '{"match":"all","groups":[{"match":"all","rules":[{"field":"field:dormant","op":"is_true","value":""}]}]}', NULL, 'System', @now, @now FROM DUAL
+INSERT INTO `edm_segments` (`name`, `description`, `definition`, `created_by_name`, `created_at`, `updated_at`)
+SELECT 'Dormant members', 'Dormant flag set.', '{"match":"all","groups":[{"match":"all","rules":[{"field":"field:dormant","op":"is_true","value":""}]}]}', 'System', @now, @now FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM `edm_segments` WHERE `name` = 'Dormant members' AND `deleted_at` IS NULL);
-INSERT INTO `edm_segments` (`name`, `description`, `definition`, `list_id`, `created_by_name`, `created_at`, `updated_at`)
-SELECT 'Gold and Platinum members', 'Membership type Gold or Platinum.', '{"match":"all","groups":[{"match":"any","rules":[{"field":"field:membership_type","op":"is","value":"Gold"},{"field":"field:membership_type","op":"is","value":"Platinum"}]}]}', NULL, 'System', @now, @now FROM DUAL
+INSERT INTO `edm_segments` (`name`, `description`, `definition`, `created_by_name`, `created_at`, `updated_at`)
+SELECT 'Gold and Platinum members', 'Membership type Gold or Platinum.', '{"match":"all","groups":[{"match":"any","rules":[{"field":"field:membership_type","op":"is","value":"Gold"},{"field":"field:membership_type","op":"is","value":"Platinum"}]}]}', 'System', @now, @now FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM `edm_segments` WHERE `name` = 'Gold and Platinum members' AND `deleted_at` IS NULL);
-INSERT INTO `edm_segments` (`name`, `description`, `definition`, `list_id`, `created_by_name`, `created_at`, `updated_at`)
-SELECT 'High spenders', 'Total spending above RM 2,000.', '{"match":"all","groups":[{"match":"all","rules":[{"field":"field:total_spending","op":"gt","value":"2000"}]}]}', NULL, 'System', @now, @now FROM DUAL
+INSERT INTO `edm_segments` (`name`, `description`, `definition`, `created_by_name`, `created_at`, `updated_at`)
+SELECT 'High spenders', 'Total spending above RM 2,000.', '{"match":"all","groups":[{"match":"all","rules":[{"field":"field:total_spending","op":"gt","value":"2000"}]}]}', 'System', @now, @now FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM `edm_segments` WHERE `name` = 'High spenders' AND `deleted_at` IS NULL);
-INSERT INTO `edm_segments` (`name`, `description`, `definition`, `list_id`, `created_by_name`, `created_at`, `updated_at`)
-SELECT 'Recent buyers (30 days)', 'Last purchase in the last 30 days.', '{"match":"all","groups":[{"match":"all","rules":[{"field":"field:last_purchase_date","op":"in_last_days","value":"30"}]}]}', NULL, 'System', @now, @now FROM DUAL
+INSERT INTO `edm_segments` (`name`, `description`, `definition`, `created_by_name`, `created_at`, `updated_at`)
+SELECT 'Recent buyers (30 days)', 'Last purchase in the last 30 days.', '{"match":"all","groups":[{"match":"all","rules":[{"field":"field:last_purchase_date","op":"in_last_days","value":"30"}]}]}', 'System', @now, @now FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM `edm_segments` WHERE `name` = 'Recent buyers (30 days)' AND `deleted_at` IS NULL);
-INSERT INTO `edm_segments` (`name`, `description`, `definition`, `list_id`, `created_by_name`, `created_at`, `updated_at`)
-SELECT 'Lapsed buyers (180 days)', 'No purchase for more than 180 days.', '{"match":"all","groups":[{"match":"all","rules":[{"field":"field:last_purchase_date","op":"older_than_days","value":"180"}]}]}', NULL, 'System', @now, @now FROM DUAL
+INSERT INTO `edm_segments` (`name`, `description`, `definition`, `created_by_name`, `created_at`, `updated_at`)
+SELECT 'Lapsed buyers (180 days)', 'No purchase for more than 180 days.', '{"match":"all","groups":[{"match":"all","rules":[{"field":"field:last_purchase_date","op":"older_than_days","value":"180"}]}]}', 'System', @now, @now FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM `edm_segments` WHERE `name` = 'Lapsed buyers (180 days)' AND `deleted_at` IS NULL);
-INSERT INTO `edm_segments` (`name`, `description`, `definition`, `list_id`, `created_by_name`, `created_at`, `updated_at`)
-SELECT 'New subscribers (30 days)', 'Subscribed in the last 30 days.', '{"match":"all","groups":[{"match":"all","rules":[{"field":"subscribed_at","op":"in_last_days","value":"30"}]}]}', NULL, 'System', @now, @now FROM DUAL
+INSERT INTO `edm_segments` (`name`, `description`, `definition`, `created_by_name`, `created_at`, `updated_at`)
+SELECT 'New subscribers (30 days)', 'Subscribed in the last 30 days.', '{"match":"all","groups":[{"match":"all","rules":[{"field":"subscribed_at","op":"in_last_days","value":"30"}]}]}', 'System', @now, @now FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM `edm_segments` WHERE `name` = 'New subscribers (30 days)' AND `deleted_at` IS NULL);
-INSERT INTO `edm_segments` (`name`, `description`, `definition`, `list_id`, `created_by_name`, `created_at`, `updated_at`)
-SELECT 'Engaged (opened 30 days)', 'Opened an email in the last 30 days.', '{"match":"all","groups":[{"match":"all","rules":[{"field":"activity:opened","op":"within_days","value":"30"}]}]}', NULL, 'System', @now, @now FROM DUAL
+INSERT INTO `edm_segments` (`name`, `description`, `definition`, `created_by_name`, `created_at`, `updated_at`)
+SELECT 'Engaged (opened 30 days)', 'Opened an email in the last 30 days.', '{"match":"all","groups":[{"match":"all","rules":[{"field":"activity:opened","op":"within_days","value":"30"}]}]}', 'System', @now, @now FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM `edm_segments` WHERE `name` = 'Engaged (opened 30 days)' AND `deleted_at` IS NULL);
-INSERT INTO `edm_segments` (`name`, `description`, `definition`, `list_id`, `created_by_name`, `created_at`, `updated_at`)
-SELECT 'Never opened', 'Has never opened an email.', '{"match":"all","groups":[{"match":"all","rules":[{"field":"activity:opened","op":"never","value":""}]}]}', NULL, 'System', @now, @now FROM DUAL
+INSERT INTO `edm_segments` (`name`, `description`, `definition`, `created_by_name`, `created_at`, `updated_at`)
+SELECT 'Never opened', 'Has never opened an email.', '{"match":"all","groups":[{"match":"all","rules":[{"field":"activity:opened","op":"never","value":""}]}]}', 'System', @now, @now FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM `edm_segments` WHERE `name` = 'Never opened' AND `deleted_at` IS NULL);
-INSERT INTO `edm_segments` (`name`, `description`, `definition`, `list_id`, `created_by_name`, `created_at`, `updated_at`)
-SELECT 'Klang Valley', 'State Selangor, Kuala Lumpur or Putrajaya.', '{"match":"all","groups":[{"match":"any","rules":[{"field":"field:state","op":"is","value":"Selangor"},{"field":"field:state","op":"is","value":"W.P. Kuala Lumpur"},{"field":"field:state","op":"is","value":"W.P. Putrajaya"}]}]}', NULL, 'System', @now, @now FROM DUAL
+INSERT INTO `edm_segments` (`name`, `description`, `definition`, `created_by_name`, `created_at`, `updated_at`)
+SELECT 'Klang Valley', 'State Selangor, Kuala Lumpur or Putrajaya.', '{"match":"all","groups":[{"match":"any","rules":[{"field":"field:state","op":"is","value":"Selangor"},{"field":"field:state","op":"is","value":"W.P. Kuala Lumpur"},{"field":"field:state","op":"is","value":"W.P. Putrajaya"}]}]}', 'System', @now, @now FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM `edm_segments` WHERE `name` = 'Klang Valley' AND `deleted_at` IS NULL);
-INSERT INTO `edm_segments` (`name`, `description`, `definition`, `list_id`, `created_by_name`, `created_at`, `updated_at`)
-SELECT 'Young adults (18-35)', 'Age 18 to 35 from Birthday.', '{"match":"all","groups":[{"match":"all","rules":[{"field":"field:birthday","op":"age_between","value":"18-35"}]}]}', NULL, 'System', @now, @now FROM DUAL
+INSERT INTO `edm_segments` (`name`, `description`, `definition`, `created_by_name`, `created_at`, `updated_at`)
+SELECT 'Young adults (18-35)', 'Age 18 to 35 from Birthday.', '{"match":"all","groups":[{"match":"all","rules":[{"field":"field:birthday","op":"age_between","value":"18-35"}]}]}', 'System', @now, @now FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM `edm_segments` WHERE `name` = 'Young adults (18-35)' AND `deleted_at` IS NULL);
-INSERT INTO `edm_segments` (`name`, `description`, `definition`, `list_id`, `created_by_name`, `created_at`, `updated_at`)
-SELECT 'Corporate members', 'Member category Corporate.', '{"match":"all","groups":[{"match":"all","rules":[{"field":"field:member_category","op":"is","value":"Corporate"}]}]}', NULL, 'System', @now, @now FROM DUAL
+INSERT INTO `edm_segments` (`name`, `description`, `definition`, `created_by_name`, `created_at`, `updated_at`)
+SELECT 'Corporate members', 'Member category Corporate.', '{"match":"all","groups":[{"match":"all","rules":[{"field":"field:member_category","op":"is","value":"Corporate"}]}]}', 'System', @now, @now FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM `edm_segments` WHERE `name` = 'Corporate members' AND `deleted_at` IS NULL);
 
 -- ----------------------------------------------------------------------
@@ -190,72 +190,72 @@ WHERE NOT EXISTS (SELECT 1 FROM `edm_segments` WHERE `name` = 'Corporate members
 INSERT INTO `edm_workflows` (`name`, `description`, `trigger`, `status`, `definition`, `created_by_name`, `created_at`, `updated_at`)
 SELECT 'Welcome journey', 'New member registration: welcome, benefits, product recommendation, reminder.', 'new_member', 1, '{"entry":"New member registration","exit":"Unsubscribed or 14 days after joining","steps":[{"offset_days":0,"type":"email","name":"Welcome"},{"offset_days":3,"type":"email","name":"Benefits"},{"offset_days":7,"type":"email","name":"Product recommendation"},{"offset_days":14,"type":"email","name":"Reminder"}]}', 'System', @now, @now FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM `edm_workflows` WHERE `name` = 'Welcome journey' AND `deleted_at` IS NULL);
-INSERT INTO `edm_autoresponders` (`name`, `workflow_id`, `list_id`, `offset_days`, `subject`, `status`, `created_at`, `updated_at`)
-SELECT 'Welcome', w.`id`, NULL, 0, 'Welcome to the family, {{FirstName}}!', 1, @now, @now FROM `edm_workflows` w
+INSERT INTO `edm_autoresponders` (`name`, `workflow_id`, `offset_days`, `subject`, `status`, `created_at`, `updated_at`)
+SELECT 'Welcome', w.`id`, 0, 'Welcome to the family, {{FirstName}}!', 1, @now, @now FROM `edm_workflows` w
 WHERE w.`name` = 'Welcome journey' AND w.`deleted_at` IS NULL
   AND NOT EXISTS (SELECT 1 FROM `edm_autoresponders` a WHERE a.`workflow_id` = w.`id` AND a.`name` = 'Welcome' AND a.`deleted_at` IS NULL)
 LIMIT 1;
-INSERT INTO `edm_autoresponders` (`name`, `workflow_id`, `list_id`, `offset_days`, `subject`, `status`, `created_at`, `updated_at`)
-SELECT 'Benefits', w.`id`, NULL, 3, 'Your {{MembershipType}} member benefits', 1, @now, @now FROM `edm_workflows` w
+INSERT INTO `edm_autoresponders` (`name`, `workflow_id`, `offset_days`, `subject`, `status`, `created_at`, `updated_at`)
+SELECT 'Benefits', w.`id`, 3, 'Your {{MembershipType}} member benefits', 1, @now, @now FROM `edm_workflows` w
 WHERE w.`name` = 'Welcome journey' AND w.`deleted_at` IS NULL
   AND NOT EXISTS (SELECT 1 FROM `edm_autoresponders` a WHERE a.`workflow_id` = w.`id` AND a.`name` = 'Benefits' AND a.`deleted_at` IS NULL)
 LIMIT 1;
-INSERT INTO `edm_autoresponders` (`name`, `workflow_id`, `list_id`, `offset_days`, `subject`, `status`, `created_at`, `updated_at`)
-SELECT 'Product recommendation', w.`id`, NULL, 7, 'Picked for you, {{FirstName}}', 1, @now, @now FROM `edm_workflows` w
+INSERT INTO `edm_autoresponders` (`name`, `workflow_id`, `offset_days`, `subject`, `status`, `created_at`, `updated_at`)
+SELECT 'Product recommendation', w.`id`, 7, 'Picked for you, {{FirstName}}', 1, @now, @now FROM `edm_workflows` w
 WHERE w.`name` = 'Welcome journey' AND w.`deleted_at` IS NULL
   AND NOT EXISTS (SELECT 1 FROM `edm_autoresponders` a WHERE a.`workflow_id` = w.`id` AND a.`name` = 'Product recommendation' AND a.`deleted_at` IS NULL)
 LIMIT 1;
-INSERT INTO `edm_autoresponders` (`name`, `workflow_id`, `list_id`, `offset_days`, `subject`, `status`, `created_at`, `updated_at`)
-SELECT 'Reminder', w.`id`, NULL, 14, 'Don''t forget your member perks', 1, @now, @now FROM `edm_workflows` w
+INSERT INTO `edm_autoresponders` (`name`, `workflow_id`, `offset_days`, `subject`, `status`, `created_at`, `updated_at`)
+SELECT 'Reminder', w.`id`, 14, 'Don''t forget your member perks', 1, @now, @now FROM `edm_workflows` w
 WHERE w.`name` = 'Welcome journey' AND w.`deleted_at` IS NULL
   AND NOT EXISTS (SELECT 1 FROM `edm_autoresponders` a WHERE a.`workflow_id` = w.`id` AND a.`name` = 'Reminder' AND a.`deleted_at` IS NULL)
 LIMIT 1;
 INSERT INTO `edm_workflows` (`name`, `description`, `trigger`, `status`, `definition`, `created_by_name`, `created_at`, `updated_at`)
 SELECT 'Birthday journey', 'Date of birth match: voucher 7 days before, greeting on the day, reminder 7 days after.', 'birthday', 1, '{"entry":"Birthday (DOB) match","exit":"Voucher redeemed or 7 days after the birthday","steps":[{"offset_days":-7,"type":"email","name":"Birthday voucher"},{"offset_days":0,"type":"email","name":"Birthday greeting"},{"offset_days":7,"type":"email","name":"Voucher reminder"}]}', 'System', @now, @now FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM `edm_workflows` WHERE `name` = 'Birthday journey' AND `deleted_at` IS NULL);
-INSERT INTO `edm_autoresponders` (`name`, `workflow_id`, `list_id`, `offset_days`, `subject`, `status`, `created_at`, `updated_at`)
-SELECT 'Birthday voucher', w.`id`, NULL, -7, 'An early birthday gift for you, {{FirstName}}', 1, @now, @now FROM `edm_workflows` w
+INSERT INTO `edm_autoresponders` (`name`, `workflow_id`, `offset_days`, `subject`, `status`, `created_at`, `updated_at`)
+SELECT 'Birthday voucher', w.`id`, -7, 'An early birthday gift for you, {{FirstName}}', 1, @now, @now FROM `edm_workflows` w
 WHERE w.`name` = 'Birthday journey' AND w.`deleted_at` IS NULL
   AND NOT EXISTS (SELECT 1 FROM `edm_autoresponders` a WHERE a.`workflow_id` = w.`id` AND a.`name` = 'Birthday voucher' AND a.`deleted_at` IS NULL)
 LIMIT 1;
-INSERT INTO `edm_autoresponders` (`name`, `workflow_id`, `list_id`, `offset_days`, `subject`, `status`, `created_at`, `updated_at`)
-SELECT 'Birthday greeting', w.`id`, NULL, 0, 'Happy birthday, {{FirstName}}!', 1, @now, @now FROM `edm_workflows` w
+INSERT INTO `edm_autoresponders` (`name`, `workflow_id`, `offset_days`, `subject`, `status`, `created_at`, `updated_at`)
+SELECT 'Birthday greeting', w.`id`, 0, 'Happy birthday, {{FirstName}}!', 1, @now, @now FROM `edm_workflows` w
 WHERE w.`name` = 'Birthday journey' AND w.`deleted_at` IS NULL
   AND NOT EXISTS (SELECT 1 FROM `edm_autoresponders` a WHERE a.`workflow_id` = w.`id` AND a.`name` = 'Birthday greeting' AND a.`deleted_at` IS NULL)
 LIMIT 1;
-INSERT INTO `edm_autoresponders` (`name`, `workflow_id`, `list_id`, `offset_days`, `subject`, `status`, `created_at`, `updated_at`)
-SELECT 'Voucher reminder', w.`id`, NULL, 7, 'Your birthday voucher {{VoucherCode}} is still waiting', 1, @now, @now FROM `edm_workflows` w
+INSERT INTO `edm_autoresponders` (`name`, `workflow_id`, `offset_days`, `subject`, `status`, `created_at`, `updated_at`)
+SELECT 'Voucher reminder', w.`id`, 7, 'Your birthday voucher {{VoucherCode}} is still waiting', 1, @now, @now FROM `edm_workflows` w
 WHERE w.`name` = 'Birthday journey' AND w.`deleted_at` IS NULL
   AND NOT EXISTS (SELECT 1 FROM `edm_autoresponders` a WHERE a.`workflow_id` = w.`id` AND a.`name` = 'Voucher reminder' AND a.`deleted_at` IS NULL)
 LIMIT 1;
 INSERT INTO `edm_workflows` (`name`, `description`, `trigger`, `status`, `definition`, `created_by_name`, `created_at`, `updated_at`)
 SELECT 'Re-engagement journey', 'No activity for 90 days: reminder, voucher at 120 days, win-back at 180 days.', 'inactivity', 1, '{"entry":"No purchase or engagement for 90 days","inactive_days":90,"exit":"Purchase or email click","steps":[{"offset_days":90,"type":"email","name":"Reminder"},{"offset_days":120,"type":"email","name":"Comeback voucher"},{"offset_days":180,"type":"email","name":"Win-back"}]}', 'System', @now, @now FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM `edm_workflows` WHERE `name` = 'Re-engagement journey' AND `deleted_at` IS NULL);
-INSERT INTO `edm_autoresponders` (`name`, `workflow_id`, `list_id`, `offset_days`, `subject`, `status`, `created_at`, `updated_at`)
-SELECT 'Reminder', w.`id`, NULL, 90, 'We miss you, {{FirstName}}', 1, @now, @now FROM `edm_workflows` w
+INSERT INTO `edm_autoresponders` (`name`, `workflow_id`, `offset_days`, `subject`, `status`, `created_at`, `updated_at`)
+SELECT 'Reminder', w.`id`, 90, 'We miss you, {{FirstName}}', 1, @now, @now FROM `edm_workflows` w
 WHERE w.`name` = 'Re-engagement journey' AND w.`deleted_at` IS NULL
   AND NOT EXISTS (SELECT 1 FROM `edm_autoresponders` a WHERE a.`workflow_id` = w.`id` AND a.`name` = 'Reminder' AND a.`deleted_at` IS NULL)
 LIMIT 1;
-INSERT INTO `edm_autoresponders` (`name`, `workflow_id`, `list_id`, `offset_days`, `subject`, `status`, `created_at`, `updated_at`)
-SELECT 'Comeback voucher', w.`id`, NULL, 120, 'A little something to welcome you back', 1, @now, @now FROM `edm_workflows` w
+INSERT INTO `edm_autoresponders` (`name`, `workflow_id`, `offset_days`, `subject`, `status`, `created_at`, `updated_at`)
+SELECT 'Comeback voucher', w.`id`, 120, 'A little something to welcome you back', 1, @now, @now FROM `edm_workflows` w
 WHERE w.`name` = 'Re-engagement journey' AND w.`deleted_at` IS NULL
   AND NOT EXISTS (SELECT 1 FROM `edm_autoresponders` a WHERE a.`workflow_id` = w.`id` AND a.`name` = 'Comeback voucher' AND a.`deleted_at` IS NULL)
 LIMIT 1;
-INSERT INTO `edm_autoresponders` (`name`, `workflow_id`, `list_id`, `offset_days`, `subject`, `status`, `created_at`, `updated_at`)
-SELECT 'Win-back', w.`id`, NULL, 180, 'One last offer before your points expire', 1, @now, @now FROM `edm_workflows` w
+INSERT INTO `edm_autoresponders` (`name`, `workflow_id`, `offset_days`, `subject`, `status`, `created_at`, `updated_at`)
+SELECT 'Win-back', w.`id`, 180, 'One last offer before your points expire', 1, @now, @now FROM `edm_workflows` w
 WHERE w.`name` = 'Re-engagement journey' AND w.`deleted_at` IS NULL
   AND NOT EXISTS (SELECT 1 FROM `edm_autoresponders` a WHERE a.`workflow_id` = w.`id` AND a.`name` = 'Win-back' AND a.`deleted_at` IS NULL)
 LIMIT 1;
 INSERT INTO `edm_workflows` (`name`, `description`, `trigger`, `status`, `definition`, `created_by_name`, `created_at`, `updated_at`)
 SELECT 'Cart abandonment journey', 'Cart inactive 7 days: reminder, then an incentive at 14 days.', 'cart_abandonment', 1, '{"entry":"Cart inactive for 7 days","exit":"Purchase","steps":[{"offset_days":7,"type":"email","name":"Cart reminder"},{"offset_days":14,"type":"email","name":"Cart incentive"}]}', 'System', @now, @now FROM DUAL
 WHERE NOT EXISTS (SELECT 1 FROM `edm_workflows` WHERE `name` = 'Cart abandonment journey' AND `deleted_at` IS NULL);
-INSERT INTO `edm_autoresponders` (`name`, `workflow_id`, `list_id`, `offset_days`, `subject`, `status`, `created_at`, `updated_at`)
-SELECT 'Cart reminder', w.`id`, NULL, 7, 'You left something in your cart', 1, @now, @now FROM `edm_workflows` w
+INSERT INTO `edm_autoresponders` (`name`, `workflow_id`, `offset_days`, `subject`, `status`, `created_at`, `updated_at`)
+SELECT 'Cart reminder', w.`id`, 7, 'You left something in your cart', 1, @now, @now FROM `edm_workflows` w
 WHERE w.`name` = 'Cart abandonment journey' AND w.`deleted_at` IS NULL
   AND NOT EXISTS (SELECT 1 FROM `edm_autoresponders` a WHERE a.`workflow_id` = w.`id` AND a.`name` = 'Cart reminder' AND a.`deleted_at` IS NULL)
 LIMIT 1;
-INSERT INTO `edm_autoresponders` (`name`, `workflow_id`, `list_id`, `offset_days`, `subject`, `status`, `created_at`, `updated_at`)
-SELECT 'Cart incentive', w.`id`, NULL, 14, 'Complete your order and save', 1, @now, @now FROM `edm_workflows` w
+INSERT INTO `edm_autoresponders` (`name`, `workflow_id`, `offset_days`, `subject`, `status`, `created_at`, `updated_at`)
+SELECT 'Cart incentive', w.`id`, 14, 'Complete your order and save', 1, @now, @now FROM `edm_workflows` w
 WHERE w.`name` = 'Cart abandonment journey' AND w.`deleted_at` IS NULL
   AND NOT EXISTS (SELECT 1 FROM `edm_autoresponders` a WHERE a.`workflow_id` = w.`id` AND a.`name` = 'Cart incentive' AND a.`deleted_at` IS NULL)
 LIMIT 1;

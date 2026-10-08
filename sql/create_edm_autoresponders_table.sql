@@ -12,7 +12,6 @@ CREATE TABLE `edm_autoresponders` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `workflow_id` bigint unsigned DEFAULT NULL,
-  `list_id` bigint unsigned DEFAULT NULL,
   `offset_days` int NOT NULL DEFAULT '0',
   `subject` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `status` tinyint unsigned NOT NULL DEFAULT '1',
@@ -21,7 +20,5 @@ CREATE TABLE `edm_autoresponders` (
   `deleted_at` datetime NULL DEFAULT NULL,
   PRIMARY KEY (`id`),
   KEY `edm_autoresponders_workflow_id_foreign` (`workflow_id`),
-  KEY `edm_autoresponders_list_id_foreign` (`list_id`),
-  CONSTRAINT `edm_autoresponders_workflow_id_foreign` FOREIGN KEY (`workflow_id`) REFERENCES `edm_workflows` (`id`) ON DELETE SET NULL,
-  CONSTRAINT `edm_autoresponders_list_id_foreign` FOREIGN KEY (`list_id`) REFERENCES `edm_lists` (`id`) ON DELETE SET NULL
+  CONSTRAINT `edm_autoresponders_workflow_id_foreign` FOREIGN KEY (`workflow_id`) REFERENCES `edm_workflows` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

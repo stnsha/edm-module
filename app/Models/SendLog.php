@@ -8,8 +8,8 @@ use Edm\Core\Model;
 
 /**
  * Per-recipient send history: frequency caps + SES delivery state. One row per
- * (campaign, recipient) the send pipeline has processed, including skipped
- * recipients, so a campaign resumes where it stopped. Delivery / open / click /
+ * (newsletter, recipient) the send pipeline has processed, including skipped
+ * recipients, so a newsletter resumes where it stopped. Delivery / open / click /
  * bounce / complaint timestamps are filled in by SES events.
  * Table: edm_send_log.
  */
@@ -27,7 +27,7 @@ final class SendLog extends Model
     protected const TABLE = 'edm_send_log';
 
     protected const FILLABLE = [
-        'campaign_id', 'member_code', 'email', 'sent_at', 'status', 'ses_message_id', 'error',
+        'campaign_id', 'email', 'sent_at', 'status', 'ses_message_id', 'error',
         'delivered_at', 'opened_at', 'clicked_at', 'bounced_at', 'complained_at', 'unsubscribed_at',
     ];
 

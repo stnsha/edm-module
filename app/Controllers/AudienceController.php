@@ -6,20 +6,21 @@ namespace Edm\Controllers;
 
 use Edm\Core\Controller;
 use Edm\Core\ValidationException;
-use Edm\Models\ContactList;
+use Edm\Models\Contact;
 use Edm\Models\CustomField;
-use Edm\Models\ListMember;
 use Edm\Models\Segment;
 use Edm\Models\Tag;
+use Edm\Services\CampaignRecipients;
 use Edm\Services\Import\ContactImport;
 use Edm\Services\Import\ImportFileReader;
 use Edm\Services\SegmentQuery;
 
 /**
- * Contacts (audience/): Lists, Segments, Tags, Custom fields, Import.
- * Actions: (lists|segments|tags|fields)_(list|create|update|delete),
- * segments_fields, segments_count, members_list, members_delete,
- * import_template, import_preview, import_run.
+ * Contacts (audience/): All contacts (the masterlist), Segments, Tags,
+ * Custom fields, Import.
+ * Actions: (segments|tags|fields)_(list|create|update|delete),
+ * segments_fields, segments_count, contacts_list, contacts_delete,
+ * contacts_search, audience_count, import_template, import_preview, import_run.
  */
 final class AudienceController extends Controller
 {
@@ -31,8 +32,14 @@ final class AudienceController extends Controller
         if ($action === 'segments_count') {
             return $this->segmentCount();
         }
-        if ($action === 'members_list' || $action === 'members_delete') {
-            return $this->members($action);
+        if ($action === 'contacts_list' || $action === 'contacts_delete') {
+            return $this->contacts($action);
+        }
+        if ($action === 'contacts_search') {
+            return $this->searchContacts();
+        }
+        if ($action === 'audience_count') {
+            return $this->audienceCount();
         }
         if ($action === 'import_template') {
             $this->importTemplate();
@@ -40,61 +47,25 @@ final class AudienceController extends Controller
         if ($action === 'import_preview' || $action === 'import_run') {
             return $this->import($action);
         }
-        if (!preg_match('/^(lists|segments|tags|fields)_(list|create|update|delete)$/', $action, $m)) {
+        if (!preg_match('/^(segments|tags|fields)_(list|create|update|delete)$/', $action, $m)) {
             $this->unknown();
         }
 
         return match ($m[1]) {
-            'lists' => $this->lists($m[2]),
             'segments' => $this->segments($m[2]),
             'tags' => $this->tags($m[2]),
             'fields' => $this->fields($m[2]),
         };
     }
 
-    private function lists(string $verb): mixed
-    {
-        $payload = $this->request->only(['name', 'description']);
-        if ($this->request->has('is_active')) {
-            $payload['is_active'] = !empty($this->request->get('is_active'));
-        }
-        $rules = [
-            'name'            => ['required', 'string', 'max:255'],
-            'description'     => ['nullable', 'string', 'max:255'],
-            'is_active'       => ['sometimes', 'boolean'],
-            'created_by'      => ['nullable', 'integer'],
-            'created_by_name' => ['nullable', 'string', 'max:150'],
-        ];
-
-        switch ($verb) {
-            case 'list':
-                return ContactList::allWithMemberCount();
-            case 'create':
-                $row = ContactList::create($this->validator->validate($payload + $this->stamp(), $rules));
-                return ContactList::withMemberCount((int) $row['id']);
-            case 'update':
-                $id = $this->requireId();
-                ContactList::findOrFail($id);
-                ContactList::update($id, $this->validator->validate($payload, [
-                    'name'        => ['sometimes', 'string', 'max:255'],
-                    'description' => ['nullable', 'string', 'max:255'],
-                    'is_active'   => ['sometimes', 'boolean'],
-                ], $id));
-                return ContactList::withMemberCount($id);
-        }
-
-        return $this->crud($verb, ContactList::class, [], []);
-    }
-
     /**
-     * Segments. definition is validated and stored in normal form by
-     * SegmentQuery::normalize(); list_id (optional) limits the segment to
-     * one list. The listing adds the list name, a one-line summary and the
-     * number of subscribed contacts that match.
+     * Segments of the contact masterlist. definition is validated and stored
+     * in normal form by SegmentQuery::normalize(). The listing adds a
+     * one-line summary and the number of subscribed contacts that match.
      */
     private function segments(string $verb): mixed
     {
-        $payload = $this->request->only(['name', 'description']) + $this->request->ids(['list_id']);
+        $payload = $this->request->only(['name', 'description']);
         if ($this->request->has('definition')) {
             $payload['definition'] = SegmentQuery::normalize($this->request->get('definition'));
         }
@@ -104,21 +75,17 @@ final class AudienceController extends Controller
             'name'            => [$req, 'string', 'max:255'],
             'description'     => ['nullable', 'string', 'max:255'],
             'definition'      => [$req, 'array'],
-            'list_id'         => ['nullable', 'integer', 'exists:edm_lists,id'],
             'created_by'      => ['nullable', 'integer'],
             'created_by_name' => ['nullable', 'string', 'max:150'],
         ];
 
         if ($verb === 'list') {
-            $lists = array_column(ContactList::all(), 'name', 'id');
             $query = new SegmentQuery($this->db);
 
-            return array_map(static function (array $row) use ($lists, $query): array {
-                $listId = $row['list_id'] !== null ? (int) $row['list_id'] : null;
-                $row['list_name'] = $listId !== null ? ($lists[$listId] ?? null) : null;
+            return array_map(static function (array $row) use ($query): array {
                 $row['summary'] = SegmentQuery::describe((array) $row['definition']);
                 try {
-                    $row['matched'] = $query->count(SegmentQuery::normalize($row['definition']), $listId, 0)['matched'];
+                    $row['matched'] = $query->count(SegmentQuery::normalize($row['definition']), 0)['matched'];
                 } catch (ValidationException) {
                     $row['matched'] = null;
                 }
@@ -131,16 +98,15 @@ final class AudienceController extends Controller
     }
 
     /**
-     * segments_count { definition?, segment_id?, list_id? }: subscribed
-     * contacts matching a definition being edited, or a saved segment, or
-     * (neither) the whole list; plus a few matching contacts.
+     * segments_count { definition?, segment_id? }: subscribed contacts
+     * matching a definition being edited, or a saved segment, or (neither)
+     * every subscribed contact; plus a few matching contacts.
      *
      * @return array{matched: int, total: int, sample: list<array<string, mixed>>}
      */
     private function segmentCount(): array
     {
-        $ids = $this->request->ids(['segment_id', 'list_id']);
-        $listId = $ids['list_id'] ?? null;
+        $ids = $this->request->ids(['segment_id']);
         $definition = null;
         if (($ids['segment_id'] ?? null) !== null) {
             $segment = Segment::findOrFail((int) $ids['segment_id']);
@@ -149,7 +115,7 @@ final class AudienceController extends Controller
             $definition = SegmentQuery::normalize($this->request->get('definition'));
         }
 
-        return (new SegmentQuery($this->db))->count($definition, $listId);
+        return (new SegmentQuery($this->db))->count($definition);
     }
 
     private function tags(string $verb): mixed
@@ -197,7 +163,7 @@ final class AudienceController extends Controller
                 ]);
                 self::checkOptions($data['options'] ?? null);
                 $data['key'] = CustomField::uniqueKey((string) $data['label']);
-                if ($data['type'] !== 'select') {
+                if (!in_array($data['type'], CustomField::OPTION_TYPES, true)) {
                     $data['options'] = null;
                 }
                 return CustomField::create($data);
@@ -214,7 +180,7 @@ final class AudienceController extends Controller
                 self::checkOptions($data['options'] ?? null);
                 // A toggle-only update (Set active / inactive) leaves options alone.
                 if (array_key_exists('type', $data) || array_key_exists('options', $data)) {
-                    if (($data['type'] ?? $existing['type']) !== 'select') {
+                    if (!in_array($data['type'] ?? $existing['type'], CustomField::OPTION_TYPES, true)) {
                         $data['options'] = null;
                     }
                 }
@@ -225,29 +191,73 @@ final class AudienceController extends Controller
     }
 
     /**
-     * Contacts on one list (audience/contacts.php).
-     *   members_list    ?list_id= -> the list's contacts, newest first
-     *   members_delete  { id } -> soft-deletes one contact
+     * Contacts > All contacts (audience/index.php).
+     *   contacts_list    every contact on the masterlist, newest first
+     *   contacts_delete  { id } -> soft-deletes one contact
      */
-    private function members(string $action): mixed
+    private function contacts(string $action): mixed
     {
-        if ($action === 'members_delete') {
+        if ($action === 'contacts_delete') {
             $id = $this->requireId('Contact');
-            ListMember::findOrFail($id);
-            ListMember::delete($id);
+            Contact::findOrFail($id);
+            Contact::delete($id);
 
             return null;
         }
-        $listId = (int) ($_GET['list_id'] ?? 0);
-        ContactList::findOrFail($listId);
 
-        return ListMember::where('`list_id` = ?', [$listId], '`id` DESC');
+        return Contact::all();
     }
 
     /**
-     * Contacts > Import contacts (audience/import.php).
-     *   import_preview  multipart: list_id, file | paste -> token, preview, mapping
-     *   import_run      { token, list_id, mapping[], has_header, mode, offset, limit, dry_run }
+     * contacts_search ?q= : up to 20 contacts whose email or name contains q
+     * (2+ characters), for the Email creator recipient picker.
+     *
+     * @return list<array{id: int, email: string, name: ?string, status: int}>
+     */
+    private function searchContacts(): array
+    {
+        $q = trim((string) $this->request->query('q', ''));
+        if (mb_strlen($q) < 2) {
+            return [];
+        }
+        $like = '%' . addcslashes(mb_strtolower($q), '\\%_') . '%';
+        $rows = $this->db->select(
+            'SELECT `id`, `email`, `name`, `status` FROM `edm_contacts`
+              WHERE `deleted_at` IS NULL AND (LOWER(`email`) LIKE ? OR LOWER(COALESCE(`name`, \'\')) LIKE ?)
+              ORDER BY `email` LIMIT 20',
+            [$like, $like]
+        );
+
+        return array_map(static fn (array $r): array => [
+            'id' => (int) $r['id'], 'email' => (string) $r['email'], 'name' => $r['name'], 'status' => (int) $r['status'],
+        ], $rows);
+    }
+
+    /**
+     * audience_count { audience }: recipients of an audience being edited
+     * (CampaignRecipients) - matched of all subscribed, how many of those are
+     * on the exclusion list, and a one-line description.
+     *
+     * @return array{matched: int, total: int, suppressed: int, label: string}
+     */
+    private function audienceCount(): array
+    {
+        $audience = CampaignRecipients::normalize($this->request->get('audience'));
+        $recipients = new CampaignRecipients($this->db);
+        $count = $recipients->count($audience);
+
+        return [
+            'matched'    => $count['matched'],
+            'total'      => $count['total'],
+            'suppressed' => $recipients->suppressedCount($audience),
+            'label'      => CampaignRecipients::describe($audience),
+        ];
+    }
+
+    /**
+     * Contacts > Import contacts (audience/import.php), into the masterlist.
+     *   import_preview  multipart: file | paste -> token, preview, mapping
+     *   import_run      { token, mapping[], has_header, mode, offset, limit, dry_run }
      *                   -> one batch: { total, offset, processed, next, sum, issues[] };
      *                   call again with offset = next until next is null.
      *                   mode: add_update (default) | add | update (ContactImport::MODES);
@@ -258,21 +268,17 @@ final class AudienceController extends Controller
         $import = new ContactImport($this->db, (int) $this->auth->staffId);
 
         if ($action === 'import_preview') {
-            $data = $this->validator->validate($this->request->ids(['list_id']), [
-                'list_id' => ['required', 'integer', 'exists:edm_lists,id'],
-            ]);
             $rows = isset($_FILES['file']) && ($_FILES['file']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE
                 ? ImportFileReader::fromUpload($_FILES['file'])
                 : ImportFileReader::fromPaste((string) $this->request->get('paste', ''));
 
-            return ['list_id' => $data['list_id']] + $import->stage($rows);
+            return $import->stage($rows);
         }
 
         $data = $this->validator->validate(
-            $this->request->only(['token', 'mode']) + $this->request->ids(['list_id']) + ['mapping' => $this->request->get('mapping')],
+            $this->request->only(['token', 'mode']) + ['mapping' => $this->request->get('mapping')],
             [
                 'token'   => ['required', 'string', 'max:64'],
-                'list_id' => ['required', 'integer', 'exists:edm_lists,id'],
                 'mapping' => ['required', 'array'],
                 'mode'    => ['sometimes', 'string', 'in:' . implode(',', array_keys(ContactImport::MODES))],
             ]
@@ -280,7 +286,6 @@ final class AudienceController extends Controller
 
         return $import->run(
             (string) $data['token'],
-            (int) $data['list_id'],
             array_map('strval', $data['mapping']),
             !empty($this->request->get('has_header')),
             (string) ($data['mode'] ?? ContactImport::MODE_ADD_UPDATE),

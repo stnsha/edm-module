@@ -7,7 +7,7 @@ namespace Edm\Services\Qa;
 use CurlHandle;
 
 /**
- * Checks that links / images in a campaign load, for the automated QA
+ * Checks that links / images in a newsletter load, for the automated QA
  * (broken link check, image load check). All URLs are probed in parallel
  * (curl_multi), redirects are followed by hand so every hop is checked.
  *

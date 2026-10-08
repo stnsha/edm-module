@@ -13,9 +13,9 @@ use Edm\Models\Campaign;
  * slot; conflict detection runs").
  *
  * A day is taken by:
- *   - another campaign scheduled that day (any status except archived), or
+ *   - another newsletter scheduled that day (any status except archived), or
  *   - a calendar slot reserved that day, unless the slot is linked to the
- *     campaign being checked.
+ *     newsletter being checked.
  *
  * Conflicts are warnings for BPT to judge, not a block. calendar/calendar.js
  * applies the same rule to the month grid.

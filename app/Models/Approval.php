@@ -8,7 +8,7 @@ use Edm\Core\Auth;
 use Edm\Core\Model;
 
 /**
- * A review request / approval step for a campaign. A request raised from
+ * A review request / approval step for a newsletter. A request raised from
  * approval/edit.php (spec 5.2 step 1) carries title, requester, objective,
  * audience brief and copywriting (HTML) plus artwork (ApprovalFile).
  * Table: edm_approvals.
@@ -29,7 +29,7 @@ final class Approval extends Model
     public const STEP_AUDIENCE = 4;
     /**
      * step after audience validation: final approval (step 6), which needs
-     * the automated QA (step 5) passed; approving schedules the campaign.
+     * the automated QA (step 5) passed; approving schedules the newsletter.
      */
     public const STEP_FINAL = 6;
 
@@ -47,7 +47,7 @@ final class Approval extends Model
         'cta'        => 'Call to action is clear and links to the right page',
         'grammar'    => 'Grammar and spelling checked',
         'compliance' => 'Compliant (claims, terms and legal wording)',
-        'objective'  => 'Matches the campaign objective',
+        'objective'  => 'Matches the newsletter objective',
         'slot'       => 'Sending slot is free on the calendar',
     ];
 
@@ -105,7 +105,7 @@ final class Approval extends Model
         'final'    => 'the BPT team',
     ];
 
-    /** The open (pending) request for a campaign, other than $exceptId. */
+    /** The open (pending) request for a newsletter, other than $exceptId. */
     public static function openFor(int $campaignId, int $exceptId = 0): ?array
     {
         return self::where('`campaign_id` = ? AND `status` = ? AND `id` <> ?', [$campaignId, self::PENDING, $exceptId], null, 1)[0] ?? null;

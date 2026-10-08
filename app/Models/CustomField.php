@@ -12,7 +12,10 @@ use Edm\Core\Model;
  */
 final class CustomField extends Model
 {
-    public const TYPES = ['text', 'number', 'date', 'boolean', 'select'];
+    public const TYPES = ['text', 'number', 'date', 'boolean', 'select', 'multiselect'];
+
+    /** Types that take a list of options. */
+    public const OPTION_TYPES = ['select', 'multiselect'];
 
     /**
      * Audience Builder filter categories (spec section 6), in field picker

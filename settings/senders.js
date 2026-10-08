@@ -19,7 +19,6 @@
     var idEl     = document.getElementById('edm-sender-id');
     var nameEl   = document.getElementById('edm-sender-from-name');
     var emailEl  = document.getElementById('edm-sender-email');
-    var replyEl  = document.getElementById('edm-sender-reply-to');
     var defEl    = document.getElementById('edm-sender-default');
     var formErr  = document.getElementById('edm-sender-form-error');
     var saveBtn  = document.getElementById('edm-sender-save');
@@ -76,7 +75,7 @@
 
     function renderRows(rows, startIdx) {
         if (!rows.length) {
-            rowsEl.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">No senders yet.</td></tr>';
+            rowsEl.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">No senders yet.</td></tr>';
             return;
         }
         rowsEl.innerHTML = rows.map(function (s, i) {
@@ -89,7 +88,6 @@
                         : '') + '</td>' +
                     '<td>' + esc(s.from_name) + '</td>' +
                     '<td>' + esc(s.email) + '</td>' +
-                    '<td>' + (s.reply_to ? esc(s.reply_to) : '<span class="text-muted">-</span>') + '</td>' +
                     '<td><span class="edm-pill ' + st.cls + '">' + st.label + '</span></td>' +
                     '<td class="text-end">' + actionMenu(s) + '</td>' +
                 '</tr>';
@@ -168,7 +166,7 @@
 
     function load() {
         clearAlert();
-        rowsEl.innerHTML = '<tr><td colspan="7" class="text-center text-muted py-4">Loading...</td></tr>';
+        rowsEl.innerHTML = '<tr><td colspan="6" class="text-center text-muted py-4">Loading...</td></tr>';
         call('senders_list').then(function (res) {
             if (!res.success) { showAlert(res.message); current = []; renderPage(); return; }
             current = res.data || [];
@@ -189,7 +187,6 @@
             idEl.value    = sender.id;
             nameEl.value  = sender.from_name || '';
             emailEl.value = sender.email || '';
-            replyEl.value = sender.reply_to || '';
             defEl.checked = !!sender.is_default;
         } else {
             titleEl.textContent = 'Add sender';
@@ -214,7 +211,6 @@
         var payload = {
             from_name: nameEl.value.trim(),
             email: emailEl.value.trim(),
-            reply_to: replyEl.value.trim(),
             is_default: defEl.checked
         };
         var action = id ? 'senders_update' : 'senders_create';

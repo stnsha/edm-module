@@ -104,27 +104,26 @@ $edm_nav = array(
         'label' => 'Contacts',
         'gate'  => 'build',
         'items' => array(
-            // Contacts (contacts.php) is reached from the Lists row action.
-            array('folder' => 'audience',    'file' => 'index.php',    'label' => 'Lists',
-                'files' => array('contacts.php')),
-            array('folder' => 'audience',    'file' => 'import.php',   'label' => 'Import contacts'),
+            // Import contacts (import.php) is reached from the All contacts button.
+            array('folder' => 'audience',    'file' => 'index.php',    'label' => 'All contacts',
+                'files' => array('import.php')),
             array('folder' => 'audience',    'file' => 'segments.php', 'label' => 'Segments'),
             array('folder' => 'audience',    'file' => 'fields.php',   'label' => 'Custom fields'),
-            array('folder' => 'suppression', 'file' => 'index.php',    'label' => 'Suppression lists'),
+            array('folder' => 'suppression', 'file' => 'index.php',    'label' => 'Exclusion lists'),
         ),
     ),
     array(
-        'label' => 'Campaigns',
+        'label' => 'Newsletters',
         'gate'  => 'build',
         'items' => array(
             // Email creator has no menu entry of its own; it is reached from
-            // the Campaigns list (Design button) and keeps this highlighted.
-            array('folder' => 'campaign',  'file' => 'index.php', 'label' => 'All campaigns',
+            // the Newsletters list (Design button) and keeps this highlighted.
+            array('folder' => 'campaign',  'file' => 'index.php', 'label' => 'All newsletters',
                 'folders' => array('email-builder')),
             // Template editor (edit.php) is reached from the Templates list.
             array('folder' => 'templates', 'file' => 'index.php', 'label' => 'Templates',
                 'files' => array('edit.php')),
-            // Asset library: campaign images live with the campaigns.
+            // Asset library: newsletter images live with the newsletters.
             array('folder' => 'assets',    'file' => 'index.php', 'label' => 'Files'),
         ),
     ),

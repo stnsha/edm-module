@@ -1,11 +1,11 @@
 /**
- * Campaign Calendar. Month grid of calendar slots (edm_calendar_slots) with
- * scheduled campaigns (edm_campaigns) overlaid. Click a day to add a slot,
+ * Newsletter Calendar. Month grid of calendar slots (edm_calendar_slots) with
+ * scheduled newsletters (edm_campaigns) overlaid. Click a day to add a slot,
  * click a slot chip to edit.
  *
  * A day with a conflict is flagged. Same rule as app/Services/
- * ScheduleConflicts: two or more of { campaigns scheduled that day (not
- * archived), slots that day not linked to one of those campaigns }.
+ * ScheduleConflicts: two or more of { newsletters scheduled that day (not
+ * archived), slots that day not linked to one of those newsletters }.
  */
 (function () {
     'use strict';
@@ -70,7 +70,7 @@
         titleEl.textContent = MONTHS[view.getMonth()] + ' ' + view.getFullYear();
         var b = monthBounds();
         var byDay = {};
-        var sentOn = {}; // day -> { campaign id: true }, to skip a slot linked to its own campaign
+        var sentOn = {}; // day -> { newsletter id: true }, to skip a slot linked to its own newsletter
         (campaigns || []).forEach(function (c) {
             var k = dayKey(c.scheduled_at);
             if (!k || c.status === 9) { return; } // archived
@@ -174,7 +174,6 @@
     document.getElementById('edm-cal-prev').addEventListener('click', function () { view.setMonth(view.getMonth() - 1); load(); });
     document.getElementById('edm-cal-next').addEventListener('click', function () { view.setMonth(view.getMonth() + 1); load(); });
     document.getElementById('edm-cal-today').addEventListener('click', function () { view = new Date(); view.setDate(1); load(); });
-    document.getElementById('edm-cal-add').addEventListener('click', function () { openModal(iso(new Date()), null); });
 
     load();
 })();

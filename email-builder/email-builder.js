@@ -25,10 +25,19 @@
     var f = {
         name:      document.getElementById('edm-eb-f-name'),
         sender:    document.getElementById('edm-eb-f-sender'),
-        list:      document.getElementById('edm-eb-f-list'),
-        segment:   document.getElementById('edm-eb-f-segment'),
+        replyTo:   document.getElementById('edm-eb-f-reply-to'),
         subject:   document.getElementById('edm-eb-f-subject'),
-        scheduled: document.getElementById('edm-eb-f-scheduled')
+        preheader: document.getElementById('edm-eb-f-preheader'),
+        scheduled: document.getElementById('edm-eb-f-scheduled'),
+        whenNow:   document.getElementById('edm-eb-f-when-now'),
+        whenLater: document.getElementById('edm-eb-f-when-later'),
+        trackOpens:  document.getElementById('edm-eb-f-track-opens'),
+        trackClicks: document.getElementById('edm-eb-f-track-clicks'),
+        utmEnabled:  document.getElementById('edm-eb-f-utm-enabled'),
+        utmSource:   document.getElementById('edm-eb-f-utm-source'),
+        utmMedium:   document.getElementById('edm-eb-f-utm-medium'),
+        utmCampaign: document.getElementById('edm-eb-f-utm-campaign'),
+        utmContent:  document.getElementById('edm-eb-f-utm-content')
     };
     var alertEl = document.getElementById('edm-eb-alert');
     var stateEl = document.getElementById('edm-eb-state');
@@ -36,7 +45,7 @@
     var submitBtn = document.getElementById('edm-eb-submit');
     var templateBtn = document.getElementById('edm-eb-template');
 
-    // Same labels / pill colours as the Campaigns list (campaign/index.php).
+    // Same labels / pill colours as the Newsletters list (campaign/index.php).
     var STATUS = {
         1: { label: 'Draft', cls: 'edm-pill-secondary' },
         2: { label: 'Pending submission', cls: 'edm-pill-info' },
@@ -58,13 +67,93 @@
         return { token: v.token, label: v.label };
     });
 
-    // Segment select: segments of other lists hidden, audience count below
-    // (js/edm-segment-picker.js).
-    var segmentPicker = window.edmSegmentPicker({
-        list: f.list,
-        segment: f.segment,
-        hint: document.getElementById('edm-eb-segment-hint'),
-        segmentLists: window.EDM_EB_SEGMENT_LISTS || {}
+    // Tags (Setup step): several per newsletter, as chips. A typed name that
+    // matches a tag on the master list (any case) uses it; any other becomes
+    // a new tag, created by the server on Save (settings_save new_tags).
+    var MAX_TAGS = 10;
+    var tagBox = document.getElementById('edm-eb-tags');
+    var tagInput = document.getElementById('edm-eb-f-tag-input');
+    var tagList = document.getElementById('edm-eb-tag-list');
+    var knownTags = (window.EDM_EB_TAGS || []).slice();
+    var tags = []; // [{ id: number|null, name }]
+
+    function renderTags() {
+        [].forEach.call(tagBox.querySelectorAll('.edm-tag-chip'), function (c) { c.remove(); });
+        tags.forEach(function (t, i) {
+            var chip = document.createElement('span');
+            chip.className = 'edm-tag-chip' + (t.id ? '' : ' is-new');
+            chip.title = t.id ? t.name : t.name + ' (new - created on Save)';
+            chip.innerHTML = '<i class="bi bi-tag"></i>' + esc(t.name) +
+                (tagInput.disabled ? '' : '<button type="button" aria-label="Remove ' + esc(t.name) + '" data-i="' + i + '">&times;</button>');
+            tagBox.insertBefore(chip, tagInput);
+        });
+        tagInput.placeholder = tags.length ? '' : 'Add a tag...';
+    }
+    function addTag(raw) {
+        var name = String(raw || '').replace(/\s+/g, ' ').trim();
+        tagInput.value = '';
+        if (!name) { return; }
+        var lower = name.toLowerCase();
+        if (tags.some(function (t) { return t.name.toLowerCase() === lower; })) { return; }
+        if (tags.length >= MAX_TAGS) { showAlert('A newsletter can have at most ' + MAX_TAGS + ' tags.'); return; }
+        var known = knownTags.filter(function (t) { return t.name.toLowerCase() === lower; })[0];
+        tags.push(known ? { id: known.id, name: known.name } : { id: null, name: name.slice(0, 100) });
+        renderTags();
+        setDirty(true);
+        if (typeof paintSteps === 'function') { paintSteps(); }
+    }
+    function setTags(list) {
+        tags = (list || []).map(function (t) { return { id: t.id, name: t.name }; });
+        (list || []).forEach(function (t) {
+            if (!knownTags.some(function (k) { return k.id === t.id; })) {
+                knownTags.push({ id: t.id, name: t.name });
+                var o = document.createElement('option');
+                o.value = t.name;
+                tagList.appendChild(o);
+            }
+        });
+        renderTags();
+    }
+    tagInput.addEventListener('keydown', function (e) {
+        if (e.key === 'Enter' || e.key === ',') {
+            e.preventDefault();
+            addTag(tagInput.value);
+        } else if (e.key === 'Backspace' && tagInput.value === '' && tags.length) {
+            tags.pop();
+            renderTags();
+            setDirty(true);
+        }
+    });
+    // Picking a suggestion from the list adds it straight away.
+    // (a datalist pick fires input without inputType, or as a replacement)
+    tagInput.addEventListener('input', function (e) {
+        var picked = !e.inputType || e.inputType === 'insertReplacementText';
+        var v = tagInput.value.trim().toLowerCase();
+        if (picked && v && knownTags.some(function (t) { return t.name.toLowerCase() === v; })) {
+            addTag(tagInput.value);
+        }
+    });
+    tagInput.addEventListener('blur', function () { if (tagInput.value.trim()) { addTag(tagInput.value); } });
+    tagBox.addEventListener('click', function (e) {
+        var x = e.target.closest('button[data-i]');
+        if (x) {
+            tags.splice(parseInt(x.getAttribute('data-i'), 10), 1);
+            renderTags();
+            setDirty(true);
+            return;
+        }
+        tagInput.focus();
+    });
+    function tagsText() {
+        return tags.map(function (t) { return t.name; }).join(', ');
+    }
+
+    // Recipients: segments and contacts to send to / leave out, with a live
+    // count (js/edm-audience-picker.js).
+    var audiencePicker = window.edmAudiencePicker({
+        root: document.getElementById('edm-eb-audience'),
+        segments: window.EDM_EB_SEGMENTS || [],
+        onChange: function () { setDirty(true); paintSteps(); }
     });
 
     var editorReady = false;
@@ -122,6 +211,8 @@
         saveBtn.disabled = false;
         templateBtn.disabled = false;
         document.getElementById('edm-eb-test').disabled = false;
+        // Wizard: Design check / Review summary need the loaded design.
+        refreshDesignState();
     }
 
     function firstError(res) {
@@ -170,23 +261,85 @@
     function fillSettings(c) {
         f.name.value = c.name || '';
         f.sender.value = c.sender_id != null ? String(c.sender_id) : '';
-        // 'all' = Campaign::ALL_LISTS (all_lists, list_id null).
-        f.list.value = c.all_lists ? 'all' : (c.list_id != null ? String(c.list_id) : '');
-        f.segment.value = c.segment_id != null ? String(c.segment_id) : '';
-        segmentPicker.sync();
+        f.replyTo.value = c.reply_to_id != null ? String(c.reply_to_id) : '';
+        rememberPicks();
+        audiencePicker.set(c.audience, c.audience_names);
         f.subject.value = c.subject || '';
+        f.preheader.value = c.preheader || '';
+        setTags(c.tags);
         f.scheduled.value = toInputDate(c.scheduled_at);
+        f.whenNow.checked = !!c.send_now;
+        f.whenLater.checked = !c.send_now;
+        f.trackOpens.checked = c.track_opens !== false;
+        f.trackClicks.checked = c.track_clicks !== false;
+        f.utmEnabled.checked = c.utm_enabled !== false;
+        var utm = c.utm || {};
+        f.utmSource.value = utm.source || '';
+        f.utmMedium.value = utm.medium || '';
+        f.utmCampaign.value = utm.campaign || '';
+        f.utmContent.value = utm.content || '';
+        syncTracking();
+        syncWhen();
         checkConflicts();
     }
+
+    // Tracking step: UTM fields only while Google Analytics (UTM) is on, with
+    // an example link built from them (empty campaign = slug of the title,
+    // like Campaign::utm()).
+    var utmFieldsEl = document.getElementById('edm-eb-utm-fields');
+    var utmExampleEl = document.getElementById('edm-eb-utm-example');
+    function slug(v) {
+        return String(v || '').toLowerCase().normalize('NFD').replace(/[̀-ͯ]/g, '').replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'campaign';
+    }
+    function utmValues() {
+        return {
+            source: f.utmSource.value.trim() || 'edm',
+            medium: f.utmMedium.value.trim() || 'email',
+            campaign: f.utmCampaign.value.trim() || slug(f.name.value),
+            content: f.utmContent.value.trim()
+        };
+    }
+    function syncTracking() {
+        utmFieldsEl.hidden = !f.utmEnabled.checked;
+        f.utmCampaign.placeholder = slug(f.name.value);
+        var u = utmValues();
+        utmExampleEl.innerHTML = '<i class="bi bi-link-45deg me-1"></i>Example: https://www.example.com/page?utm_source=' + esc(u.source) +
+            '&amp;utm_medium=' + esc(u.medium) + '&amp;utm_campaign=' + esc(u.campaign) + (u.content ? '&amp;utm_content=' + esc(u.content) : '');
+    }
+    [f.utmEnabled, f.utmSource, f.utmMedium, f.utmCampaign, f.utmContent, f.name].forEach(function (el) {
+        el.addEventListener('input', syncTracking);
+        el.addEventListener('change', syncTracking);
+    });
+
+    // Send step: the date only for Schedule.
+    var scheduleRow = document.getElementById('edm-eb-schedule-row');
+    function syncWhen() {
+        scheduleRow.hidden = !f.whenLater.checked;
+    }
+    f.whenNow.addEventListener('change', syncWhen);
+    f.whenLater.addEventListener('change', syncWhen);
 
     function settingsPayload() {
         return {
             name: f.name.value.trim(),
             sender_id: f.sender.value,
-            list_id: f.list.value,
-            segment_id: f.segment.value,
+            reply_to_id: f.replyTo.value,
             subject: f.subject.value,
-            scheduled_at: f.scheduled.value
+            preheader: f.preheader.value,
+            tags: tags.filter(function (t) { return t.id; }).map(function (t) { return t.id; }),
+            new_tags: tags.filter(function (t) { return !t.id; }).map(function (t) { return t.name; }),
+            audience: audiencePicker.get(),
+            send_now: f.whenNow.checked,
+            scheduled_at: f.whenNow.checked ? '' : f.scheduled.value,
+            track_opens: f.trackOpens.checked,
+            track_clicks: f.trackClicks.checked,
+            utm_enabled: f.utmEnabled.checked,
+            utm: {
+                source: f.utmSource.value,
+                medium: f.utmMedium.value,
+                campaign: f.utmCampaign.value,
+                content: f.utmContent.value
+            }
         };
     }
 
@@ -197,7 +350,7 @@
     });
     f.scheduled.addEventListener('change', checkConflicts);
     f.name.addEventListener('input', function () {
-        nameEl.textContent = f.name.value.trim() || 'Untitled campaign';
+        nameEl.textContent = f.name.value.trim() || 'Untitled newsletter';
         nameEl.title = nameEl.textContent;
     });
 
@@ -255,17 +408,16 @@
 
     // Required settings, checked in form order before anything is sent
     // (the server enforces the same rules).
-    // A draft saves with just a name (New campaign opens an empty one);
+    // A draft saves with just a name (New newsletter opens an empty one);
     // Submit needs every field (the server checks the design too), a test
     // email needs a sender and a subject.
     var FIELD = {
-        name:    { el: f.name,    label: 'Name' },
-        sender:  { el: f.sender,  label: 'Sender' },
-        list:    { el: f.list,    label: 'Recipient list' },
+        name:    { el: f.name,    label: 'Title' },
+        sender:  { el: f.sender,  label: 'From' },
         subject: { el: f.subject, label: 'Subject line' }
     };
     var REQUIRED_SAVE   = [FIELD.name];
-    var REQUIRED_SUBMIT = [FIELD.name, FIELD.sender, FIELD.list, FIELD.subject];
+    var REQUIRED_SUBMIT = [FIELD.name, FIELD.sender, FIELD.subject];
     var REQUIRED_TEST   = [FIELD.name, FIELD.sender, FIELD.subject];
 
     function missingField(list) {
@@ -300,6 +452,8 @@
         setState('saving');
         call('settings_save', 'POST', settingsPayload()).then(function (res) {
             if (!res.success) { saveFailed(firstError(res)); return; }
+            // New tags now have ids (and join the suggestions).
+            if (res.data && res.data.tags) { setTags(res.data.tags); }
             saveDesign();
         }).catch(function () { saveFailed('Could not reach the server.'); });
     }
@@ -376,8 +530,80 @@
         save();
     });
 
+    // Create new sender: the last option of the Sender and Reply-to selects
+    // (value "__new"). It opens a small form instead of being selected; the
+    // new sender is added to both selects and picked in the one used.
+    var NEW_SENDER     = '__new';
+    var senderModalEl  = document.getElementById('edm-eb-sender-modal');
+    var senderForm     = document.getElementById('edm-eb-sender-form');
+    var senderName     = document.getElementById('edm-eb-sender-name');
+    var senderEmail    = document.getElementById('edm-eb-sender-email');
+    var senderSave     = document.getElementById('edm-eb-sender-save');
+    var senderResult   = document.getElementById('edm-eb-sender-result');
+    var senderModal    = null;
+    var senderTarget   = 'sender';
+    var lastPick       = { sender: '', replyTo: '' };
+
+    // Called by fillSettings() so a cancelled "Create new sender" restores
+    // the saved choice.
+    function rememberPicks() {
+        lastPick.sender = f.sender.value;
+        lastPick.replyTo = f.replyTo.value;
+    }
+
+    ['sender', 'replyTo'].forEach(function (k) {
+        f[k].addEventListener('change', function () {
+            if (f[k].value !== NEW_SENDER) { lastPick[k] = f[k].value; return; }
+            f[k].value = lastPick[k];
+            senderTarget = k;
+            if (!senderModal) { senderModal = new bootstrap.Modal(senderModalEl); }
+            senderForm.reset();
+            senderResult.hidden = true;
+            senderSave.disabled = false;
+            senderModal.show();
+        });
+    });
+    senderModalEl.addEventListener('shown.bs.modal', function () { senderName.focus(); });
+
+    senderForm.addEventListener('submit', function (e) {
+        e.preventDefault();
+        var name = senderName.value.trim();
+        var email = senderEmail.value.trim();
+        if (!name) { senderMessage('danger', 'From name is required.'); senderName.focus(); return; }
+        if (!email || !senderEmail.checkValidity()) { senderMessage('danger', 'Enter a valid email address.'); senderEmail.focus(); return; }
+
+        senderSave.disabled = true;
+        senderMessage('secondary', 'Creating...');
+        call('sender_create', 'POST', { from_name: name, email: email }).then(function (res) {
+            senderSave.disabled = false;
+            if (!res.success) { senderMessage('danger', firstError(res)); return; }
+            var s = res.data.sender;
+            var label = s.from_name + ' <' + s.email + '>';
+            [f.sender, f.replyTo].forEach(function (sel) {
+                var opt = document.createElement('option');
+                opt.value = String(s.id);
+                opt.textContent = label;
+                sel.insertBefore(opt, sel.querySelector('option[value="' + NEW_SENDER + '"]'));
+            });
+            f[senderTarget].value = String(s.id);
+            lastPick[senderTarget] = String(s.id);
+            setDirty(true);
+            senderModal.hide();
+            window.edmAlert(res.data.verification, { title: 'Sender created', variant: 'success' });
+        }).catch(function () {
+            senderSave.disabled = false;
+            senderMessage('danger', 'Could not reach the server.');
+        });
+    });
+
+    function senderMessage(kind, text) {
+        senderResult.className = 'alert alert-' + kind + ' py-2 px-3 small mt-3 mb-0';
+        senderResult.textContent = text;
+        senderResult.hidden = false;
+    }
+
     // Start from template: load a copy of a template into the editor. It
-    // only becomes the campaign's body on the next Save.
+    // only becomes the newsletter's body on the next Save.
     var tplModalEl = document.getElementById('edm-eb-template-modal');
     var tplSelect  = document.getElementById('edm-eb-template-select');
     var tplApply   = document.getElementById('edm-eb-template-apply');
@@ -420,7 +646,7 @@
 
     // Only a draft (1) or content revision (4) can go to review. From final
     // approval on (scheduled 6, sending 7, completed 8, archived 9 -
-    // Campaign::isLocked()) the campaign is locked: the server refuses saves,
+    // Campaign::isLocked()) the newsletter is locked: the server refuses saves,
     // so Save and Start from template are hidden and a notice says why.
     var lockNotice = null;
     function setStatus(status) {
@@ -432,25 +658,34 @@
         submitBtn.hidden = !(status === 1 || status === 4);
         saveBtn.hidden = locked;
         templateBtn.hidden = locked;
+        audiencePicker.disable(locked);
+        tagInput.disabled = locked;
+        renderTags();
         if (locked && !lockNotice) {
             lockNotice = document.createElement('div');
             lockNotice.className = 'alert alert-info py-2 px-3 small';
-            lockNotice.innerHTML = '<i class="bi bi-lock-fill me-1"></i>This campaign has final approval and is locked - changes are not saved.' +
-                (status === 6 ? ' To change it, use Stop sending on the Campaigns list (it returns to Draft and needs a new review).' : '');
+            lockNotice.innerHTML = '<i class="bi bi-lock-fill me-1"></i>This newsletter has final approval and is locked - changes are not saved.' +
+                (status === 6 ? ' To change it, use Stop sending on the Newsletters list (it returns to Draft and needs a new review).' : '');
             alertEl.parentNode.insertBefore(lockNotice, alertEl);
         }
     }
 
     // Submit = save everything first (so review sees the current version),
-    // then move the campaign into review.
+    // then move the newsletter into review.
     submitBtn.addEventListener('click', function () {
         var missing = missingField(REQUIRED_SUBMIT);
         if (missing) {
+            goStep(1);
             missing.el.focus();
             showAlert(missing.label + ' is required before submitting for review.');
             return;
         }
-        var name = f.name.value.trim() || 'this campaign';
+        if (!f.whenNow.checked && !f.scheduled.value) {
+            f.scheduled.focus();
+            showAlert('Choose Send now, or a send date and time, before submitting for review.');
+            return;
+        }
+        var name = f.name.value.trim() || 'this newsletter';
         window.edmConfirm('Save and submit "' + name + '" for review? It cannot be edited while under review.', function () {
             submitBtn.disabled = true;
             afterSave = function () {
@@ -469,6 +704,164 @@
             save();
         });
     });
+
+    // Wizard: five steps on one page (Setup, Recipients, Design, Tracking,
+    // Send). Steps never block each other - every field is saved by the
+    // top-bar Save from any step; a step shows a green check once it is
+    // complete (Recipients / Tracking once visited - both have defaults).
+    // The current step is kept in the URL hash, so a reload stays on it.
+    var LAST_STEP = 5;
+    var wizSteps = [].slice.call(document.querySelectorAll('.edm-wiz-step'));
+    var wizPanes = [].slice.call(document.querySelectorAll('.edm-wiz-pane'));
+    var summaryEl = document.getElementById('edm-wiz-summary');
+    var wizStep = 1;
+    var visited = {};
+    var designBlocks = null; // top-level blocks in the design; null until known
+
+    function optionText(sel) {
+        var o = sel.options[sel.selectedIndex];
+        return o && o.value && o.value !== '__new' ? o.textContent : '';
+    }
+    function stepComplete(n) {
+        switch (n) {
+            case 1: return !missingField(REQUIRED_SUBMIT);
+            case 2: return !!visited[2];
+            case 3: return designBlocks !== null && designBlocks > 0;
+            case 4: return !!visited[4];
+            default: return false;
+        }
+    }
+    function paintSteps() {
+        wizSteps.forEach(function (b) {
+            var n = parseInt(b.getAttribute('data-step'), 10);
+            var done = n !== wizStep && n < LAST_STEP && stepComplete(n);
+            b.classList.toggle('is-active', n === wizStep);
+            b.classList.toggle('is-done', done);
+            b.querySelector('.edm-wiz-dot').innerHTML = done ? '<i class="bi bi-check-lg"></i>' : String(n);
+            b.setAttribute('aria-current', n === wizStep ? 'step' : 'false');
+        });
+    }
+    function goStep(n, scroll) {
+        visited[wizStep] = true;
+        wizStep = Math.min(LAST_STEP, Math.max(1, n));
+        wizPanes.forEach(function (p) {
+            p.hidden = parseInt(p.getAttribute('data-pane'), 10) !== wizStep;
+        });
+        // Full path: the odb layout sets a <base>, so a bare '#step-n' would
+        // resolve against it and change the URL.
+        try { window.history.replaceState(null, '', window.location.pathname + window.location.search + '#step-' + wizStep); } catch (err) { /* ignore */ }
+        if (wizStep === LAST_STEP) { renderSummary(); }
+        paintSteps();
+        if (scroll !== false) {
+            document.getElementById('edm-wiz-steps').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
+        }
+    }
+
+    // Design state for the Send summary and the Design check: asks the
+    // editor for its document (an empty design has no top-level blocks).
+    function refreshDesignState(done) {
+        if (!editorReady) { if (done) { done(); } return; }
+        exportDesign(function (out) {
+            var root = out.document && out.document.root;
+            designBlocks = root && root.data && root.data.childrenIds ? root.data.childrenIds.length : 0;
+            paintSteps();
+            if (done) { done(); }
+        });
+    }
+
+    function renderSummary() {
+        function row(label, value, step, missing) {
+            return '<div class="edm-wiz-row' + (missing ? ' is-missing' : '') + '">' +
+                '<dt>' + esc(label) + '</dt>' +
+                '<dd>' + (missing ? '<i class="bi bi-exclamation-circle me-1"></i>' : '') + value + '</dd>' +
+                '<dd class="edm-wiz-row-edit"><button type="button" class="btn btn-link btn-sm p-0" data-wiz-go="' + step + '">Edit</button></dd>' +
+            '</div>';
+        }
+        function onOff(v) { return v ? 'on' : 'off'; }
+        function draw() {
+            var sender = optionText(f.sender);
+            var count = audiencePicker.lastCount;
+            var when = f.whenNow.checked ? 'Send now - right after final approval'
+                : (f.scheduled.value ? f.scheduled.value.replace('T', ' ') : '');
+            var u = utmValues();
+            summaryEl.innerHTML =
+                row('Title', esc(f.name.value.trim()) || 'Not set', 1, !f.name.value.trim()) +
+                row('From', sender ? esc(sender) : 'Not chosen', 1, !sender) +
+                row('Reply-to', esc(optionText(f.replyTo)) || 'Same as sender', 1, false) +
+                row('Subject line', esc(f.subject.value.trim()) || 'Not set', 1, !f.subject.value.trim()) +
+                row('Preview text', esc(f.preheader.value.trim()) || '<span class="text-muted">None</span>', 1, false) +
+                row('Tags', tags.length ? esc(tagsText()) : '<span class="text-muted">None</span>', 1, false) +
+                row('Recipients', esc(audiencePicker.describe()) +
+                    (count ? '<div class="edm-wiz-row-note">' + Number(count.matched).toLocaleString('en-US') + ' of ' +
+                        Number(count.total).toLocaleString('en-US') + ' subscribed contacts</div>' : ''), 2, !!count && count.matched === 0) +
+                row('Design', designBlocks === null ? 'Checking...'
+                    : designBlocks > 0 ? designBlocks + ' block' + (designBlocks === 1 ? '' : 's') : 'Empty - add content in Design',
+                    3, designBlocks === 0) +
+                row('Tracking', 'Opens ' + onOff(f.trackOpens.checked) + ', clicks ' + onOff(f.trackClicks.checked) +
+                    ', Google Analytics ' + onOff(f.utmEnabled.checked) +
+                    (f.utmEnabled.checked ? '<div class="edm-wiz-row-note">utm_source=' + esc(u.source) + ', utm_medium=' + esc(u.medium) +
+                        ', utm_campaign=' + esc(u.campaign) + (u.content ? ', utm_content=' + esc(u.content) : '') + '</div>' : ''), 4, false) +
+                row('When', when ? esc(when) : 'Choose a date and time above', LAST_STEP, !when);
+        }
+        draw();
+        refreshDesignState(draw);
+    }
+    // The When row follows the choice live.
+    [f.whenNow, f.whenLater, f.scheduled].forEach(function (el) {
+        el.addEventListener('change', function () { if (wizStep === LAST_STEP) { renderSummary(); } });
+    });
+
+    wizSteps.forEach(function (b) {
+        b.addEventListener('click', function () { goStep(parseInt(b.getAttribute('data-step'), 10)); });
+    });
+    document.addEventListener('click', function (e) {
+        var t = e.target.closest('[data-wiz-next], [data-wiz-prev], [data-wiz-go]');
+        if (!t) { return; }
+        if (t.hasAttribute('data-wiz-go')) { goStep(parseInt(t.getAttribute('data-wiz-go'), 10)); return; }
+        if (t.hasAttribute('data-wiz-prev')) { goStep(wizStep - 1); return; }
+        // Next from Setup needs a title (a draft cannot save without one).
+        if (wizStep === 1 && !f.name.value.trim()) {
+            f.name.focus();
+            showAlert('Title is required.');
+            return;
+        }
+        alertEl.hidden = true;
+        if (wizStep === 3) { refreshDesignState(); }
+        goStep(wizStep + 1);
+    });
+    Object.keys(f).forEach(function (k) {
+        f[k].addEventListener('input', paintSteps);
+        f[k].addEventListener('change', paintSteps);
+    });
+
+    // Preview message: saves first (the preview is the saved email), then
+    // shows it as it will be sent, under an inbox-style From / Subject /
+    // preview text line.
+    var previewModalEl = document.getElementById('edm-eb-preview-modal');
+    var previewFrame = document.getElementById('edm-eb-preview-frame');
+    var previewInbox = document.getElementById('edm-eb-preview-inbox');
+    var previewModal = null;
+    function openPreview() {
+        if (!previewModal) { previewModal = new bootstrap.Modal(previewModalEl); }
+        var sender = optionText(f.sender);
+        previewInbox.innerHTML =
+            '<div class="edm-wiz-inbox-from">' + (sender ? esc(sender) : '<span class="text-muted">No sender</span>') + '</div>' +
+            '<div><strong>' + (esc(f.subject.value.trim()) || '<span class="text-muted">No subject</span>') + '</strong>' +
+            (f.preheader.value.trim() ? ' <span class="text-muted">- ' + esc(f.preheader.value.trim()) + '</span>' : '') + '</div>';
+        previewFrame.src = BASE + 'campaign/api.php?action=campaigns_preview&id=' + encodeURIComponent(CID) + '&t=' + Date.now();
+        previewModal.show();
+    }
+    previewModalEl.addEventListener('hidden.bs.modal', function () { previewFrame.src = 'about:blank'; });
+    document.getElementById('edm-eb-preview').addEventListener('click', function () {
+        if (!dirty || saveBtn.hidden) { openPreview(); return; }
+        afterSave = openPreview;
+        save();
+    });
+
+    (function initialStep() {
+        var m = /^#step-([1-5])$/.exec(window.location.hash);
+        goStep(m ? parseInt(m[1], 10) : 1, false);
+    })();
 
     // Ctrl+S / Cmd+S saves - on this page and inside the editor iframe
     // (same origin, so its document can be listened to directly).
@@ -500,7 +893,7 @@
     call('load').then(function (res) {
         if (!res.success) { showAlert(res.message); return; }
         var c = res.data || {};
-        nameEl.textContent = c.name || ('Campaign #' + CID);
+        nameEl.textContent = c.name || ('Newsletter #' + CID);
         nameEl.title = nameEl.textContent;
         setStatus(c.status);
         fillSettings(c);

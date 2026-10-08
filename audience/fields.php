@@ -35,8 +35,15 @@ window.EDM_CRUD_CONFIG = {
     ],
     fields: [
         { name: 'label', label: 'Label', type: 'text', required: true },
-        { name: 'type', label: 'Type', type: 'select', required: true, options: ['text', 'number', 'date', 'boolean', 'select'] },
-        { name: 'options', label: 'Options (one per line, for select type)', type: 'textarea', help: 'Ignored unless Type is select.' },
+        { name: 'type', label: 'Type', type: 'select', required: true, options: [
+            { value: 'text', label: 'Text' },
+            { value: 'number', label: 'Number' },
+            { value: 'date', label: 'Date (YYYY-MM-DD)' },
+            { value: 'boolean', label: 'Yes / No (1 or 0)' },
+            { value: 'select', label: 'Select (one of a list of options)' },
+            { value: 'multiselect', label: 'Multi-select (several options, comma-separated in the file)' }
+        ] },
+        { name: 'options', label: 'Options (one per line, for select / multi-select)', type: 'textarea', help: 'Ignored unless Type is Select or Multi-select.' },
         { name: 'category', label: 'Category', type: 'select', options: <?php echo json_encode($edm_field_categories); ?>,
           help: 'Audience Builder filter category: groups the field in the segment condition picker.' },
         { name: 'is_active', label: 'Active', type: 'checkbox', default: true }

@@ -1,17 +1,20 @@
 import React, { lazy, Suspense } from 'react';
 
-import { MonitorOutlined, PhoneIphoneOutlined } from '@mui/icons-material';
-import { Box, Stack, SxProps, ToggleButton, ToggleButtonGroup, Tooltip } from '@mui/material';
+import { MonitorOutlined, PhoneIphoneOutlined, RedoOutlined, UndoOutlined } from '@mui/icons-material';
+import { Box, Divider, IconButton, Stack, SxProps, ToggleButton, ToggleButtonGroup, Tooltip } from '@mui/material';
 import { Reader } from '@usewaypoint/email-builder';
 
 import EditorBlock from '../../documents/editor/EditorBlock';
 import {
+  redo,
   setSelectedScreenSize,
+  undo,
+  useCanRedo,
+  useCanUndo,
   useDocument,
   useSelectedMainTab,
   useSelectedScreenSize,
 } from '../../documents/editor/EditorContext';
-import ToggleInspectorPanelButton from '../InspectorDrawer/ToggleInspectorPanelButton';
 
 import DownloadJson from './DownloadJson';
 import ImportJson from './ImportJson';
@@ -26,6 +29,8 @@ export default function TemplatePanel() {
   const document = useDocument();
   const selectedMainTab = useSelectedMainTab();
   const selectedScreenSize = useSelectedScreenSize();
+  const canUndo = useCanUndo();
+  const canRedo = useCanRedo();
 
   let mainBoxSx: SxProps = {
     height: '100%',
@@ -99,7 +104,23 @@ export default function TemplatePanel() {
         alignItems="center"
       >
         <Stack px={2} direction="row" gap={2} width="100%" justifyContent="space-between" alignItems="center">
-          <Stack direction="row" spacing={2}>
+          <Stack direction="row" spacing={1} alignItems="center">
+            {/* EDM: undo / redo (also Ctrl+Z / Ctrl+Shift+Z outside text fields). */}
+            <Tooltip title="Undo (Ctrl+Z)">
+              <span>
+                <IconButton size="small" onClick={undo} disabled={!canUndo} aria-label="Undo">
+                  <UndoOutlined fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+            <Tooltip title="Redo (Ctrl+Shift+Z)">
+              <span>
+                <IconButton size="small" onClick={redo} disabled={!canRedo} aria-label="Redo">
+                  <RedoOutlined fontSize="small" />
+                </IconButton>
+              </span>
+            </Tooltip>
+            <Divider orientation="vertical" flexItem sx={{ mx: 1 }} />
             <MainTabsGroup />
           </Stack>
           <Stack direction="row" spacing={2}>
@@ -119,7 +140,6 @@ export default function TemplatePanel() {
             </ToggleButtonGroup>
           </Stack>
         </Stack>
-        <ToggleInspectorPanelButton />
       </Stack>
       <Box sx={{ height: 'calc(100vh - 49px)', overflow: 'auto', minWidth: 370 }}>{renderMainPanel()}</Box>
     </>

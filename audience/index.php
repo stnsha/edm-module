@@ -1,38 +1,40 @@
 <?php
-$page_title = 'Lists';
-$page_subtitle = 'Contact lists. Add contacts with Import (file or paste).';
+$page_title = 'All contacts';
+$page_subtitle = 'The contact masterlist: one record per email address. Add or update contacts with Import (file or paste); newsletters go to every subscribed contact or to a segment.';
 require __DIR__ . '/../partials.php';
-$page_title_actions = edm_title_button('New list');
 include __DIR__ . '/../header.php';
 $page_js = EDM_BASE . 'js/edm-crud.js';
-
+?>
+<div class="d-flex justify-content-end mb-3">
+    <a class="btn btn-outline-primary" href="<?php echo EDM_BASE; ?>audience/import.php"><i class="bi bi-upload me-1"></i>Import contacts</a>
+</div>
+<?php
 edm_crud_screen(array(
-    'columns' => array('Name', 'Description', 'Members', 'Active'),
+    'columns' => array('Email', 'Name', 'Status', 'Source', 'Imported on'),
 ));
 ?>
 <script>
 window.EDM_CRUD_CONFIG = {
     api: 'audience/api.php',
-    entity: 'list',
-    actions: { list: 'lists_list', create: 'lists_create', update: 'lists_update', 'delete': 'lists_delete' },
-    rowActions: [
-        { label: 'Contacts', link: function (r) { return 'audience/contacts.php?list=' + r.id; } },
-        { label: 'Import', link: function (r) { return 'audience/import.php?list=' + r.id; } },
-        { label: function (r) { return r.is_active ? 'Set inactive' : 'Set active'; },
-          body: function (r) { return { is_active: !r.is_active }; },
-          action: 'lists_update', method: 'PUT' }
-    ],
+    entity: 'contact',
+    actions: { list: 'contacts_list', 'delete': 'contacts_delete' },
+    noCreate: true,
+    noEdit: true,
     columns: [
+        { key: 'email', label: 'Email' },
         { key: 'name', label: 'Name' },
-        { key: 'description', label: 'Description' },
-        { key: 'members_count', label: 'Members', type: 'count' },
-        { key: 'is_active', label: 'Active', type: 'bool', trueLabel: 'Active', falseLabel: 'Inactive' }
+        { key: 'status', label: 'Status', type: 'badge' },
+        { key: 'source', label: 'Source' },
+        { key: 'created_at', label: 'Imported on' }
     ],
-    fields: [
-        { name: 'name', label: 'Name', type: 'text', required: true },
-        { name: 'description', label: 'Description', type: 'textarea' },
-        { name: 'is_active', label: 'Active', type: 'checkbox', default: true }
-    ]
+    badges: {
+        status: {
+            1: { cls: 'edm-pill-success', label: 'Subscribed' },
+            2: { cls: 'edm-pill-secondary', label: 'Unsubscribed' },
+            3: { cls: 'edm-pill-danger', label: 'Bounced' }
+        }
+    },
+    fields: []
 };
 </script>
 <?php

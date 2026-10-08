@@ -19,12 +19,15 @@ use Edm\Services\Qa\UtmTagger;
 use Edm\Models\Campaign;
 use Edm\Services\RichText;
 use Edm\Services\ScheduleReadiness;
+use Edm\Services\CampaignRecall;
+use Edm\Services\Ses\CampaignSender;
+use DateTimeImmutable;
 use finfo;
 use Throwable;
 
 /**
  * Approval Centre (approval/). Actions:
- *   approvals_list     every request / step, with campaign name and artwork count
+ *   approvals_list     every request / step, with newsletter name and artwork count
  *   approvals_get      ?id= one request with its artwork and can_edit
  *   approvals_save     multipart: id?, title, campaign_id, objective,
  *                      audience_brief, copywriting (Quill HTML), files[]
@@ -33,28 +36,30 @@ use Throwable;
  *                      requested by the signed-in staff member. A pending
  *                      request can be edited by its requester or a superadmin.
  *   approvals_delete
+ *   approvals_recall   { id } "Don't send it" after final approval: newsletter
+ *                      back to content revision, review rejected (CampaignRecall)
  *   approvals_decide   { id, stage: bpt|audience|final, decision: 2|3, comment,
- *                      checks[], scheduled_at (final) } - see decide():
+ *                      checks[], scheduled_at / send_now (final) } - see decide():
  *                      bpt (steps 2-3, BPT team): every BPT_CHECKS item ->
- *                      step 4, campaign audience validation, QA queued;
+ *                      step 4, newsletter audience validation, QA queued;
  *                      audience (step 4, BI/CRM = admin): every
  *                      AUDIENCE_CHECKS item -> step 6; final (step 6, BPT
- *                      team): ScheduleReadiness passes -> approved, campaign
+ *                      team): ScheduleReadiness passes -> approved, newsletter
  *                      scheduled at scheduled_at and locked. Reject needs a
  *                      comment, returns the request to the requester
  *                      (editable again - saving it resubmits to BPT) and the
- *                      campaign to content revision. A superadmin can decide
+ *                      newsletter to content revision. A superadmin can decide
  *                      every stage.
  *
- * Campaign status follows the request (spec 5.1): raising or resubmitting a
+ * Newsletter status follows the request (spec 5.1): raising or resubmitting a
  * review -> under BPT review (3); deleting a request still with BPT -> back
- * to pending submission (2). One open request per campaign.
+ * to pending submission (2). One open request per newsletter.
  *
- *   qa_status          ?id= latest automated QA run of the review's campaign;
+ *   qa_status          ?id= latest automated QA run of the review's newsletter;
  *                      a queued run is worked here when no cron did it
  *                      within 5 seconds (local development)
  *   qa_run             { id } queue a QA run now ("Run again")
- *   qa_utm             { id } add UTM tags to every link of the campaign
+ *   qa_utm             { id } add UTM tags to every link of the newsletter
  *                      design (html + editor_json, new content version),
  *                      then queue a QA run
  *
@@ -105,6 +110,8 @@ final class ApprovalController extends Controller
                 return null;
             case 'approvals_decide':
                 return $this->decide();
+            case 'approvals_recall':
+                return $this->recall();
             case 'qa_status':
                 return $this->qaStatus();
             case 'qa_run':
@@ -188,16 +195,16 @@ final class ApprovalController extends Controller
             throw new ValidationException($errors);
         }
 
-        // A campaign goes to review once at a time, and only while it is still being worked on.
+        // A newsletter goes to review once at a time, and only while it is still being worked on.
         $campaign = Campaign::findOrFail((int) $data['campaign_id']);
         $changingCampaign = $existing === null || (int) $existing['campaign_id'] !== (int) $data['campaign_id'];
         if ($changingCampaign) {
             if (!in_array($campaign['status'], Campaign::REVIEWABLE, true)) {
-                throw ValidationException::single('campaign_id', 'Only a draft, pending submission or content revision campaign can go to review.');
+                throw ValidationException::single('campaign_id', 'Only a draft, pending submission or content revision newsletter can go to review.');
             }
             $open = Approval::openFor((int) $campaign['id'], $id);
             if ($open !== null) {
-                throw ValidationException::single('campaign_id', 'This campaign already has an open review (#RV' . $open['id'] . ').');
+                throw ValidationException::single('campaign_id', 'This newsletter already has an open review (#RV' . $open['id'] . ').');
             }
         }
         $resubmit = $existing !== null && (int) $existing['status'] === Approval::REJECTED;
@@ -225,7 +232,7 @@ final class ApprovalController extends Controller
                     ]);
                     $approvalId = (int) $row['id'];
                     $campaign = Campaign::find((int) $data['campaign_id']);
-                    $this->log($approvalId, 'created', 'Review raised for "' . ($campaign['name'] ?? 'campaign') . '".');
+                    $this->log($approvalId, 'created', 'Review raised for "' . ($campaign['name'] ?? 'newsletter') . '".');
                 } else {
                     // A rejected request that is edited goes back to the BPT team.
                     Approval::update($id, $data + ($resubmit ? ['status' => Approval::PENDING, 'step' => Approval::STEP_BPT] : []));
@@ -264,7 +271,7 @@ final class ApprovalController extends Controller
                     $this->log($approvalId, 'attachment_added', 'Added artwork: ' . implode(', ', array_column($checked, 'name')) . '.');
                 }
 
-                // Campaign status follows the request (spec 5.1): with BPT = under BPT review.
+                // Newsletter status follows the request (spec 5.1): with BPT = under BPT review.
                 if (($changingCampaign || $resubmit) && in_array($campaign['status'], Campaign::REVIEWABLE, true)) {
                     Campaign::update((int) $campaign['id'], ['status' => Campaign::UNDER_BPT_REVIEW]);
                 }
@@ -298,9 +305,9 @@ final class ApprovalController extends Controller
      * A stage decision (spec 5.2): bpt (steps 2-3), audience (step 4, BI/CRM)
      * or final (step 6). Approving moves the request on - bpt -> audience
      * (campaign: audience validation, QA queued), audience -> final, final ->
-     * approved with the campaign scheduled at scheduled_at and locked.
+     * approved with the newsletter scheduled at scheduled_at and locked.
      * Rejecting (comment required) returns the request to the requester and
-     * the campaign to content revision.
+     * the newsletter to content revision.
      */
     private function decide(): array
     {
@@ -317,10 +324,11 @@ final class ApprovalController extends Controller
         if (Approval::pendingStage($approval) !== $stage) {
             throw new HttpException('This request is not waiting for this decision.', 422);
         }
-        $data = $this->validator->validate($this->request->ids(['decision']) + $this->request->only(['comment', 'scheduled_at']), [
+        $data = $this->validator->validate($this->request->ids(['decision']) + $this->request->only(['comment', 'scheduled_at', 'send_now']), [
             'decision'     => ['required', 'integer', 'in:2,3'],
             'comment'      => ['nullable', 'string', 'max:1000'],
             'scheduled_at' => ['nullable', 'date'],
+            'send_now'     => ['sometimes', 'boolean'],
         ]);
         $approve = $data['decision'] === Approval::APPROVED;
         $comment = trim((string) ($data['comment'] ?? ''));
@@ -340,15 +348,19 @@ final class ApprovalController extends Controller
         $campaignId = (int) $approval['campaign_id'];
         $campaign = Campaign::findOrFail($campaignId);
         $sendAt = null;
+        $sendNow = false;
         if ($approve && $stage === ApprovalDecision::STAGE_FINAL) {
-            $sendAt = Model::parseDate((string) ($data['scheduled_at'] ?? ''));
+            // Send now: the approver's choice, else the requester's (wizard).
+            $sendNow = array_key_exists('send_now', $data) ? (bool) $data['send_now'] : (bool) $campaign['send_now'];
+            $campaign['send_now'] = $sendNow;
+            $sendAt = $sendNow ? new DateTimeImmutable() : Model::parseDate((string) ($data['scheduled_at'] ?? ''));
             $problems = (new ScheduleReadiness())->problems($campaign, $sendAt);
             if ($problems !== []) {
                 throw ValidationException::single('final', 'Cannot schedule yet: ' . implode(' ', $problems));
             }
         }
 
-        $this->db->transaction(function () use ($id, $stage, $approve, $comment, $checks, $campaign, $campaignId, $sendAt): void {
+        $this->db->transaction(function () use ($id, $stage, $approve, $comment, $checks, $campaign, $campaignId, $sendAt, $sendNow): void {
             ApprovalDecision::create([
                 'approval_id'     => $id,
                 'stage'           => $stage,
@@ -372,24 +384,29 @@ final class ApprovalController extends Controller
 
             $label = ['bpt' => 'BPT review', 'audience' => 'Audience validation', 'final' => 'Final approval'][$stage];
             $summary = match (true) {
-                !$approve                                 => $label . ' rejected - returned to the requester, campaign back to content revision',
+                !$approve                                 => $label . ' rejected - returned to the requester, newsletter back to content revision',
                 $stage === ApprovalDecision::STAGE_BPT      => 'BPT review approved - sent to BI/CRM for audience validation',
                 $stage === ApprovalDecision::STAGE_AUDIENCE => 'Audience validated - ready for final approval',
-                default                                   => 'Final approval given - campaign scheduled for ' . $sendAt?->format('d-m-Y H:i') . ' and locked',
+                $sendNow                                  => 'Final approval given - newsletter sends now (after a ' . CampaignSender::RECALL_SECONDS . '-second recall window) and is locked',
+                default                                   => 'Final approval given - newsletter scheduled for ' . $sendAt?->format('d-m-Y H:i') . ' and locked',
             };
             $this->log($id, $stage . ($approve ? '_approved' : '_rejected'), $summary . ($comment !== '' ? '. Comment: ' . $comment : '.'));
 
-            // A campaign already scheduled or sent is left alone.
+            // A newsletter already scheduled or sent is left alone.
             if (!Campaign::isLocked($campaign)) {
                 if (!$approve) {
                     Campaign::update($campaignId, ['status' => Campaign::CONTENT_REVISION]);
                 } elseif ($stage === ApprovalDecision::STAGE_BPT) {
                     Campaign::update($campaignId, ['status' => Campaign::AUDIENCE_VALIDATION]);
                 } elseif ($stage === ApprovalDecision::STAGE_FINAL) {
-                    Campaign::update($campaignId, ['status' => Campaign::SCHEDULED, 'scheduled_at' => $sendAt?->format('Y-m-d H:i:s')]);
+                    Campaign::update($campaignId, [
+                        'status'       => Campaign::SCHEDULED,
+                        'send_now'     => $sendNow,
+                        'scheduled_at' => $sendAt?->format('Y-m-d H:i:s'),
+                    ]);
                 }
             }
-            // Step 5: automated QA on the campaign design.
+            // Step 5: automated QA on the newsletter design.
             if ($approve && $stage === ApprovalDecision::STAGE_BPT) {
                 (new QaQueue($this->db))->queue($campaignId, $id, 'bpt_approved', $this->auth->staffId, $this->auth->staffName);
             }
@@ -398,7 +415,24 @@ final class ApprovalController extends Controller
         return $this->detail($id);
     }
 
-    /** Latest QA run of the review's campaign (worked inline when no cron has). */
+    /**
+     * "Don't send it" after final approval: the newsletter goes back to
+     * content revision and this review is marked rejected (CampaignRecall).
+     * Only while the newsletter is scheduled and has not started sending.
+     */
+    private function recall(): array
+    {
+        $id = $this->requireId('Review');
+        $approval = Approval::findOrFail($id);
+        if (!Approval::canDecide($this->auth, ApprovalDecision::STAGE_FINAL)) {
+            throw new HttpException('Only ' . Approval::STAGE_OWNERS[ApprovalDecision::STAGE_FINAL] . ' (or a superadmin) can recall a newsletter.', 403);
+        }
+        (new CampaignRecall($this->db))->recall((int) $approval['campaign_id'], $this->auth);
+
+        return $this->detail($id);
+    }
+
+    /** Latest QA run of the review's newsletter (worked inline when no cron has). */
     private function qaStatus(): ?array
     {
         $approval = Approval::findOrFail($this->requireId('Review'));
@@ -423,7 +457,7 @@ final class ApprovalController extends Controller
         return (new QaQueue($this->db))->queue((int) $approval['campaign_id'], (int) $approval['id'], 'manual', $this->auth->staffId, $this->auth->staffName);
     }
 
-    /** Add UTM tags to the campaign design, save it as a new version, queue QA. */
+    /** Add UTM tags to the newsletter design, save it as a new version, queue QA. */
     private function qaUtm(): array
     {
         $approval = Approval::findOrFail($this->requireId('Review'));
@@ -431,13 +465,13 @@ final class ApprovalController extends Controller
         $campaignId = (int) $approval['campaign_id'];
         $campaign = Campaign::findOrFail($campaignId);
         if (!in_array((int) $campaign['status'], [1, 2, 3, 4, 5], true)) {
-            throw new HttpException('The campaign is scheduled or sent - its design can no longer change.', 422);
+            throw new HttpException('The newsletter is scheduled or sent - its design can no longer change.', 422);
         }
         $content = CampaignContent::forCampaign($campaignId);
         $tagger = new UtmTagger((string) $campaign['name']);
         $json = is_array($content['editor_json'] ?? null) ? $tagger->editorJson($content['editor_json']) : null;
         CampaignContent::saveBody($campaignId, $tagger->html((string) $content['html']), $json);
-        $this->log((int) $approval['id'], 'updated', 'Added UTM tags to every link in the campaign design.');
+        $this->log((int) $approval['id'], 'updated', 'Added UTM tags to every link in the newsletter design.');
 
         return (new QaQueue($this->db))->queue($campaignId, (int) $approval['id'], 'manual', $this->auth->staffId, $this->auth->staffName);
     }
@@ -450,7 +484,7 @@ final class ApprovalController extends Controller
         }
     }
 
-    /** A campaign no longer under BPT review (request deleted or moved) goes back to pending submission. */
+    /** A newsletter no longer under BPT review (request deleted or moved) goes back to pending submission. */
     private function releaseCampaign(int $campaignId): void
     {
         $campaign = Campaign::find($campaignId);
@@ -472,7 +506,7 @@ final class ApprovalController extends Controller
     }
 
     /**
-     * Field-by-field edits for the log: title and campaign with old / new
+     * Field-by-field edits for the log: title and newsletter with old / new
      * value; rich-text fields only as "edited" (their HTML is not repeated).
      *
      * @return list<array{label: string, from: string, to: string}>
@@ -485,7 +519,7 @@ final class ApprovalController extends Controller
         }
         if ((int) $old['campaign_id'] !== (int) $new['campaign_id']) {
             $name = static fn (int $cid): string => (string) (Campaign::find($cid)['name'] ?? ('#' . $cid));
-            $out[] = ['label' => 'Campaign', 'from' => $name((int) $old['campaign_id']), 'to' => $name((int) $new['campaign_id'])];
+            $out[] = ['label' => 'Newsletter', 'from' => $name((int) $old['campaign_id']), 'to' => $name((int) $new['campaign_id'])];
         }
         foreach (['objective' => 'Objective', 'audience_brief' => 'Audience brief', 'copywriting' => 'Copywriting'] as $field => $label) {
             if ((string) $old[$field] !== (string) $new[$field]) {

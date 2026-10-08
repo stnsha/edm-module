@@ -17,6 +17,9 @@ use Exception;
  *
  *   Delivery         send log -> delivered
  *   Bounce           send log -> bounced; Permanent = suppress (hard_bounce).
+ *                    An address SES Auto Validation blocked before sending
+ *                    (bounceSubType EmailValidationSuppressed) is suppressed
+ *                    the same way, whatever its bounceType.
  *                    Transient (soft) bounces are recorded only - the spec's
  *                    "retry once after 3 days" is not built yet.
  *   Complaint        send log -> complained; suppress (spam_complaint)
@@ -30,6 +33,9 @@ use Exception;
  */
 final class EventHandler
 {
+    /** bounceSubType of an address SES Auto Validation refused to send to. */
+    private const VALIDATION_SUPPRESSED = 'EmailValidationSuppressed';
+
     public function __construct(private Database $db)
     {
     }
@@ -61,7 +67,8 @@ final class EventHandler
                 break;
             case 'Bounce':
                 $this->mark($messageId, 'bounced_at', $at, SendLog::BOUNCED, [SendLog::SENT, SendLog::DELIVERED]);
-                if (($detail['bounceType'] ?? '') === 'Permanent') {
+                if (($detail['bounceType'] ?? '') === 'Permanent'
+                    || ($detail['bounceSubType'] ?? '') === self::VALIDATION_SUPPRESSED) {
                     foreach ($detail['bouncedRecipients'] ?? [] as $r) {
                         Suppression::suppress(
                             (string) ($r['emailAddress'] ?? ''),

@@ -13,7 +13,7 @@ CREATE TABLE `edm_custom_fields` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `key` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `label` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `type` enum('text','number','date','boolean','select') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'text',
+  `type` enum('text','number','date','boolean','select','multiselect') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'text',
   `options` json DEFAULT NULL,
   `category` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `is_active` tinyint(1) NOT NULL DEFAULT '1',

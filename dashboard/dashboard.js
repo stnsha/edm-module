@@ -32,7 +32,7 @@
             var c = d.campaigns || {}, a = d.audience || {}, s = d.senders || {}, del = d.delivery || {};
 
             stat('campaigns', c.total || 0, (c.scheduled || 0) + ' scheduled');
-            stat('lists', a.lists || 0, (a.list_members || 0) + ' members');
+            stat('contacts', a.contacts || 0, (a.subscribed || 0) + ' subscribed');
             stat('suppressed', a.suppressed || 0, 'addresses');
             stat('senders', (s.verified || 0) + ' / ' + (s.total || 0), 'verified / total');
             stat('delivery', (del.delivery_rate || 0) + '%', (del.delivered || 0) + ' of ' + (del.sent || 0) + ' sent');

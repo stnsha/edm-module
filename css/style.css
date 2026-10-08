@@ -2151,7 +2151,7 @@ button {
 }
 
 /* ---------------------------------------------------------------
-   Campaigns (campaign/) - Preview modal
+   Newsletters (campaign/) - Preview modal
 --------------------------------------------------------------- */
 .edm-nl-preview-frame {
     display: block;
@@ -2292,6 +2292,452 @@ button {
     margin-bottom: 4px;
 }
 
+/* Email creator wizard (email-builder/index.php): stepper + one pane per
+   step (Setup, Recipients, Design, Review). */
+.edm-wiz-steps {
+    display: flex;
+    align-items: flex-start;
+    width: 100%;
+    margin: 0 auto 24px;
+    max-width: 760px;
+}
+.edm-wiz-step {
+    position: relative;
+    flex: 1 1 0;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    gap: 6px;
+    padding: 0;
+    border: 0;
+    background: none;
+    color: #6c757d;
+    font-size: 13px;
+    cursor: pointer;
+}
+/* Connector line to the previous step */
+.edm-wiz-step + .edm-wiz-step::before {
+    content: "";
+    position: absolute;
+    top: 17px;
+    right: calc(50% + 24px);
+    left: calc(-50% + 24px);
+    height: 2px;
+    background: #dee2e6;
+}
+.edm-wiz-step.is-done + .edm-wiz-step::before,
+.edm-wiz-step.is-done + .edm-wiz-step.is-active::before {
+    background: #198754;
+}
+.edm-wiz-dot {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    width: 36px;
+    height: 36px;
+    border: 2px solid #dee2e6;
+    border-radius: 50%;
+    background: #fff;
+    color: #6c757d;
+    font-size: 14px;
+    font-weight: 600;
+    transition: background-color .15s, border-color .15s, color .15s;
+}
+.edm-wiz-step:hover .edm-wiz-dot {
+    border-color: #0d6efd;
+    color: #0d6efd;
+}
+.edm-wiz-step.is-done .edm-wiz-dot {
+    border-color: #198754;
+    background: #198754;
+    color: #fff;
+}
+.edm-wiz-step.is-done .edm-wiz-label {
+    color: #198754;
+}
+.edm-wiz-step.is-active .edm-wiz-dot {
+    border-color: #0d6efd;
+    background: #0d6efd;
+    color: #fff;
+    box-shadow: 0 0 0 4px rgba(13, 110, 253, .15);
+}
+.edm-wiz-step.is-active .edm-wiz-label {
+    color: #0d6efd;
+    font-weight: 600;
+}
+.edm-wiz-pane {
+    max-width: 760px;
+    margin: 0 auto 16px;
+}
+.edm-wiz-pane--wide {
+    max-width: none;
+}
+.edm-wiz-pane[hidden] {
+    display: none;
+}
+.edm-wiz-title {
+    margin: 0 0 4px;
+    font-size: 18px;
+    font-weight: 600;
+}
+.edm-wiz-sub {
+    margin-bottom: 18px;
+    font-size: 13px;
+    color: #6c757d;
+}
+.edm-wiz .form-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #495057;
+    margin-bottom: 4px;
+}
+.edm-wiz-nav {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    gap: 8px;
+    margin-top: 24px;
+    padding-top: 16px;
+    border-top: 1px solid #e9ecef;
+}
+.edm-wiz-design-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: flex-end;
+    justify-content: space-between;
+    gap: 12px;
+    margin-bottom: 12px;
+}
+.edm-wiz-tools {
+    display: flex;
+    gap: 8px;
+}
+/* Review summary: label / value / Edit per row */
+.edm-wiz-summary {
+    margin: 0;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+}
+.edm-wiz-row {
+    display: grid;
+    grid-template-columns: 140px minmax(0, 1fr) auto;
+    gap: 12px;
+    align-items: baseline;
+    padding: 10px 14px;
+    border-top: 1px solid #f1f3f5;
+}
+.edm-wiz-row:first-child {
+    border-top: 0;
+}
+.edm-wiz-row dt {
+    font-size: 13px;
+    font-weight: 600;
+    color: #6c757d;
+}
+.edm-wiz-row dd {
+    margin: 0;
+    font-size: 14px;
+    overflow-wrap: anywhere;
+}
+.edm-wiz-row.is-missing dd:not(.edm-wiz-row-edit) {
+    color: #b02a37;
+}
+.edm-wiz-row-edit .btn-link {
+    font-size: 13px;
+    text-decoration: none;
+}
+.edm-wiz-thumb {
+    max-width: 160px;
+    max-height: 90px;
+    border: 1px solid #e9ecef;
+    border-radius: 6px;
+}
+/* Three-step stepper (template editor) stays as compact as the five-step one */
+.edm-wiz-steps--3 {
+    max-width: 520px;
+}
+.edm-wiz-row-note {
+    margin-top: 2px;
+    font-size: 12px;
+    color: #6c757d;
+}
+.edm-wiz-subtitle {
+    margin: 24px 0 8px;
+    font-size: 15px;
+    font-weight: 600;
+}
+/* Tracking toggles and Send "When" choices: one bordered row each */
+.edm-wiz-toggles,
+.edm-wiz-when {
+    display: grid;
+    gap: 8px;
+}
+.edm-wiz-when {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+.edm-wiz-toggle,
+.edm-wiz-when-opt {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    margin: 0;
+    padding: 12px 14px;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    background: #fff;
+    font-size: 14px;
+    cursor: pointer;
+}
+.edm-wiz-when-opt:has(input:checked) {
+    border-color: #0d6efd;
+    background: #f4f8ff;
+}
+.edm-wiz-toggle .form-switch .form-check-input {
+    margin-left: -2.5em;
+}
+.edm-wiz-toggle .form-switch {
+    padding-left: 2.5em;
+}
+.edm-wiz-when-opt .form-check-input {
+    flex: 0 0 auto;
+    width: 18px;
+    height: 18px;
+    margin: 2px 0 0;
+    border: 2px solid #adb5bd;
+}
+.edm-wiz-when-opt .form-check-input:checked {
+    border-color: #0d6efd;
+}
+.edm-wiz-toggle-hint {
+    display: block;
+    font-size: 12px;
+    color: #6c757d;
+}
+.edm-wiz-example {
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: #f4f6f8;
+    color: #495057;
+    font-size: 12px;
+    overflow-wrap: anywhere;
+}
+/* Preview message: inbox-style line above the email */
+.edm-wiz-inbox {
+    padding: 12px 16px;
+    border-bottom: 1px solid #e9ecef;
+    background: #f8f9fa;
+    font-size: 14px;
+}
+.edm-wiz-inbox-from {
+    font-size: 12px;
+    color: #6c757d;
+}
+/* Recall window after final approval (approval/edit.php) */
+.edm-recall-bar {
+    padding: 10px 16px;
+    background: #f4f8ff;
+    color: #0b5ed7;
+    font-size: 13px;
+}
+.edm-recall-bar.is-live {
+    background: #fff8e1;
+    color: #664d03;
+}
+.edm-recall-bar.is-done {
+    background: #eef8f2;
+    color: #146c43;
+}
+.edm-recall-bar.is-recalled {
+    background: #fdecee;
+    color: #b02a37;
+}
+.edm-recall-progress {
+    height: 4px;
+    margin-top: 8px;
+    border-radius: 2px;
+    background: rgba(0, 0, 0, .08);
+    overflow: hidden;
+}
+.edm-recall-progress span {
+    display: block;
+    height: 100%;
+    background: #fd7e14;
+    transition: width 1s linear;
+}
+
+/* Newsletter tags: chip input (Email creator Setup) and list chips */
+.edm-tag-input {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 6px;
+    min-height: 38px;
+    padding: 4px 8px;
+    border: 1px solid #dee2e6;
+    border-radius: 6px;
+    background: #fff;
+    cursor: text;
+}
+.edm-tag-input:focus-within {
+    border-color: #86b7fe;
+    box-shadow: 0 0 0 .25rem rgba(13, 110, 253, .15);
+}
+.edm-tag-input input {
+    flex: 1 1 120px;
+    min-width: 120px;
+    border: 0;
+    outline: 0;
+    padding: 4px 2px;
+    background: transparent;
+}
+.edm-tag-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    padding: 2px 4px 2px 9px;
+    border-radius: 999px;
+    background: #eef2ff;
+    color: #3949ab;
+    font-size: 13px;
+    white-space: nowrap;
+}
+.edm-tag-chip.is-new {
+    background: #fff8e1;
+    color: #8a6d00;
+    border: 1px dashed #e0c36a;
+}
+.edm-tag-chip button {
+    width: 18px;
+    height: 18px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: inherit;
+    font-size: 15px;
+    line-height: 1;
+}
+.edm-tag-chip button:hover {
+    background: rgba(0, 0, 0, .08);
+}
+.edm-tag-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 4px;
+}
+.edm-tag-chips .edm-tag-chip {
+    padding: 1px 8px;
+    font-size: 12px;
+}
+
+/* Recipients picker (js/edm-audience-picker.js) */
+.edm-aud-side {
+    margin-bottom: 12px;
+    padding: 12px 14px;
+    border: 1px solid #e9ecef;
+    border-radius: 8px;
+    background: #fff;
+}
+.edm-aud-side-head {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: baseline;
+    gap: 4px 10px;
+    margin-bottom: 8px;
+}
+.edm-aud-side-title {
+    font-size: 14px;
+    font-weight: 600;
+}
+.edm-aud-side-hint {
+    font-size: 12px;
+    color: #6c757d;
+}
+.edm-aud-chips {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px;
+    min-height: 28px;
+    margin-bottom: 10px;
+}
+.edm-aud-empty {
+    font-size: 13px;
+    color: #6c757d;
+    line-height: 28px;
+}
+.edm-aud-chip {
+    display: inline-flex;
+    align-items: center;
+    gap: 6px;
+    padding: 3px 4px 3px 10px;
+    border-radius: 999px;
+    background: #e7f0ff;
+    color: #0b5ed7;
+    font-size: 13px;
+}
+.edm-aud-chip--exclude {
+    background: #fdecee;
+    color: #b02a37;
+}
+.edm-aud-chip-x {
+    width: 20px;
+    height: 20px;
+    padding: 0;
+    border: 0;
+    border-radius: 50%;
+    background: transparent;
+    color: inherit;
+    font-size: 16px;
+    line-height: 1;
+}
+.edm-aud-chip-x:hover {
+    background: rgba(0, 0, 0, .08);
+}
+.edm-aud-results {
+    width: calc(100% - 12px);
+    max-height: 260px;
+    overflow-y: auto;
+}
+.edm-aud-result {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 2px 8px;
+    font-size: 13px;
+}
+.edm-aud-result-name {
+    color: #6c757d;
+    font-size: 12px;
+}
+.edm-aud-count {
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: #f4f6f8;
+    font-size: 13px;
+}
+.edm-aud-count.is-ok {
+    background: #eef8f2;
+    color: #146c43;
+}
+.edm-aud-count.is-warn {
+    background: #fff8e1;
+    color: #664d03;
+}
+@media (max-width: 575.98px) {
+    .edm-wiz-when {
+        grid-template-columns: minmax(0, 1fr);
+    }
+    .edm-wiz-label {
+        font-size: 11px;
+    }
+    .edm-wiz-row {
+        grid-template-columns: minmax(0, 1fr) auto;
+    }
+    .edm-wiz-row dt {
+        grid-column: 1 / -1;
+    }
+}
+
 /* Field help text under inputs in the edm-crud add / edit modal
    (e.g. Custom fields > Options: "Ignored unless Type is select."). */
 #edm-crud-form .form-text {
@@ -2300,6 +2746,11 @@ button {
 
 
 /* Contacts > Import contacts (audience/import.php) */
+/* Step 3 result line ("Import finished: ...") */
+#edm-imp-done-msg {
+    font-size: 12px;
+}
+
 /* Step breadcrumbs: pills with chevrons in a grey band */
 .edm-imp-steps-bar {
     margin: 0 0 24px;
@@ -2758,7 +3209,7 @@ button {
 }
 
 /* Calendar: a day with more than one send / reservation (calendar/calendar.js) */
-/* Seven equal day columns whatever the content: a long campaign name is cut
+/* Seven equal day columns whatever the content: a long newsletter name is cut
    with an ellipsis (full name in the title tooltip) instead of widening the
    column. */
 .edm-calendar {
@@ -2779,6 +3230,27 @@ button {
 }
 
 /* Segment condition builder (js/edm-crud.js type: 'rules') */
+.edm-rules-help {
+    display: flex;
+    align-items: flex-start;
+    gap: 8px;
+    margin-bottom: 12px;
+    padding: 8px 12px;
+    border-radius: 8px;
+    background: #f4f8ff;
+    color: #495057;
+    font-size: 12px;
+    line-height: 1.5;
+}
+/* odb's common CSS sizes every div; keep the hint text at 12px. */
+.edm-rules-help div,
+.edm-rules-help strong {
+    font-size: 12px;
+}
+.edm-rules-help .bi {
+    margin-top: 1px;
+    color: #0b5ed7;
+}
 .edm-rules-match-row {
     display: flex;
     flex-wrap: wrap;
@@ -2811,7 +3283,11 @@ button {
     background: #f7f9fc;
 }
 .edm-rule-group > .edm-rules-add {
-    margin-bottom: 8px;
+    margin: -2px 0 8px;
+    padding: 2px 4px;
+    font-size: 13px;
+    font-weight: 500;
+    text-decoration: none;
 }
 .edm-rule-group-head .edm-rule-group-title {
     font-weight: 600;
@@ -2836,7 +3312,20 @@ button {
     display: none;
 }
 .edm-rules-add-group {
+    width: 100%;
     margin-top: 2px;
+    padding: 6px 12px;
+    border: 1px dashed #b6c4d8;
+    border-radius: 8px;
+    background: transparent;
+    color: #495057;
+    font-size: 13px;
+}
+.edm-rules-add-group:hover,
+.edm-rules-add-group:focus-visible {
+    border-color: #0b5ed7;
+    background: #f4f8ff;
+    color: #0b5ed7;
 }
 .edm-rule-value-wrap:empty::after {
     content: "No value needed";

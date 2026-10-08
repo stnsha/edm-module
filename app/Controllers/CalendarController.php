@@ -11,7 +11,7 @@ use Edm\Models\Campaign;
 use Edm\Models\CalendarSlot;
 
 /**
- * Campaign Calendar (calendar/). Actions:
+ * Newsletter Calendar (calendar/). Actions:
  *   month   { success, slots, campaigns } for ?from=&to= (Y-m-d)
  *   slots_(create|update|delete)
  */

@@ -79,6 +79,7 @@ export default function EmailLayoutEditor(props: EmailLayoutProps) {
           <tr style={{ width: '100%' }}>
             <td>
               <EditorChildrenIds
+                slot={{ parentId: currentBlockId }}
                 childrenIds={childrenIds}
                 onChange={({ block, blockId, childrenIds }) => {
                   setDocument({

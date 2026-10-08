@@ -1,7 +1,7 @@
 # EDM Platform - Build Spec (internal)
 
 Condensed from `SES_EDM_Frontend_Specification v1.0` (19 May 2026, Marketing / CRM
-Team). Amazon SES is the delivery engine only; this app owns all campaign logic,
+Team). Amazon SES is the delivery engine only; this app owns all newsletter logic,
 audience selection, scheduling, approval, and reporting.
 
 ## Architecture
@@ -11,7 +11,7 @@ POS / Membership  ->  Customer Data Warehouse  ->  CRM Segmentation
   ->  Automation Engine  ->  Amazon SES (send)  ->  Reporting (SES events via SNS/SQS -> BI DB)
 ```
 
-- SES API: campaign dispatch (`cron/send.php` -> `app/Services/Ses/CampaignSender`) +
+- SES API: newsletter dispatch (`cron/send.php` -> `app/Services/Ses/CampaignSender`) +
   SES event webhook (`public/ses-webhook.php`, SNS HTTPS). Built; see CLAUDE.md "Amazon SES".
 - Customer Data Warehouse: external, owned by BI. Source for all segmentation and
   personalisation. This app queries it, does not own it.
@@ -20,7 +20,7 @@ POS / Membership  ->  Customer Data Warehouse  ->  CRM Segmentation
 
 ## Access model
 
-`staff.edm` is the access tier only. Campaign ownership is separate.
+`staff.edm` is the access tier only. Newsletter ownership is separate.
 
 | edm | Tier        | Spec role(s)                        |
 | --- | ----------- | ---------------------------------- |
@@ -31,7 +31,7 @@ POS / Membership  ->  Customer Data Warehouse  ->  CRM Segmentation
 | 4   | management  | Management (read-only)            |
 
 "Project PIC / Requester" is not a tier. Any staff with `edm` in (1,2,3) can raise
-a campaign; management (4) is read-only. Ownership is tracked per campaign in
+a newsletter; management (4) is read-only. Ownership is tracked per newsletter in
 `campaigns.requested_by` / `requested_by_name` (snapshot), same split as the atem
 module's `issuer_staff_id` vs `staff.atem` grade. Owner-only actions (edit own
 draft, resubmit revision, view own status) are gated by `requested_by === staff_id`
@@ -42,10 +42,10 @@ with superadmin / BPT override.
 | Module              | Folder            | Phase | Menu gate            |
 | ------------------- | ----------------- | ----- | ------------------- |
 | Dashboard (incl. Reporting Dashboard) | `dashboard/` | 1 | edm >= 1     |
-| Campaign Management  | `campaign/`       | 1     | edm in (1,2,3)      |
+| Newsletter Management  | `campaign/`       | 1     | edm in (1,2,3)      |
 | Email Builder       | `email-builder/`  | 1     | edm in (1,2,3)      |
 | Audience Builder    | `audience/`       | 1     | edm in (1,2,3)      |
-| Campaign Calendar   | `calendar/`       | 1     | edm >= 1            |
+| Newsletter Calendar   | `calendar/`       | 1     | edm >= 1            |
 | Suppression Centre  | `suppression/`    | 1     | edm in (1,2,3)      |
 | Settings            | `settings/`       | 1     | edm == 1 / superadmin |
 | Automation Builder  | `automation/`     | 2     | edm in (1,2,3)      |
@@ -57,7 +57,7 @@ Phase 1 folders are scaffolded as empty-card stubs plus an `api.php` router
 skeleton. Real screens and endpoints are filled in per feature; every endpoint
 change goes through the module's MVC layer (see CLAUDE.md "MVC layer").
 
-## Campaign status flow (9)
+## Newsletter status flow (9)
 
 `draft` -> `pending_submission` -> `under_bpt_review` -> `content_revision`
 -> `audience_validation` -> `scheduled` -> `sending` -> `completed` -> `archived`
@@ -73,7 +73,7 @@ BI/CRM; Sending/Completed/Archived = system).
 3. BPT checks calendar for a free slot; conflict detection runs.
 4. BI / CRM validates audience segment (LOFRA + suppression filters).
 5. Automated QA runs (see below).
-6. Final approval; campaign locked.
+6. Final approval; newsletter locked.
 7. SES queue triggered at scheduled datetime.
 8. Reporting dashboard updated with live delivery data.
 
@@ -97,7 +97,7 @@ recovery actions (e.g. re-validate an address).
 
 Demographic (gender, age range, race, nationality, preferred language);
 Location (state, city, create outlet, last visit outlet);
-Membership (type, member code, personal/corporate, client sales category);
+Membership (type, personal/corporate, client sales category);
 Purchase (product category, brand, frequency, last purchase date, total spend);
 Engagement (score, open/click history, dormant flag);
 RFM / LOFRA (VIP, Loyal, Potential Loyalist, New, At Risk, Dormant | Loyal, Fresh,
@@ -110,7 +110,7 @@ data comes from the Customer Data Warehouse.
 
 ## Dynamic content variables
 
-`{{FirstName}}` `{{LastName}}` `{{MemberCode}}` `{{MembershipType}}`
+`{{FirstName}}` `{{LastName}}` `{{MembershipType}}`
 `{{PointsBalance}}` `{{PointsExpiry}}` `{{VoucherCode}}` `{{NearestOutlet}}`
 `{{UnsubscribeLink}}` (mandatory footer). QA blocks any unresolved / blank variable.
 
@@ -121,7 +121,7 @@ render; unsubscribe footer present; subject line <= 60 chars; UTM parameters on 
 links; every `{{variable}}` resolved; high-bounce-rate alert; SES sending quota
 verified.
 
-## Reporting KPIs (per campaign, per segment, platform level)
+## Reporting KPIs (per newsletter, per segment, platform level)
 
 Delivery rate >= 98%; open rate; CTR; CTOR; bounce rate < 2%; unsubscribe < 0.5%;
 spam complaint < 0.08%; revenue attributed (UTM / order tracking); conversion rate;
@@ -141,7 +141,7 @@ exit conditions, per-journey analytics.
 
 ## Phase plan
 
-- Phase 1 Foundation: Campaign Management, Email Builder, Audience Builder,
+- Phase 1 Foundation: Newsletter Management, Email Builder, Audience Builder,
   Scheduling, SES API integration, core Reporting, Contact Segmentation,
   Suppression Centre.
 - Phase 2 Automation: visual Automation Builder, Welcome / Birthday /
@@ -159,7 +159,7 @@ RFM recalculation: automated monthly job vs manual BI trigger.
 A/B testing: subject-line-only vs full content for Phase 1.
 AI provider: in-house LLM vs third-party API.
 Multi-language UI: required or English only.
-Archival retention period for completed campaigns and email content.
+Archival retention period for completed newsletters and email content.
 SES sending domains: count in scope; DKIM / SPF per domain.
 
 ## GetResponse parity (IA + terminology)
@@ -167,7 +167,7 @@ SES sending domains: count in scope; DKIM / SPF per domain.
 The marketing / CRM team is moving off GetResponse (`app.getresponse.com`);
 GetResponse is being cancelled, not integrated. This module is its replacement.
 To keep the switch familiar, the navigation grouping, screen labels, and the
-campaign creation flow mirror GetResponse. Folder names on disk stay
+newsletter creation flow mirror GetResponse. Folder names on disk stay
 spec-aligned (code identity, drives navbar active state); the display label is
 decoupled via the `$edm_nav` map in `navbar.php`.
 
@@ -176,19 +176,20 @@ decoupled via the `$edm_nav` map in `navbar.php`.
 | Nav group / item        | Folder / file                     | Spec module          | Gate  |
 | ----------------------- | --------------------------------- | -------------------- | ----- |
 | Dashboard               | `dashboard/index.php`             | Dashboard + Reporting Dashboard | view  |
-| Contacts > Lists        | `audience/index.php`              | Audience Builder     | build |
+| Contacts > All contacts | `audience/index.php`              | Audience Builder     | build |
+| (no menu entry; via All contacts > Import contacts, keeps All contacts active) | `audience/import.php` | Audience Builder | build |
 | Contacts > Segments     | `audience/segments.php`           | Audience Builder     | build |
 | Contacts > Custom fields | `audience/fields.php`            | Audience Builder     | build |
 | (not in menu) Tags       | `audience/tags.php`             | Audience Builder     | build |
-| Contacts > Suppression lists | `suppression/index.php`       | Suppression Centre   | build |
-| Campaigns > All campaigns | `campaign/index.php`       | Campaign Management  | build |
-| (no menu entry; via Campaigns > Design, keeps All campaigns active) | `email-builder/index.php` | Email Builder | build |
+| Contacts > Exclusion lists | `suppression/index.php`         | Suppression Centre   | build |
+| Newsletters > All newsletters | `campaign/index.php`       | Newsletter Management  | build |
+| (no menu entry; via Newsletters > Design, keeps All newsletters active) | `email-builder/index.php` | Email Builder | build |
 | Automation > Workflows   | `automation/index.php`           | Automation Builder   | build |
 | Automation > Autoresponders | `automation/autoresponders.php` | Automation Builder | build |
-| Calendar                | `calendar/index.php`             | Campaign Calendar    | view  |
-| Campaigns > Templates | `templates/index.php`           | Template Library     | build |
+| Calendar                | `calendar/index.php`             | Newsletter Calendar    | view  |
+| Newsletters > Templates | `templates/index.php`           | Template Library     | build |
 | (no menu entry; via Templates > Edit / Design template) | `templates/edit.php` | Template Library | build |
-| Campaigns > Files     | `assets/index.php`              | Asset Library        | build |
+| Newsletters > Files     | `assets/index.php`              | Asset Library        | build |
 | Approval                | `approval/index.php`           | Approval Centre      | build |
 | Settings > Senders      | `settings/senders.php`         | Settings             | super |
 | Settings > Sending domains | `settings/domains.php`       | Settings             | super |
@@ -201,25 +202,26 @@ Gates: `build` = edm in (1,2,3); `view` = edm >= 1; `super` = edm == 1.
 
 | GetResponse                | This module        |
 | -------------------------- | ------------------ |
-| Campaign (legacy = a list) | List               |
-| Newsletter                 | Campaign         |
+| Campaign (legacy = a list) | (none - one contact masterlist) |
+| Newsletter                 | Newsletter         |
 | Autoresponder              | Autoresponder      |
 | Marketing Automation       | Workflow           |
 | Segment                    | Segment            |
-| Suppression list / Blacklist | Suppression list |
+| Suppression list / Blacklist | Exclusion list |
 | From field                 | Sender             |
 | Statistics                 | Dashboard          |
 | File manager               | Files              |
 | Message template           | Template           |
 
 Never use the bare word "Campaign" for the audience container - that is
-GetResponse's legacy meaning and the top source of confusion. The container is a
-"List".
+GetResponse's legacy meaning and the top source of confusion. There are no
+contact lists: every contact is on one masterlist (Contacts > All contacts),
+and a newsletter's audience is all subscribed contacts or a Segment.
 
-### Campaign creation flow (GetResponse 3-step wizard shape)
+### Newsletter creation flow (GetResponse 3-step wizard shape)
 
 1. Setup - name, subject + A/B subject variant, sender (`settings/senders.php`),
-   reply-to, recipient Lists / Segments, UTM auto-tag. Creates campaign at
+   reply-to, recipient Segment (none = all subscribed contacts), UTM auto-tag. Creates newsletter at
    status `draft`.
 2. Design - template picker -> Email creator (drag-drop + HTML) -> desktop /
    mobile preview -> spam score -> dynamic variable insertion -> test send.
@@ -259,8 +261,8 @@ Ownership boundaries:
 
 | Module      | Tables                                                                                                                                          | Phase |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
-| Contacts    | `edm_lists`, `edm_list_members` (by member code), `edm_segments` (filter JSON), `edm_tags`, `edm_member_tags`, `edm_custom_fields`               | 1     |
-| Campaigns | `edm_campaigns` (9-status enum, `requested_by` / `requested_by_name` snapshot), `edm_campaign_content` (html + editor JSON + version), `edm_campaign_ab_variants`, `edm_campaign_recipients` (resolved snapshot), `edm_campaign_status_log` | 1 |
+| Contacts    | `edm_contacts` (the masterlist, one row per email), `edm_segments` (filter JSON), `edm_tags`, `edm_member_tags`, `edm_custom_fields`               | 1     |
+| Newsletters | `edm_campaigns` (9-status enum, `requested_by` / `requested_by_name` snapshot), `edm_campaign_content` (html + editor JSON + version), `edm_campaign_ab_variants`, `edm_campaign_recipients` (resolved snapshot), `edm_campaign_status_log` | 1 |
 | Suppression | `edm_suppressions` (email, reason enum, source), `edm_send_log` (drives 8/month, 2/week, 1/day rolling caps)                                     | 1     |
 | Calendar    | `edm_calendar_slots` (slot allocation + conflict detection)                                                                                      | 1     |
 | Settings    | `edm_senders` (from-field + verified flag), `edm_sending_domains` (dkim / spf status), `edm_settings` (kv)                                        | 1     |

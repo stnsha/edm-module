@@ -12,13 +12,13 @@ use Throwable;
 
 /**
  * Automated QA queue (spec 5.2 step 5). A run is queued when the BPT team
- * approves a review, when a campaign whose last run failed is saved again,
+ * approves a review, when a newsletter whose last run failed is saved again,
  * or by the "Run again" button; it is worked by cron/qa.php (every minute)
  * or, when no cron runs (local development), by the review page's status
  * poll. A run is claimed with a conditional UPDATE, so two workers never
  * run the same one; a run stuck in "running" for 10 minutes is retried.
  *
- * The outcome is written to the campaign's QA row and, when the run belongs
+ * The outcome is written to the newsletter's QA row and, when the run belongs
  * to a review, to that review's Activity Log (qa_passed / qa_failed).
  */
 final class QaQueue
@@ -30,7 +30,7 @@ final class QaQueue
     }
 
     /**
-     * Queue a run unless one is already queued / running for the campaign.
+     * Queue a run unless one is already queued / running for the newsletter.
      *
      * @return array<string, mixed> the queued (or already pending) run
      */
@@ -51,7 +51,7 @@ final class QaQueue
         ]);
     }
 
-    /** After a save: check again when the campaign's last run failed. */
+    /** After a save: check again when the newsletter's last run failed. */
     public function requeueIfFailed(int $campaignId, ?int $staffId, ?string $staffName): void
     {
         $last = CampaignQa::latest($campaignId);
@@ -62,7 +62,7 @@ final class QaQueue
 
     /**
      * Work queued runs (oldest first) until none is left or the deadline
-     * passes. $campaignId limits it to one campaign (the review page poll).
+     * passes. $campaignId limits it to one newsletter (the review page poll).
      *
      * @return int runs finished
      */
@@ -119,7 +119,7 @@ final class QaQueue
             ? 'Automated QA failed: ' . implode(', ', $failed) . '.'
             : 'Automated QA passed' . ($warned !== [] ? ' with warnings: ' . implode(', ', $warned) . '.' : '.');
         if ($log !== null) {
-            $log('Campaign #' . $run['campaign_id'] . ' - ' . $summary);
+            $log('Newsletter #' . $run['campaign_id'] . ' - ' . $summary);
         }
         if ($run['approval_id'] !== null && Approval::find((int) $run['approval_id']) !== null) {
             ApprovalLog::create([

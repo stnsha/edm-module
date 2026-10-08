@@ -152,29 +152,61 @@ C:\xampp\mysql\bin\mysql.exe -u root -p odb < sql\check_schema.sql
 
 **Path A - no EDM data to keep (first install, or only test data on the
 server).** Rebuild everything from scratch. This **deletes all rows in every
-`edm_*` table** (campaigns, contacts, approvals, send history):
+`edm_*` table** (newsletters, contacts, approvals, send history):
 
 ```bat
 C:\xampp\mysql\bin\mysql.exe -u root -p odb < sql\edm_master.sql
 ```
 
-**Path B - keep existing EDM data.** If `check_schema.sql` lists only
-columns from the table below, run the upgrade SQL that follows (it adds each
-column only when missing, so it is safe to run more than once):
+**Path B - keep existing EDM data.** Two steps, both safe to run more than
+once.
+
+Step 1 - contact lists to one masterlist. Contact lists are gone: every
+contact now lives once in `edm_contacts`, and a newsletter goes to every
+subscribed contact, narrowed by its segment. If the database still has
+`edm_lists` / `edm_list_members` (check_schema lists the `edm_contacts`
+table as missing), run:
+
+```bat
+C:\xampp\mysql\bin\mysql.exe -u root -p odb < sql\migrate_lists_to_masterlist.sql
+```
+
+It copies every contact once per email address (an unsubscribed or bounced
+status on any list wins), then removes the list columns from segments,
+autoresponders and newsletters and drops the two list tables. Review the
+newsletters that are not yet sent afterwards: one that was sent to a single
+list now goes to every subscribed contact unless it has a segment.
+
+Step 2 - Email creator wizard columns on `edm_campaigns` (recipients with
+include / exclude, send now, open / click / UTM tracking). Run once; it copies
+each newsletter's segment into the new recipients and drops `segment_id`:
+
+```bat
+C:\xampp\mysql\bin\mysql.exe -u root -p odb < sql\migrate_campaign_wizard.sql
+```
+
+Also run `sql\migrate_master_tags.sql` (newsletter tags: creates
+`edm_master_tags`, adds `edm_campaigns.tag_ids`; safe to run again) and
+`sql\migrate_workflow_content.sql` (workflow newsletter / template, custom
+triggers, and when to send: `trigger_type` + `timing`) (adds `edm_workflows.content_type`
+/ `content_id` - the newsletter or template a workflow sends; safe to run again).
+
+Optional: to honour "Open rate off" in a newsletter's Tracking step, create a
+second SES configuration set (a copy of `SES_CONFIGURATION_SET` whose event
+destination publishes every event except Open) and put its name in
+`SES_CONFIGURATION_SET_NO_OPENS` in `.env`. Without it opens stay tracked.
+
+Step 3 - if `check_schema.sql` still lists columns from the table below, run
+the upgrade SQL that follows (it adds each column only when missing):
 
 | Column | Added for |
 | ------ | --------- |
-| `edm_campaigns.all_lists` | "All lists" option for a campaign's recipient list |
 | `edm_custom_fields.category` | Field categories (Demographic, Location, ...) in the segment builder |
 | `edm_autoresponders.workflow_id` | Journey steps linked to their journey |
+| `edm_custom_fields.type` = `multiselect` | Multi-select custom fields (not listed by check_schema - run the ALTER below regardless) |
+| `edm_campaigns.reply_to_id` | Newsletter Reply-to chosen from Settings > Senders (also drops `edm_senders.reply_to`) |
 
 ```sql
--- edm_campaigns.all_lists ("All lists" recipient option)
-SET @s = IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'edm_campaigns' AND COLUMN_NAME = 'all_lists') = 0,
-    'ALTER TABLE `edm_campaigns` ADD COLUMN `all_lists` tinyint(1) NOT NULL DEFAULT ''0'' AFTER `list_id`',
-    'SELECT ''edm_campaigns.all_lists already there''');
-PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
-
 -- edm_custom_fields.category (segment builder field groups)
 SET @s = IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'edm_custom_fields' AND COLUMN_NAME = 'category') = 0,
     'ALTER TABLE `edm_custom_fields` ADD COLUMN `category` varchar(50) COLLATE utf8mb4_unicode_ci DEFAULT NULL AFTER `options`',
@@ -185,6 +217,22 @@ PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
 SET @s = IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'edm_autoresponders' AND COLUMN_NAME = 'workflow_id') = 0,
     'ALTER TABLE `edm_autoresponders` ADD COLUMN `workflow_id` bigint unsigned DEFAULT NULL AFTER `name`, ADD KEY `edm_autoresponders_workflow_id_foreign` (`workflow_id`), ADD CONSTRAINT `edm_autoresponders_workflow_id_foreign` FOREIGN KEY (`workflow_id`) REFERENCES `edm_workflows` (`id`) ON DELETE SET NULL',
     'SELECT ''edm_autoresponders.workflow_id already there''');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- edm_campaigns.reply_to_id (campaign Reply-to picked from Settings > Senders)
+SET @s = IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'edm_campaigns' AND COLUMN_NAME = 'reply_to_id') = 0,
+    'ALTER TABLE `edm_campaigns` ADD COLUMN `reply_to_id` bigint unsigned DEFAULT NULL AFTER `sender_id`',
+    'SELECT ''edm_campaigns.reply_to_id already there''');
+PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
+
+-- edm_custom_fields.type gains 'multiselect' (several options per contact).
+-- Safe to run again: MODIFY only widens the list of allowed values.
+ALTER TABLE `edm_custom_fields` MODIFY `type` enum('text','number','date','boolean','select','multiselect') COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'text';
+
+-- edm_senders.reply_to removed (Reply-to is chosen per campaign now)
+SET @s = IF((SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA = DATABASE() AND TABLE_NAME = 'edm_senders' AND COLUMN_NAME = 'reply_to') > 0,
+    'ALTER TABLE `edm_senders` DROP COLUMN `reply_to`',
+    'SELECT ''edm_senders.reply_to already gone''');
 PREPARE st FROM @s; EXECUTE st; DEALLOCATE PREPARE st;
 ```
 
@@ -215,11 +263,11 @@ exists (it never overwrites edits made in the app):
   abandonment, Bounce recovery) as drafts, with their 12 email steps
 - 2 starter templates (Basic newsletter, Birthday voucher)
 
-**Optional, test servers only:** `sql\edm_seed_uat.sql` adds a `UAT` list
-with 40 contacts on the Amazon SES mailbox simulator
+**Optional, test servers only:** `sql\edm_seed_uat.sql` adds 40 contacts
+on the Amazon SES mailbox simulator
 (`success+uatNN@simulator.amazonses.com` - accepted, never bounce, no
 reputation impact). Do not load it on a server that sends to real customers
-unless you delete that list afterwards.
+unless you delete those contacts afterwards.
 
 ---
 
@@ -253,7 +301,7 @@ minute, State: Hidden (no console window every minute).
 | File | Content |
 | ---- | ------- |
 | `cron.log` | Everything PHP printed, including a fatal error that stops a run before it can log. Check this first when nothing happens. |
-| `ses-send.log` | Send runs: "Campaign #N started sending", "Sent N email(s)", "completed" |
+| `ses-send.log` | Send runs: "Newsletter #N started sending", "Sent N email(s)", "completed" |
 | `qa.log` | Automated QA runs |
 
 A scheduler result of exit code 255 means PHP crashed - the reason is at the
@@ -280,7 +328,7 @@ end of `logs\cron.log`.
 5. **Production access** - while the SES account is in the sandbox, it only
    sends to verified addresses (Settings > Integrations shows the quota and
    sandbox state). Request production access in the AWS console before real
-   campaigns.
+   newsletters.
 
 ---
 
@@ -292,7 +340,7 @@ Settings > Users & permissions (superadmin only) - give each user a role
 | Role | Value | Can |
 | ---- | ----- | --- |
 | Superadmin | 1 | Everything, every approval stage |
-| Admin | 2 | Build campaigns; **audience validation** (approval step 4, until a BI role exists) |
+| Admin | 2 | Build newsletters; **audience validation** (approval step 4, until a BI role exists) |
 | BPT team | 3 | Build; **BPT review** (steps 2-3) and **final approval / scheduling** (step 6) |
 | Management | 4 | Read only |
 
@@ -305,14 +353,15 @@ inert on production.
 
 1. Open `https://<host>/odb/edm/` - the dashboard loads without PHP warnings.
 2. Contacts > Custom fields - 29 fields with categories. Contacts > Segments -
-   the pre-built segments show contact counts (0 is fine on an empty list).
+   the pre-built segments show contact counts (0 is fine with no contacts).
 3. Files - upload an image; its URL must start with `EDM_PUBLIC_URL`, not
    `localhost`.
-4. Create a campaign to a test list -> Submit -> Approval > Raise review ->
+4. Create a newsletter with a segment that matches only test contacts ->
+   Submit -> Approval > Raise review ->
    BPT approve -> Audience validation -> wait for Automated QA -> Final
    approval with a send time 3-5 minutes ahead.
-5. At that time `logs\ses-send.log` shows the campaign starting and
-   completing; the campaign status becomes Completed; the test inbox
+5. At that time `logs\ses-send.log` shows the newsletter starting and
+   completing; the newsletter status becomes Completed; the test inbox
    receives the email with images and a working Unsubscribe link.
 6. Click Unsubscribe in that email - the page loads over the public URL and
    the address appears in Suppression Centre.
@@ -330,17 +379,20 @@ composer install --no-dev --optimize-autoloader
 
 Then restore the database from `C:\edm-backup\edm-before-deploy.sql`
 (phpMyAdmin -> Import) and `.env` / `uploads` from `C:\edm-backup`. Stop the
-scheduler task while restoring so no campaign sends half-way.
+scheduler task while restoring so no newsletter sends half-way.
 
 ---
 
 ## Appendix - what this release changes
 
-**Schema** (section 6.2): `edm_campaigns.all_lists`,
-`edm_custom_fields.category`, `edm_autoresponders.workflow_id`.
+**Schema** (section 6.2): contact lists replaced by one masterlist
+(`edm_contacts`; `edm_lists`, `edm_list_members` and every `list_id` /
+`all_lists` column removed), `edm_custom_fields.category`,
+`edm_autoresponders.workflow_id`.
 
 **New files**: `sql/edm_seed.sql`, `sql/edm_seed_uat.sql`,
-`sql/check_schema.sql`, `app/Services/CampaignAudience.php`,
+`sql/check_schema.sql`, `sql/migrate_lists_to_masterlist.sql`,
+`sql/edm_truncate.sql`, `app/Services/CampaignAudience.php`,
 `app/Services/ScheduleReadiness.php`, this guide.
 
 **Behaviour**:
@@ -348,12 +400,14 @@ scheduler task while restoring so no campaign sends half-way.
 - Approval chain completed end to end: raise review -> BPT review ->
   audience validation (new) -> automated QA -> final approval with send date
   (new) -> Scheduled. Final approval is the only way to schedule; the
-  campaign is then locked. Campaigns list has a new Archive action for
-  completed campaigns.
-- Campaign recipient list can be "All lists" (each address once).
+  newsletter is then locked. Newsletters list has a new Archive action for
+  completed newsletters.
+- One contact masterlist instead of contact lists: Contacts > All contacts,
+  import straight into it, newsletters go to every subscribed contact or to a
+  segment.
 - Segments: AND / OR across condition groups; new date conditions (in the
   last N days, more than N days ago, in month, age between); engagement
-  conditions (opened / clicked in the last N days, in a campaign, ever /
+  conditions (opened / clicked in the last N days, in a newsletter, ever /
   never); fields grouped by category.
 - Contact import accepts dates as `YYYY-MM-DD`, `D/M/YYYY` (Excel CSV) and
   Excel date cells.

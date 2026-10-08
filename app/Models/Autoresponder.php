@@ -17,7 +17,7 @@ final class Autoresponder extends Model
 
     protected const TABLE = 'edm_autoresponders';
 
-    protected const FILLABLE = ['name', 'workflow_id', 'list_id', 'offset_days', 'subject', 'status'];
+    protected const FILLABLE = ['name', 'workflow_id', 'offset_days', 'subject', 'status'];
 
     protected const CASTS = ['status' => 'int', 'workflow_id' => 'int', 'offset_days' => 'int'];
 

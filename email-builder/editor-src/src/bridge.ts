@@ -1,7 +1,7 @@
 import { renderToStaticMarkup } from '@usewaypoint/email-builder';
 
 import { EditorConfigurationSchema, TEditorConfiguration } from './documents/editor/core';
-import { getDocument, resetDocument, subscribeDocument } from './documents/editor/EditorContext';
+import { getDocument, loadDocument, subscribeDocument } from './documents/editor/EditorContext';
 import EMPTY_EMAIL_MESSAGE from './getConfiguration/sample/empty-email-message';
 import { setAssets, TAsset } from './assets';
 import { setVariables, TVariable } from './variables';
@@ -130,7 +130,7 @@ export function startBridge() {
         setAssets(data.assets);
       }
       loading = true;
-      resetDocument(toDocument(data.document, data.html));
+      loadDocument(toDocument(data.document, data.html));
       loading = false;
       return;
     }

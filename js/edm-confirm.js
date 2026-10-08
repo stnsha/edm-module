@@ -10,7 +10,7 @@
  * it without a page needing to provide the HTML.
  *
  *   edmConfirm('Delete this list?', function () { ... });
- *   edmConfirm('Submit for review?', fn, { title: 'Submit campaign', variant: 'info', confirmLabel: 'Submit' });
+ *   edmConfirm('Submit for review?', fn, { title: 'Submit newsletter', variant: 'info', confirmLabel: 'Submit' });
  *   edmAlert('Saved.', { variant: 'success', title: 'Done' });
  *   edmPrompt('Why is it rejected?', function (text) { ... },
  *             { title: 'Reject review', variant: 'danger', label: 'Comment', required: true });

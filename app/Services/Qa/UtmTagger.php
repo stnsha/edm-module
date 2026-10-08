@@ -6,18 +6,23 @@ namespace Edm\Services\Qa;
 
 /**
  * "Add UTM tags" (QA UTM parameter check): adds utm_source=edm,
- * utm_medium=email and utm_campaign=<campaign slug> to every http(s) link
+ * utm_medium=email and utm_campaign=<newsletter slug> to every http(s) link
  * that does not have them yet. Existing utm_* values are kept. Applied to
  * both the rendered html (href attributes) and the EmailBuilder.js
  * editor_json (any string that is a URL, or HTML with href attributes), so
  * the next Save in the Email creator keeps the tags.
+ *
+ * $params (source, medium, campaign, content - Campaign::utm()) replace the
+ * defaults; the send queue tags every link this way when the newsletter's
+ * Tracking step has UTM on (Ses\CampaignMessage).
  */
 final class UtmTagger
 {
     public const SOURCE = 'edm';
     public const MEDIUM = 'email';
 
-    public function __construct(private string $campaign)
+    /** @param array<string, string> $params */
+    public function __construct(private string $campaign, private array $params = [])
     {
     }
 
@@ -47,11 +52,12 @@ final class UtmTagger
             $url = substr($url, 0, $hash);
         }
         parse_str((string) parse_url($url, PHP_URL_QUERY), $q);
-        $add = array_diff_key([
-            'utm_source'   => self::SOURCE,
-            'utm_medium'   => self::MEDIUM,
-            'utm_campaign' => self::slug($this->campaign),
-        ], $q);
+        $add = array_diff_key(array_filter([
+            'utm_source'   => ($this->params['source'] ?? '') !== '' ? $this->params['source'] : self::SOURCE,
+            'utm_medium'   => ($this->params['medium'] ?? '') !== '' ? $this->params['medium'] : self::MEDIUM,
+            'utm_campaign' => ($this->params['campaign'] ?? '') !== '' ? $this->params['campaign'] : self::slug($this->campaign),
+            'utm_content'  => $this->params['content'] ?? '',
+        ], static fn (string $v): bool => $v !== ''), $q);
 
         return $url . (str_contains($url, '?') ? '&' : '?') . http_build_query($add) . $fragment;
     }

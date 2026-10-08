@@ -9,18 +9,18 @@ use Edm\Core\Database;
 use Edm\Core\ValidationException;
 use Edm\Models\Campaign;
 use Edm\Models\CustomField;
-use Edm\Models\ListMember;
+use Edm\Models\Contact;
 use Edm\Models\Segment;
 
 /**
  * Contacts > Segments: turns a saved definition into SQL over
- * edm_list_members and answers "who matches".
+ * the contact masterlist (edm_contacts) and answers "who matches".
  *
  * Definition (spec section 6: AND/OR across multiple condition groups):
  *   { match: all|any, groups: [ { match: all|any, rules: [ { field, op, value } ] } ] }
  *   The outer match combines the groups, each group's match its rules,
  *   e.g. (State is Selangor and Gender is F) or (RFM segment is VIP).
- *   field  a key of fields(): email, name, member_code, source,
+ *   field  a key of fields(): email, name, source,
  *          subscribed_at, field:<custom field key>, or activity:opened /
  *          activity:clicked (engagement history from edm_send_log)
  *   op     one of OPS for the field's type
@@ -30,7 +30,7 @@ use Edm\Models\Segment;
  *          age_between: "min-max" whole years (from a date of birth);
  *          in_last_days / older_than_days / within_days / not_within_days:
  *          a number of days;
- *          in_campaign / not_in_campaign: a campaign id;
+ *          in_campaign / not_in_campaign: a newsletter id;
  *          unused for NO_VALUE ops.
  *
  * A definition saved before groups existed ({ match, rules }) is read as one
@@ -47,9 +47,9 @@ use Edm\Models\Segment;
  * are upgraded by normalize(): a bare custom field key becomes field:<key>,
  * "is not" / ">" / "<" become is_not / gt / lt.
  *
- * Matching always covers subscribed, non-deleted members only (the people a
- * campaign can reach), optionally within one list. Used by the Segments
- * screen (live count + sample), the campaign segment picker and
+ * Matching always covers subscribed, non-deleted contacts only (the people a
+ * newsletter can reach). Used by the Segments
+ * screen (live count + sample), the newsletter segment picker and
  * Ses\CampaignSender (recipients).
  */
 final class SegmentQuery
@@ -62,6 +62,7 @@ final class SegmentQuery
         'number'   => ['is', 'is_not', 'gt', 'lt', 'is_empty', 'is_not_empty'],
         'date'     => ['is', 'before', 'after', 'in_last_days', 'older_than_days', 'in_month', 'age_between', 'is_empty', 'is_not_empty'],
         'select'   => ['is', 'is_not', 'is_empty', 'is_not_empty'],
+        'multiselect' => ['includes', 'not_includes', 'is_empty', 'is_not_empty'],
         'boolean'  => ['is_true', 'is_false'],
         'activity' => ['within_days', 'not_within_days', 'in_campaign', 'not_in_campaign', 'ever', 'never'],
     ];
@@ -70,6 +71,8 @@ final class SegmentQuery
         'is'              => 'is',
         'is_not'          => 'is not',
         'contains'        => 'contains',
+        'includes'        => 'includes',
+        'not_includes'    => 'does not include',
         'not_contains'    => 'does not contain',
         'starts_with'     => 'starts with',
         'gt'              => 'is greater than',
@@ -86,8 +89,8 @@ final class SegmentQuery
         'is_false'        => 'is no',
         'within_days'     => 'in the last',
         'not_within_days' => 'not in the last',
-        'in_campaign'     => 'in campaign',
-        'not_in_campaign' => 'not in campaign',
+        'in_campaign'     => 'in newsletter',
+        'not_in_campaign' => 'not in newsletter',
         'ever'            => 'at any time',
         'never'           => 'not at any time',
     ];
@@ -122,7 +125,6 @@ final class SegmentQuery
     private const COLUMNS = [
         'email'         => ['Email', 'text', 'email'],
         'name'          => ['Name', 'text', 'name'],
-        'member_code'   => ['Member code', 'text', 'member_code'],
         'source'        => ['Source', 'text', 'source'],
         'subscribed_at' => ['Subscribed date', 'date', 'subscribed_at'],
     ];
@@ -136,7 +138,7 @@ final class SegmentQuery
     /** Field picker group of the activity fields (spec category). */
     private const ACTIVITY_GROUP = 'Engagement';
 
-    /** Campaigns that can have opens / clicks: sending, completed, archived. */
+    /** Newsletters that can have opens / clicks: sending, completed, archived. */
     private const SENT_STATUSES = [Campaign::SENDING, Campaign::COMPLETED, Campaign::ARCHIVED];
 
     public function __construct(private Database $db)
@@ -165,7 +167,7 @@ final class SegmentQuery
      * Every field a rule can use: built-in columns, active custom fields
      * (grouped by their category, in CustomField::CATEGORIES order) and the
      * engagement history fields. options: [{ value, label }] for select
-     * fields, and the sent campaigns for activity fields.
+     * fields, and the sent newsletters for activity fields.
      *
      * @return array<string, array{label: string, type: string, group: string, options?: list<array{value: string, label: string}>}>
      */
@@ -181,10 +183,10 @@ final class SegmentQuery
         usort($custom, static fn (array $a, array $b): int =>
             [$order[$a['category'] ?? ''] ?? PHP_INT_MAX, $a['label']] <=> [$order[$b['category'] ?? ''] ?? PHP_INT_MAX, $b['label']]);
         foreach ($custom as $f) {
-            $type = in_array($f['type'], ['text', 'number', 'date', 'boolean', 'select'], true) ? (string) $f['type'] : 'text';
+            $type = in_array($f['type'], CustomField::TYPES, true) ? (string) $f['type'] : 'text';
             $group = isset($order[$f['category'] ?? '']) ? (string) $f['category'] : 'Custom fields';
             $entry = ['label' => (string) $f['label'], 'type' => $type, 'group' => $group];
-            if ($type === 'select') {
+            if (in_array($type, CustomField::OPTION_TYPES, true)) {
                 $entry['options'] = array_map(
                     static fn ($o): array => ['value' => (string) $o, 'label' => (string) $o],
                     array_values((array) ($f['options'] ?? []))
@@ -284,36 +286,6 @@ final class SegmentQuery
     }
 
     /**
-     * A campaign's segment, checked against its list: it must still exist,
-     * belong to that list (or to no list) and have valid conditions. Returns
-     * the normalized definition, or null when the campaign has no segment.
-     *
-     * @throws ValidationException on segment_id
-     * @return array{match: string, groups: list<array{match: string, rules: list<array{field: string, op: string, value: string}>}>}|null
-     */
-    public static function forCampaign(?int $segmentId, ?int $listId): ?array
-    {
-        if ($segmentId === null) {
-            return null;
-        }
-        $segment = Segment::find($segmentId);
-        if ($segment === null) {
-            throw ValidationException::single('segment_id', 'The segment was deleted - choose another segment or none.');
-        }
-        // $listId null = the campaign goes to all lists: only a segment for every list fits.
-        if ($segment['list_id'] !== null && (int) $segment['list_id'] !== $listId) {
-            throw ValidationException::single('segment_id', $listId === null
-                ? 'The segment "' . $segment['name'] . '" is for one list only - with All lists, choose a segment for all lists or none.'
-                : 'The segment "' . $segment['name'] . '" is for another list - choose a segment for this list or none.');
-        }
-        try {
-            return self::normalize($segment['definition']);
-        } catch (ValidationException $e) {
-            throw ValidationException::single('segment_id', 'The segment "' . $segment['name'] . '" needs fixing: ' . $e->getMessage());
-        }
-    }
-
-    /**
      * One-line summary, e.g. "Gender is F and Email contains @gmail", or with
      * several groups "(State is Selangor and Gender is F) or (RFM segment is VIP)".
      */
@@ -362,7 +334,7 @@ final class SegmentQuery
     }
 
     /**
-     * SQL condition over edm_list_members aliased $alias, plus its bound
+     * SQL condition over edm_contacts aliased $alias, plus its bound
      * values. The definition must come from normalize().
      *
      * @return array{0: string, 1: list<mixed>}
@@ -387,15 +359,14 @@ final class SegmentQuery
 
     /**
      * Subscribed contacts matching the definition (all subscribed contacts
-     * when it is null), in one list or every list. Counted by address, so a
-     * contact on several lists (or twice on one) counts once - as it is sent.
+     * when it is null). Counted by address, as it is sent.
      *
-     * @return array{matched: int, total: int, sample: list<array{email: string, name: ?string, list: ?string}>}
+     * @return array{matched: int, total: int, sample: list<array{email: string, name: ?string}>}
      */
-    public function count(?array $definition, ?int $listId, int $sample = 5): array
+    public function count(?array $definition, int $sample = 5): array
     {
-        [$scope, $scopeParams] = $this->scope($listId);
-        $total = (int) $this->db->scalar('SELECT COUNT(DISTINCT LOWER(TRIM(m.`email`))) FROM `edm_list_members` m WHERE ' . $scope, $scopeParams);
+        [$scope, $scopeParams] = $this->scope();
+        $total = (int) $this->db->scalar('SELECT COUNT(DISTINCT LOWER(TRIM(m.`email`))) FROM `edm_contacts` m WHERE ' . $scope, $scopeParams);
         if ($definition === null) {
             $where = $scope;
             $params = $scopeParams;
@@ -406,10 +377,9 @@ final class SegmentQuery
         }
         $matched = $definition === null
             ? $total
-            : (int) $this->db->scalar('SELECT COUNT(DISTINCT LOWER(TRIM(m.`email`))) FROM `edm_list_members` m WHERE ' . $where, $params);
+            : (int) $this->db->scalar('SELECT COUNT(DISTINCT LOWER(TRIM(m.`email`))) FROM `edm_contacts` m WHERE ' . $where, $params);
         $rows = $sample > 0 ? $this->db->select(
-            'SELECT m.`email`, m.`name`, l.`name` AS list FROM `edm_list_members` m
-               LEFT JOIN `edm_lists` l ON l.`id` = m.`list_id`
+            'SELECT m.`email`, m.`name` FROM `edm_contacts` m
               WHERE ' . $where . ' ORDER BY m.`id` DESC LIMIT ' . $sample,
             $params
         ) : [];
@@ -421,9 +391,9 @@ final class SegmentQuery
      * Of the contacts count() matches, how many addresses are on the
      * suppression list (the send queue skips them).
      */
-    public function suppressedCount(?array $definition, ?int $listId): int
+    public function suppressedCount(?array $definition): int
     {
-        [$where, $params] = $this->scope($listId);
+        [$where, $params] = $this->scope();
         if ($definition !== null) {
             [$cond, $condParams] = $this->where($definition);
             $where .= ' AND ' . $cond;
@@ -431,7 +401,7 @@ final class SegmentQuery
         }
 
         return (int) $this->db->scalar(
-            'SELECT COUNT(DISTINCT LOWER(TRIM(m.`email`))) FROM `edm_list_members` m
+            'SELECT COUNT(DISTINCT LOWER(TRIM(m.`email`))) FROM `edm_contacts` m
               WHERE ' . $where . '
                 AND EXISTS (SELECT 1 FROM `edm_suppressions` s
                              WHERE s.`deleted_at` IS NULL AND LOWER(s.`email`) = LOWER(TRIM(m.`email`)))',
@@ -440,16 +410,9 @@ final class SegmentQuery
     }
 
     /** @return array{0: string, 1: list<mixed>} */
-    private function scope(?int $listId): array
+    private function scope(): array
     {
-        $sql = 'm.`deleted_at` IS NULL AND m.`status` = ?';
-        $params = [ListMember::SUBSCRIBED];
-        if ($listId !== null) {
-            $sql .= ' AND m.`list_id` = ?';
-            $params[] = $listId;
-        }
-
-        return [$sql, $params];
+        return ['m.`deleted_at` IS NULL AND m.`status` = ?', [Contact::SUBSCRIBED]];
     }
 
     /**
@@ -464,6 +427,9 @@ final class SegmentQuery
 
         if ($field['type'] === 'activity') {
             return $this->activity(self::ACTIVITY[$rule['field']][1], $op, $v, $a);
+        }
+        if ($field['type'] === 'multiselect') {
+            return $this->multiselect(substr($rule['field'], 6), $op, $v, $a);
         }
 
         // The value expression: a real column, or the custom field's JSON value.
@@ -529,9 +495,29 @@ final class SegmentQuery
     }
 
     /**
+     * A multi-select custom field, stored as a JSON list of options (a single
+     * string from before the field became multi-select counts as a list of
+     * one): includes / does not include one option, or empty / not empty.
+     *
+     * @return array{0: string, 1: list<mixed>}
+     */
+    private function multiselect(string $key, string $op, string $v, string $a): array
+    {
+        $list = 'COALESCE(JSON_EXTRACT(' . $a . '.`fields`, ?), JSON_ARRAY())';
+        $path = '$."' . $key . '"';
+
+        return match ($op) {
+            'includes'     => ['JSON_CONTAINS(' . $list . ', JSON_QUOTE(?))', [$path, $v]],
+            'not_includes' => ['NOT JSON_CONTAINS(' . $list . ', JSON_QUOTE(?))', [$path, $v]],
+            'is_empty'     => ['JSON_LENGTH(' . $list . ') = 0', [$path]],
+            default        => ['JSON_LENGTH(' . $list . ') > 0', [$path]],
+        };
+    }
+
+    /**
      * Engagement history: an edm_send_log row for the contact's address with
      * $column (opened_at / clicked_at) set - in the last N days, in one
-     * campaign, or ever; the not_ / never forms negate it.
+     * newsletter, or ever; the not_ / never forms negate it.
      *
      * @return array{0: string, 1: list<mixed>}
      */
@@ -559,7 +545,7 @@ final class SegmentQuery
         if ($value === '') {
             $what = match (true) {
                 $op === 'in_month'                                  => 'choose a month for ',
-                $op === 'in_campaign' || $op === 'not_in_campaign' => 'choose a campaign for ',
+                $op === 'in_campaign' || $op === 'not_in_campaign' => 'choose a newsletter for ',
                 in_array($op, self::DAY_OPS, true)                  => 'enter a number of days for ',
                 $op === 'age_between'                               => 'enter an age range for ',
                 default                                             => 'enter a value for ',
@@ -591,7 +577,7 @@ final class SegmentQuery
                     return $value;
                 }
             }
-            throw ValidationException::single('definition', $n . 'the campaign was not found or has not been sent.');
+            throw ValidationException::single('definition', $n . 'the newsletter was not found or has not been sent.');
         }
         switch ($field['type']) {
             case 'number':
@@ -608,6 +594,7 @@ final class SegmentQuery
                 }
                 throw ValidationException::single('definition', $n . $field['label'] . ' needs a date (YYYY-MM-DD).');
             case 'select':
+            case 'multiselect':
                 foreach ($field['options'] ?? [] as $o) {
                     if (strcasecmp($o['value'], $value) === 0) {
                         return $o['value'];

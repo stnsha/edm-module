@@ -62,6 +62,7 @@ final class SesGateway
         ?string $replyTo = null,
         array $headers = [],
         array $tags = [],
+        ?string $configurationSet = null,
     ): string {
         $message = [
             'Subject' => ['Data' => $subject, 'Charset' => 'UTF-8'],
@@ -86,8 +87,9 @@ final class SesGateway
         if ($replyTo !== null && $replyTo !== '') {
             $args['ReplyToAddresses'] = [$replyTo];
         }
-        if ($this->config->configurationSet !== null) {
-            $args['ConfigurationSetName'] = $this->config->configurationSet;
+        // $configurationSet overrides the default (open tracking off).
+        if (($configurationSet ?? $this->config->configurationSet) !== null) {
+            $args['ConfigurationSetName'] = $configurationSet ?? $this->config->configurationSet;
         }
         if ($tags !== []) {
             $args['EmailTags'] = array_map(

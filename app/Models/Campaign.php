@@ -7,11 +7,16 @@ namespace Edm\Models;
 use Edm\Core\Database;
 use Edm\Core\HttpException;
 use Edm\Core\Model;
+use Edm\Services\CampaignRecipients;
+use Edm\Services\Qa\UtmTagger;
 
 /**
- * A campaign. Table: edm_campaigns.
+ * A newsletter. Table: edm_campaigns.
  *
  * status is an integer, never a word (spec 5.1, 9-state flow) - see STATUSES.
+ * Recipients: the `audience` JSON (included / excluded segments and
+ * contacts on the masterlist), resolved by Services\CampaignRecipients.
+ * Tracking: track_opens / track_clicks (SES) and utm_enabled + utm (links).
  */
 final class Campaign extends Model
 {
@@ -30,61 +35,91 @@ final class Campaign extends Model
     public const COMPLETED = 8;
     public const ARCHIVED = 9;
 
-    /** Statuses a campaign can be raised for review from (approval/edit.php). */
+    /** Statuses a newsletter can be raised for review from (approval/edit.php). */
     public const REVIEWABLE = [self::DRAFT, self::PENDING_SUBMISSION, self::CONTENT_REVISION];
 
     protected const TABLE = 'edm_campaigns';
 
     protected const FILLABLE = [
-        'name', 'subject', 'subject_b', 'preheader', 'sender_id', 'list_id', 'all_lists', 'segment_id',
-        'status', 'scheduled_at', 'requested_by', 'requested_by_name',
+        'name', 'subject', 'subject_b', 'preheader', 'tag_ids', 'sender_id', 'reply_to_id', 'audience', 'send_now',
+        'track_opens', 'track_clicks', 'utm_enabled', 'utm',
+        'status', 'archived_from', 'scheduled_at', 'requested_by', 'requested_by_name',
     ];
 
-    protected const CASTS = ['status' => 'int', 'all_lists' => 'bool', 'scheduled_at' => 'datetime'];
-
-    /** Recipient list select value meaning "every list" (all_lists = 1, list_id NULL). */
-    public const ALL_LISTS = 'all';
-
-    /** Shown in place of a list name for an all-lists campaign. */
-    public const ALL_LISTS_LABEL = 'All lists';
-
-    protected const ORDER = '`created_at` DESC, `id` DESC';
-
-    /** True when the campaign has recipients chosen: one list, or all lists. */
-    public static function hasAudience(array $campaign): bool
-    {
-        return $campaign['all_lists'] || $campaign['list_id'] !== null;
-    }
+    protected const CASTS = [
+        'status' => 'int', 'archived_from' => 'int', 'scheduled_at' => 'datetime', 'audience' => 'json', 'utm' => 'json',
+        'tag_ids' => 'json',
+        'send_now' => 'bool', 'track_opens' => 'bool', 'track_clicks' => 'bool', 'utm_enabled' => 'bool',
+    ];
 
     /**
-     * The list recipients come from: its id, or null for every list. Only
-     * meaningful when hasAudience() is true.
-     */
-    public static function audienceListId(array $campaign): ?int
-    {
-        return $campaign['all_lists'] || $campaign['list_id'] === null ? null : (int) $campaign['list_id'];
-    }
-
-    /**
-     * Recipient list fields from a request's list_id: ALL_LISTS sets
-     * all_lists, anything else is the list id (or null) and clears it. Empty
-     * when the request has no list_id.
+     * The wizard's structured settings from a request body, in storage form
+     * - only keys that are present: audience (CampaignRecipients::normalize),
+     * utm (known keys, trimmed, 100 characters each), and the send_now /
+     * track_opens / track_clicks / utm_enabled flags.
      *
      * @param array<string, mixed> $input
-     * @return array{list_id?: ?int, all_lists?: bool}
+     * @return array<string, mixed>
      */
-    public static function audienceInput(array $input): array
+    public static function settingsInput(array $input): array
     {
-        if (!array_key_exists('list_id', $input)) {
-            return [];
+        $out = [];
+        if (array_key_exists('audience', $input)) {
+            $out['audience'] = CampaignRecipients::normalize($input['audience']);
         }
-        $v = $input['list_id'];
-        if ($v === self::ALL_LISTS) {
-            return ['list_id' => null, 'all_lists' => true];
+        if (array_key_exists('utm', $input)) {
+            $utm = [];
+            foreach (self::UTM_KEYS as $k) {
+                $utm[$k] = mb_substr(trim((string) ($input['utm'][$k] ?? '')), 0, 100);
+            }
+            $out['utm'] = $utm;
+        }
+        foreach (['send_now', 'track_opens', 'track_clicks', 'utm_enabled'] as $flag) {
+            if (array_key_exists($flag, $input)) {
+                $out[$flag] = filter_var($input[$flag], FILTER_VALIDATE_BOOLEAN);
+            }
         }
 
-        return ['list_id' => ($v === '' || $v === null) ? null : (int) $v, 'all_lists' => false];
+        return $out;
     }
+
+    /** UTM parameters a newsletter can set (Tracking step), in link order. */
+    public const UTM_KEYS = ['source', 'medium', 'campaign', 'content'];
+
+    /**
+     * The UTM values used when sending: the saved ones, with source "edm",
+     * medium "email" and campaign = slug of the name when left empty.
+     *
+     * @return array{source: string, medium: string, campaign: string, content: string}
+     */
+    public static function utm(array $campaign): array
+    {
+        $saved = is_array($campaign['utm'] ?? null) ? $campaign['utm'] : [];
+        $default = ['source' => 'edm', 'medium' => 'email', 'campaign' => UtmTagger::slug((string) ($campaign['name'] ?? '')), 'content' => ''];
+        $out = [];
+        foreach (self::UTM_KEYS as $k) {
+            $v = trim((string) ($saved[$k] ?? ''));
+            $out[$k] = $v !== '' ? $v : $default[$k];
+        }
+
+        return $out;
+    }
+
+    /**
+     * The Reply-to address: the email of the newsletter's reply_to_id sender,
+     * or null (none chosen, or that sender was deleted) - replies then go
+     * to the Sender address.
+     */
+    public static function replyTo(array $campaign): ?string
+    {
+        if (($campaign['reply_to_id'] ?? null) === null) {
+            return null;
+        }
+
+        return Sender::find((int) $campaign['reply_to_id'])['email'] ?? null;
+    }
+
+    protected const ORDER = '`created_at` DESC, `id` DESC';
 
     /** Draft and content revision are the only states still being worked on. */
     public static function isEditable(array $campaign): bool
@@ -93,12 +128,12 @@ final class Campaign extends Model
     }
 
     /**
-     * Campaigns list: every row plus `delivered` (edm_send_log rows) and
-     * `list` ({ id, name } or null). Newest first.
+     * Newsletters list: every row plus `delivered` (edm_send_log rows) and
+     * `audience_label` (CampaignRecipients::describe, short). Newest first.
      *
      * @return list<array<string, mixed>>
      */
-    public static function listing(?int $status = null, ?int $listId = null): array
+    public static function listing(?int $status = null, ?bool $archived = null): array
     {
         $where = ['c.`deleted_at` IS NULL'];
         $params = [];
@@ -106,36 +141,32 @@ final class Campaign extends Model
             $where[] = 'c.`status` = ?';
             $params[] = $status;
         }
-        if ($listId !== null) {
-            $where[] = 'c.`list_id` = ?';
-            $params[] = $listId;
+        // $archived: true = only archived, false = all but archived, null = all.
+        if ($archived !== null) {
+            $where[] = 'c.`status` ' . ($archived ? '=' : '<>') . ' ?';
+            $params[] = self::ARCHIVED;
         }
         $sql = 'SELECT c.*,
                     (SELECT COUNT(*) FROM `edm_send_log` s
-                        WHERE s.`campaign_id` = c.`id` AND s.`deleted_at` IS NULL) AS delivered,
-                    l.`name` AS list_name
+                        WHERE s.`campaign_id` = c.`id` AND s.`deleted_at` IS NULL) AS delivered
                 FROM `edm_campaigns` c
-                LEFT JOIN `edm_lists` l ON l.`id` = c.`list_id` AND l.`deleted_at` IS NULL
                 WHERE ' . implode(' AND ', $where)
             . ' ORDER BY c.`created_at` DESC, c.`id` DESC';
 
         return array_map(static function (array $row): array {
-            $listName = $row['list_name'];
-            unset($row['list_name']);
             $row = self::present($row);
             $row['delivered'] = (int) $row['delivered'];
-            $row['list'] = match (true) {
-                $row['all_lists']                              => ['id' => null, 'name' => self::ALL_LISTS_LABEL],
-                $row['list_id'] !== null && $listName !== null => ['id' => (int) $row['list_id'], 'name' => $listName],
-                default                                        => null,
-            };
+            $row['audience_label'] = CampaignRecipients::describe(CampaignRecipients::of($row), true);
+            $row['tags'] = MasterTag::named(is_array($row['tag_ids'] ?? null) ? $row['tag_ids'] : []);
 
             return $row;
         }, self::db()->select($sql, $params));
     }
 
     /**
-     * One campaign with its `content` and `list`.
+     * One newsletter with its `content`, `audience` in normal form,
+     * `audience_names` (for the Email creator chips), `audience_label` and
+     * the effective `utm_values`.
      *
      * @return array<string, mixed>
      */
@@ -143,10 +174,11 @@ final class Campaign extends Model
     {
         $campaign = self::findOrFail($id);
         $campaign['content'] = CampaignContent::forCampaign($id);
-        $list = !$campaign['all_lists'] && $campaign['list_id'] !== null ? ContactList::find((int) $campaign['list_id']) : null;
-        $campaign['list'] = $campaign['all_lists']
-            ? ['id' => null, 'name' => self::ALL_LISTS_LABEL]
-            : ($list ? ['id' => $list['id'], 'name' => $list['name']] : null);
+        $campaign['audience'] = CampaignRecipients::of($campaign);
+        $campaign['audience_names'] = CampaignRecipients::names($campaign['audience']);
+        $campaign['audience_label'] = CampaignRecipients::describe($campaign['audience']);
+        $campaign['utm_values'] = self::utm($campaign);
+        $campaign['tags'] = MasterTag::named(is_array($campaign['tag_ids'] ?? null) ? $campaign['tag_ids'] : []);
 
         return $campaign;
     }
@@ -177,26 +209,31 @@ final class Campaign extends Model
     }
 
     /**
-     * "Reuse" / "Copy to another list": settings + body copied into a new
-     * draft. The schedule is never copied; a new list drops the segment.
+     * "Reuse": settings + body copied into a new draft. The schedule is
+     * never copied.
      *
      * @param array<string, mixed> $stamp requested_by / requested_by_name
      * @return array<string, mixed>
      */
-    public static function duplicate(int $id, array $stamp, bool $changeList = false, ?int $listId = null): array
+    public static function duplicate(int $id, array $stamp): array
     {
         $source = self::withDetails($id);
 
-        return self::db()->transaction(static function () use ($source, $stamp, $changeList, $listId): array {
+        return self::db()->transaction(static function () use ($source, $stamp): array {
             $copy = self::create([
                 'name'         => mb_substr($source['name'] . ' (copy)', 0, 255),
                 'subject'      => $source['subject'],
                 'subject_b'    => $source['subject_b'],
                 'preheader'    => $source['preheader'],
                 'sender_id'    => $source['sender_id'],
-                'list_id'      => $changeList ? $listId : $source['list_id'],
-                'all_lists'    => $changeList ? false : $source['all_lists'],
-                'segment_id'   => $changeList ? null : $source['segment_id'],
+                'reply_to_id'  => $source['reply_to_id'],
+                'audience'     => $source['audience'],
+                'tag_ids'      => $source['tag_ids'],
+                'send_now'     => $source['send_now'],
+                'track_opens'  => $source['track_opens'],
+                'track_clicks' => $source['track_clicks'],
+                'utm_enabled'  => $source['utm_enabled'],
+                'utm'          => $source['utm'],
                 'status'       => self::DRAFT,
                 'scheduled_at' => null,
             ] + $stamp);
@@ -229,8 +266,8 @@ final class Campaign extends Model
 
     /** Draft / content revision -> pending submission. */
     /**
-     * New campaign from the Campaigns list: an empty draft opened
-     * straight in the Email creator. Sender, list and subject are filled in
+     * New newsletter from the Newsletters list: an empty draft opened
+     * straight in the Email creator. Sender and subject are filled in
      * there; the default sender is preset. They are checked on submit().
      *
      * @param array<string, mixed> $stamp requested_by / requested_by_name
@@ -243,7 +280,7 @@ final class Campaign extends Model
         );
 
         return self::createDraft([
-            'name'      => 'Untitled campaign ' . date('d-m-Y H:i'),
+            'name'      => 'Untitled newsletter ' . date('d-m-Y H:i'),
             'sender_id' => $sender !== null ? (int) $sender : null,
         ] + $stamp);
     }
@@ -252,7 +289,7 @@ final class Campaign extends Model
     {
         $campaign = self::findOrFail($id);
         if (!self::isEditable($campaign)) {
-            throw new HttpException('Only a draft or a campaign in revision can be submitted for review.', 422);
+            throw new HttpException('Only a draft or a newsletter in revision can be submitted for review.', 422);
         }
         // Drafts may be saved half-filled; a submitted one must be complete.
         $missing = self::missing($campaign);
@@ -264,7 +301,7 @@ final class Campaign extends Model
     }
 
     /**
-     * What a campaign still lacks before it can be submitted or scheduled,
+     * What a newsletter still lacks before it can be submitted or scheduled,
      * e.g. ['a sender', 'a design']; empty when complete.
      *
      * @return list<string>
@@ -272,10 +309,9 @@ final class Campaign extends Model
     public static function missing(array $campaign): array
     {
         return array_keys(array_filter([
-            'a sender'         => $campaign['sender_id'] === null,
-            'a recipient list' => !self::hasAudience($campaign),
-            'a subject line'   => trim((string) $campaign['subject']) === '',
-            'a design'         => trim((string) (CampaignContent::forCampaign((int) $campaign['id'])['html'] ?? '')) === '',
+            'a sender'       => $campaign['sender_id'] === null,
+            'a subject line' => trim((string) $campaign['subject']) === '',
+            'a design'       => trim((string) (CampaignContent::forCampaign((int) $campaign['id'])['html'] ?? '')) === '',
         ]));
     }
 
@@ -288,23 +324,60 @@ final class Campaign extends Model
         return in_array($campaign['status'], [self::SCHEDULED, self::SENDING, self::COMPLETED, self::ARCHIVED], true);
     }
 
-    /** @throws HttpException 422 when the campaign is locked (see isLocked()). */
+    /** @throws HttpException 422 when the newsletter is locked (see isLocked()). */
     public static function assertUnlocked(array $campaign): void
     {
         if (self::isLocked($campaign)) {
-            throw new HttpException('This campaign is scheduled or sent, so it is locked. Stop it first (scheduled only) to make changes.', 422);
+            throw new HttpException('This newsletter is scheduled or sent, so it is locked. Stop it first (scheduled only) to make changes.', 422);
         }
     }
 
-    /** Completed -> archived (spec 5.1 status 9): closed, kept for reporting. */
+    /**
+     * Statuses a newsletter can be archived from: not in review, scheduled or
+     * sending. Archived newsletters are hidden from the Newsletters list (they
+     * show under its Archived tab) and locked until unarchived.
+     */
+    public const ARCHIVABLE = [self::DRAFT, self::CONTENT_REVISION, self::COMPLETED];
+
+    /** -> archived (spec 5.1 status 9), remembering the status it had. */
     public static function archive(int $id): array
     {
         $campaign = self::findOrFail($id);
-        if ($campaign['status'] !== self::COMPLETED) {
-            throw new HttpException('Only a completed campaign can be archived.', 422);
+        if (!in_array($campaign['status'], self::ARCHIVABLE, true)) {
+            throw new HttpException('Only a draft, a newsletter in content revision or a completed newsletter can be archived.', 422);
         }
 
-        return self::update($id, ['status' => self::ARCHIVED]);
+        return self::update($id, ['status' => self::ARCHIVED, 'archived_from' => $campaign['status']]);
+    }
+
+    /** Archived -> the status it had before (completed when unknown). */
+    public static function unarchive(int $id): array
+    {
+        $campaign = self::findOrFail($id);
+        if ($campaign['status'] !== self::ARCHIVED) {
+            throw new HttpException('This newsletter is not archived.', 422);
+        }
+        $back = in_array($campaign['archived_from'], self::ARCHIVABLE, true) ? $campaign['archived_from'] : self::COMPLETED;
+
+        return self::update($id, ['status' => $back, 'archived_from' => null]);
+    }
+
+    /**
+     * "Recall" / "Don't send it": a scheduled newsletter that has not started
+     * sending goes back to content revision (a new review is needed). The
+     * send queue waits CampaignSender::RECALL_SECONDS after the send time,
+     * so there is always at least that long to recall it.
+     */
+    public static function recall(int $id): array
+    {
+        $campaign = self::findOrFail($id);
+        if ($campaign['status'] !== self::SCHEDULED) {
+            throw new HttpException($campaign['status'] === self::SENDING
+                ? 'Too late to recall - this newsletter has started sending. Use Stop sending to halt the rest.'
+                : 'Only a scheduled newsletter can be recalled.', 422);
+        }
+
+        return self::update($id, ['status' => self::CONTENT_REVISION]);
     }
 
     /**
@@ -320,7 +393,7 @@ final class Campaign extends Model
             default => null,
         };
         if ($next === null) {
-            throw new HttpException('Only a scheduled or sending campaign can be stopped.', 422);
+            throw new HttpException('Only a scheduled or sending newsletter can be stopped.', 422);
         }
 
         return self::update($id, ['status' => $next]);

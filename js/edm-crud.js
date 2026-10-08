@@ -22,26 +22,31 @@
  *            // rule hijacks .badge as an absolutely-positioned notification dot
  *            // (see the .edm-pill note in css/style.css).
  *   fields:  [ { name, label, type, required, default, options, help } ]
- *            // type: text|textarea|number|email|checkbox|select|date|datetime|rules
+ *            // select options: values, or { value, label, group? } - a group
+ *            // puts the option in an <optgroup> (automation/index.php).
+ *            // type: text|textarea|number|email|checkbox|select|date|time|datetime|rules
+ *            // (time: <input type="time">, value 'HH:MM')
  *            // rules: the segment condition builder (AND / OR condition groups;
  *            // value { match, groups: [ { match, rules: [ { field, op, value } ] } ] }).
  *            // Needs catalog: { fields: { key: { label, type, group, options? } },
  *            //   ops: { type: [op] }, op_labels: { op: label }, op_suffix: { op: unit },
  *            //   no_value: [op], max_rules, max_groups }
  *            // (SegmentQuery::catalog(), rendered by audience/segments.php) and
- *            // optionally count: { action, listField } for a live "N of M match"
- *            // line (POST { definition, list_id } -> { matched, total, sample }).
+ *            // optionally count: { action } for a live "N of M match"
+ *            // line (POST { definition } -> { matched, total, sample }).
  *            // datetime: <input type="datetime-local">; the API's
  *            // 'd-m-Y H:i:s' value is converted for the input only.
  *   columns[].value: optional function (row) -> text, for a derived or
- *            // nested value (e.g. row.list.name); escaped like a text cell.
+ *            // nested value (e.g. row.sender.email); escaped like a text cell.
  *   canEdit / canDelete: optional function (row) -> bool, hides the
  *            // row's Edit / Delete button when false.
  *   Row actions (Edit, then rowActions, then Delete) always render as a
  *            // vertical-ellipsis dropdown in the Action column (GetResponse
  *            // style); rowActions[].className is not used by the menu.
  *   listParams: optional { name: value } query parameters sent with the
- *            // list action (e.g. { list_id: 5 } on audience/contacts.php).
+ *            // list action (e.g. { status: 1 }).
+ *   onLoad: optional function (rows) - runs after every list load (e.g. tab
+ *            // counts on campaign/index.php).
  *   onFormOpen: optional function (row|null, bodyEl) - runs after the modal
  *            // form is filled, e.g. to wire dependent selects (campaign/index.php).
  *   saveAndGo: optional { label, icon, link: function (savedRow) -> path }
@@ -233,6 +238,7 @@
             current = res.data || [];
             page = 1;
             renderPage();
+            if (cfg.onLoad) { cfg.onLoad(current); }
         }).catch(function () { showAlert('Could not reach the server.'); current = []; renderPage(); });
     }
 
@@ -251,31 +257,49 @@
                 '<label class="form-check-label" for="' + id + '">' + esc(f.label) + '</label></div>';
         }
         if (f.type === 'select') {
-            return '<select class="form-select" id="' + id + '">' +
-                (f.options || []).map(function (o) {
-                    var val = (o && o.value !== undefined) ? o.value : o;
-                    var lab = (o && o.label !== undefined) ? o.label : o;
-                    return '<option value="' + esc(val) + '">' + esc(lab) + '</option>';
-                }).join('') + '</select>';
+            // Options with a `group` go into an <optgroup> of that name
+            // (consecutive options sharing it), e.g. Newsletters / Templates.
+            var html = '';
+            var openGroup = null;
+            (f.options || []).forEach(function (o) {
+                var val = (o && o.value !== undefined) ? o.value : o;
+                var lab = (o && o.label !== undefined) ? o.label : o;
+                var grp = (o && o.group) ? o.group : null;
+                if (grp !== openGroup) {
+                    if (openGroup !== null) { html += '</optgroup>'; }
+                    if (grp !== null) { html += '<optgroup label="' + esc(grp) + '">'; }
+                    openGroup = grp;
+                }
+                html += '<option value="' + esc(val) + '">' + esc(lab) + '</option>';
+            });
+            if (openGroup !== null) { html += '</optgroup>'; }
+            return '<select class="form-select" id="' + id + '">' + html + '</select>';
         }
         if (f.type === 'rules') {
             // Condition groups: the outer match combines the groups, each
             // group's match its conditions. The outer row shows from 2 groups.
             return '<div id="' + id + '" class="edm-rules">' +
+                '<div class="edm-rules-help">' +
+                    '<i class="bi bi-info-circle"></i>' +
+                    '<div><strong>Add condition</strong> adds a rule to the same group. ' +
+                    '<strong>Add condition group</strong> starts a separate group, to mix AND and OR - ' +
+                    'e.g. (Gender is F and State is Selangor) or (Platform includes Alpro Apps).</div>' +
+                '</div>' +
                 '<div class="edm-rules-match-row edm-rules-outer" hidden>Contacts must match ' +
                     '<select class="form-select form-select-sm w-auto edm-rules-match" aria-label="Match all or any group">' +
                         '<option value="all">all</option><option value="any">any</option>' +
                     '</select> of these groups:' +
                 '</div>' +
                 '<div class="edm-rules-groups"></div>' +
-                '<button type="button" class="btn btn-sm btn-outline-secondary edm-rules-add-group"><i class="bi bi-collection me-1"></i>Add condition group</button>' +
+                '<button type="button" class="btn btn-sm edm-rules-add-group" title="A separate group of conditions, joined to the others by the all / any above">' +
+                    '<i class="bi bi-plus-square me-1"></i>Add condition group</button>' +
                 (f.count ? '<div class="edm-rules-count" aria-live="polite"></div>' : '') +
             '</div>';
         }
         if (f.type === 'datetime') {
             return '<input type="datetime-local" class="form-control" id="' + id + '">';
         }
-        var t = (f.type === 'email' || f.type === 'number' || f.type === 'date') ? f.type : 'text';
+        var t = (f.type === 'email' || f.type === 'number' || f.type === 'date' || f.type === 'time') ? f.type : 'text';
         return '<input type="' + t + '" class="form-control" id="' + id + '">';
     }
 
@@ -358,7 +382,8 @@
                     '<i class="bi bi-trash me-1"></i>Remove group</button>' +
             '</div>' +
             '<div class="edm-rules-rows"></div>' +
-            '<button type="button" class="btn btn-sm btn-outline-secondary edm-rules-add"><i class="bi bi-plus-lg me-1"></i>Add condition</button>';
+            '<button type="button" class="btn btn-sm btn-link edm-rules-add" title="Another rule in this group, joined by the group&#39;s all / any">' +
+                '<i class="bi bi-plus-lg me-1"></i>Add condition</button>';
         box.querySelector('.edm-rule-group-match').value = (group && group.match) || 'all';
         box.querySelector('.edm-rules-add').addEventListener('click', function () {
             addRuleRow(f, box, null);
@@ -458,8 +483,8 @@
             }
             if (CAMPAIGN_OPS.indexOf(op) !== -1) {
                 var camps = def.options || [];
-                valWrap.innerHTML = '<select class="form-select form-select-sm edm-rule-value" aria-label="Campaign">' +
-                    '<option value="">' + (camps.length ? 'Choose a campaign' : 'No sent campaigns yet') + '</option>' +
+                valWrap.innerHTML = '<select class="form-select form-select-sm edm-rule-value" aria-label="Newsletter">' +
+                    '<option value="">' + (camps.length ? 'Choose a newsletter' : 'No sent newsletters yet') + '</option>' +
                     camps.map(function (o) {
                         return '<option value="' + esc(o.value) + '"' + (String(o.value) === v ? ' selected' : '') + '>' + esc(o.label) + '</option>';
                     }).join('') + '</select>';
@@ -474,7 +499,7 @@
                     }).join('') + '</select>';
                 return;
             }
-            if (def.type === 'select') {
+            if (def.type === 'select' || def.type === 'multiselect') {
                 valWrap.innerHTML = '<select class="form-select form-select-sm edm-rule-value" aria-label="Value">' +
                     '<option value="">Choose an option</option>' +
                     (def.options || []).map(function (o) {
@@ -538,9 +563,6 @@
         var box = document.querySelector('#edm-f-' + f.name + ' .edm-rules-count');
         if (!box) { return; }
         var def = getValue(f);
-        var listEl = f.count.listField ? document.getElementById('edm-f-' + f.count.listField) : null;
-        var listId = listEl && listEl.value ? parseInt(listEl.value, 10) : null;
-        var scope = listId ? 'on this list' : 'across all lists';
         if (!def.groups.length) {
             box.className = 'edm-rules-count text-muted';
             box.textContent = 'Add a condition to see how many contacts match.';
@@ -549,7 +571,7 @@
         var mine = ++countSeq;
         box.className = 'edm-rules-count text-muted';
         box.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Counting contacts...';
-        call(f.count.action, 'POST', { definition: def, list_id: listId }).then(function (res) {
+        call(f.count.action, 'POST', { definition: def }).then(function (res) {
             if (mine !== countSeq) { return; }
             if (!res.success) {
                 box.className = 'edm-rules-count is-warn';
@@ -559,7 +581,7 @@
             var d = res.data;
             box.className = 'edm-rules-count' + (d.matched ? ' is-ok' : ' is-warn');
             box.innerHTML = '<i class="bi bi-people me-1"></i><strong>' + Number(d.matched).toLocaleString('en-US') + '</strong> of ' +
-                Number(d.total).toLocaleString('en-US') + ' subscribed contacts ' + scope + ' match.' +
+                Number(d.total).toLocaleString('en-US') + ' subscribed contacts match.' +
                 (d.sample && d.sample.length
                     ? '<div class="edm-rules-sample">e.g. ' + d.sample.map(function (m) {
                         return esc(m.name ? m.name + ' <' + m.email + '>' : m.email);

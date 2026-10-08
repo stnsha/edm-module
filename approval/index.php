@@ -1,6 +1,6 @@
 <?php
 $page_title = 'Approval Centre';
-$page_subtitle = 'Review queue for the approval chain (spec 5.2). Raise a review for a campaign; the BPT team, then BI/CRM, approve or reject it on the review page.';
+$page_subtitle = 'Review queue for the approval chain (spec 5.2). Raise a review for a newsletter; the BPT team, then BI/CRM, approve or reject it on the review page.';
 require __DIR__ . '/../partials.php';
 // Raise review opens approval/edit.php (no pop-up form).
 // Absolute: header.php sets <base href="/odb/">, so a relative link would
@@ -11,7 +11,7 @@ include __DIR__ . '/../header.php';
 $page_js = EDM_BASE . 'js/edm-crud.js';
 
 edm_crud_screen(array(
-    'columns' => array('Title', 'Campaign', 'Requested by', 'Stage', 'Status', 'Reviewer', 'Raised'),
+    'columns' => array('Title', 'Newsletter', 'Requested by', 'Stage', 'Status', 'Reviewer', 'Raised'),
 ));
 ?>
 <script>
@@ -21,7 +21,7 @@ edm_crud_screen(array(
     // After BPT approval the latest automated QA run (qa_status: 1 queued,
     // 2 running, 5 failed) is shown alongside audience validation.
     // Steps: 2 BPT review, 4 audience validation, 6 final approval
-    // (Approval::STEP_*); approved = campaign scheduled.
+    // (Approval::STEP_*); approved = newsletter scheduled.
     function stage(r) {
         if (r.status === 2) { return r.campaign_status === 6 ? 'Approved - scheduled' : 'Approved'; }
         if (r.status === 3) { return 'Returned to requester'; }
@@ -49,7 +49,7 @@ edm_crud_screen(array(
         ],
         columns: [
             { key: 'title', label: 'Title', value: function (r) { return r.title || '-'; } },
-            { key: 'campaign_name', label: 'Campaign' },
+            { key: 'campaign_name', label: 'Newsletter' },
             { key: 'requested_by_name', label: 'Requested by', value: function (r) { return r.requested_by_name || '-'; } },
             { key: 'step', label: 'Stage', value: stage },
             { key: 'status', label: 'Status', type: 'badge' },

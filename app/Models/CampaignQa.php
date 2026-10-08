@@ -7,7 +7,7 @@ namespace Edm\Models;
 use Edm\Core\Model;
 
 /**
- * One automated QA run on a campaign (spec 5.2 step 5). results is the
+ * One automated QA run on a newsletter (spec 5.2 step 5). results is the
  * checklist written by Services\Qa\QaChecker.
  * Table: edm_campaign_qa.
  */
@@ -35,7 +35,7 @@ final class CampaignQa extends Model
 
     protected const ORDER = '`id` DESC';
 
-    /** Latest run for a campaign, or null. */
+    /** Latest run for a newsletter, or null. */
     public static function latest(int $campaignId): ?array
     {
         return self::where('`campaign_id` = ?', [$campaignId], null, 1)[0] ?? null;

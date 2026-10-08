@@ -7,7 +7,7 @@ namespace Edm\Models;
 use Edm\Core\Model;
 
 /**
- * A campaign calendar slot.
+ * A newsletter calendar slot.
  * Table: edm_calendar_slots.
  */
 final class CalendarSlot extends Model

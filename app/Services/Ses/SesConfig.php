@@ -20,6 +20,9 @@ final class SesConfig
         public readonly ?int $dailyLimit,
         public readonly ?string $publicUrl,
         public readonly ?string $appKey,
+        // Same as configurationSet but without the Open event, for newsletters
+        // with open tracking off (no tracking pixel is inserted).
+        public readonly ?string $configurationSetNoOpens = null,
     ) {
     }
 
@@ -38,6 +41,7 @@ final class SesConfig
             dailyLimit: $daily !== null && ctype_digit($daily) && (int) $daily > 0 ? (int) $daily : null,
             publicUrl: ($url = self::env('EDM_PUBLIC_URL')) !== null ? rtrim($url, '/') : null,
             appKey: self::env('EDM_APP_KEY'),
+            configurationSetNoOpens: self::env('SES_CONFIGURATION_SET_NO_OPENS'),
         );
     }
 

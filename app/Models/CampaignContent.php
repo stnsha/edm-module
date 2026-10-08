@@ -7,8 +7,8 @@ namespace Edm\Models;
 use Edm\Core\Model;
 
 /**
- * A campaign body: html (what is sent) + editor_json (EmailBuilder.js
- * block tree, so the design reopens editable). One row per campaign.
+ * A newsletter body: html (what is sent) + editor_json (EmailBuilder.js
+ * block tree, so the design reopens editable). One row per newsletter.
  * Table: edm_campaign_content.
  */
 final class CampaignContent extends Model
@@ -21,7 +21,7 @@ final class CampaignContent extends Model
 
     protected const ORDER = '`id` ASC';
 
-    /** The campaign's content row, created empty when missing. */
+    /** The newsletter's content row, created empty when missing. */
     public static function forCampaign(int $campaignId): array
     {
         $rows = self::where('`campaign_id` = ?', [$campaignId], null, 1);

@@ -6,7 +6,7 @@ namespace Edm\Services\Ses;
 
 /**
  * Signed unsubscribe links (public/unsubscribe.php). The link carries the
- * campaign id and the recipient address, signed with EDM_APP_KEY so it cannot
+ * newsletter id and the recipient address, signed with EDM_APP_KEY so it cannot
  * be forged to unsubscribe someone else.
  */
 final class Unsubscribe

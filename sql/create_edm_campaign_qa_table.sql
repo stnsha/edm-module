@@ -1,5 +1,5 @@
 -- Table `edm_campaign_qa` (EDM module, odb database).
--- Automated QA runs on a campaign's saved design (spec 5.2 step 5 / section
+-- Automated QA runs on a newsletter's saved design (spec 5.2 step 5 / section
 -- 11). status: 1=queued, 2=running, 3=passed, 4=passed with warnings,
 -- 5=failed. results = JSON list of checks [{key, label, result: pass|warn|fail,
 -- summary, details[]}]. trigger = what queued it (category string: bpt_approved,

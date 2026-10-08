@@ -1,5 +1,5 @@
 -- Table `edm_calendar_slots` (EDM module, odb database).
--- Campaign calendar slots.
+-- Newsletter calendar slots.
 -- Drops and recreates the table (development: existing rows are lost).
 -- Datetime columns hold Asia/Kuala_Lumpur local time. deleted_at = soft delete (NULL = active).
 

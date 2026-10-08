@@ -1,5 +1,5 @@
 -- Table `edm_segments` (EDM module, odb database).
--- Saved AND/OR segment definitions (definition = {match, rules}).
+-- Saved AND/OR segment definitions (definition = {match, groups}); applied to the contact masterlist.
 -- Drops and recreates the table (development: existing rows are lost).
 -- Datetime columns hold Asia/Kuala_Lumpur local time. deleted_at = soft delete (NULL = active).
 
@@ -12,13 +12,10 @@ CREATE TABLE `edm_segments` (
   `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
   `description` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `definition` json NOT NULL,
-  `list_id` bigint unsigned DEFAULT NULL,
   `created_by` int unsigned DEFAULT NULL,
   `created_by_name` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `created_at` datetime NULL DEFAULT NULL,
   `updated_at` datetime NULL DEFAULT NULL,
   `deleted_at` datetime NULL DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  KEY `edm_segments_list_id_foreign` (`list_id`),
-  CONSTRAINT `edm_segments_list_id_foreign` FOREIGN KEY (`list_id`) REFERENCES `edm_lists` (`id`) ON DELETE SET NULL
+  PRIMARY KEY (`id`)
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;

@@ -6,14 +6,13 @@ namespace Edm\Services;
 
 use Edm\Core\Database;
 use Edm\Core\ValidationException;
-use Edm\Models\Campaign;
-use Edm\Models\ContactList;
 use Edm\Models\Segment;
 
 /**
- * Who a campaign goes to, for BI/CRM audience validation (spec 5.2 step 4):
- * its list (or all lists), segment and conditions, how many subscribed
- * contacts match and how many of those are suppressed.
+ * Who a newsletter goes to, for BI/CRM audience validation (spec 5.2 step 4):
+ * its included / excluded segments and contacts (CampaignRecipients), each
+ * segment's conditions, how many subscribed contacts that reaches and how
+ * many of those are on the exclusion list.
  */
 final class CampaignAudience
 {
@@ -22,35 +21,41 @@ final class CampaignAudience
     }
 
     /**
-     * @return array{list: string, segment: ?string, conditions: ?string, recipients: int,
-     *               suppressed: int, problem: ?string}
+     * @return array{label: string, include: list<string>, exclude: list<string>,
+     *               conditions: list<string>, recipients: int, suppressed: int, problem: ?string}
+     *         include / exclude: "Segment: name" and "Contact: email" lines;
+     *         conditions: "name: conditions" per segment used
      */
     public function summary(array $campaign): array
     {
-        $out = ['list' => 'None chosen', 'segment' => null, 'conditions' => null, 'recipients' => 0, 'suppressed' => 0, 'problem' => null];
-        if (!Campaign::hasAudience($campaign)) {
-            $out['problem'] = 'No recipient list chosen.';
-            return $out;
-        }
-        $listId = Campaign::audienceListId($campaign);
-        $out['list'] = $listId === null ? Campaign::ALL_LISTS_LABEL : (string) (ContactList::find($listId)['name'] ?? 'Deleted list');
-
-        $segmentId = $campaign['segment_id'] !== null ? (int) $campaign['segment_id'] : null;
+        $audience = CampaignRecipients::of($campaign);
+        $names = CampaignRecipients::names($audience);
+        $lines = static fn (array $side): array => [
+            ...array_map(static fn (string $n): string => 'Segment: ' . $n, $side['segments']),
+            ...array_map(static fn (string $e): string => 'Contact: ' . $e, $side['contacts']),
+        ];
+        $out = [
+            'label'      => CampaignRecipients::describe($audience),
+            'include'    => CampaignRecipients::includesEveryone($audience) ? ['All subscribed contacts'] : $lines($names['include']),
+            'exclude'    => $lines($names['exclude']),
+            'conditions' => [],
+            'recipients' => 0,
+            'suppressed' => 0,
+            'problem'    => null,
+        ];
         try {
-            $definition = SegmentQuery::forCampaign($segmentId, $listId);
+            $definitions = CampaignRecipients::definitions($audience);
         } catch (ValidationException $e) {
             $out['problem'] = $e->getMessage();
             return $out;
         }
-        if ($segmentId !== null) {
-            $segment = Segment::find($segmentId);
-            $out['segment'] = (string) ($segment['name'] ?? '');
-            $out['conditions'] = $definition !== null ? SegmentQuery::describe($definition) : null;
+        foreach ($definitions as $id => $definition) {
+            $out['conditions'][] = (string) (Segment::find($id)['name'] ?? '#' . $id) . ': ' . SegmentQuery::describe($definition);
         }
 
-        $query = new SegmentQuery($this->db);
-        $out['recipients'] = $query->count($definition, $listId, 0)['matched'];
-        $out['suppressed'] = $query->suppressedCount($definition, $listId);
+        $recipients = new CampaignRecipients($this->db);
+        $out['recipients'] = $recipients->count($audience)['matched'];
+        $out['suppressed'] = $recipients->suppressedCount($audience);
 
         return $out;
     }

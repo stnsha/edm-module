@@ -7,9 +7,8 @@ namespace Edm\Services\Import;
 use Edm\Core\Database;
 use Edm\Core\HttpException;
 use Edm\Core\ValidationException;
-use Edm\Models\ContactList;
+use Edm\Models\Contact;
 use Edm\Models\CustomField;
-use Edm\Models\ListMember;
 use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 
 /**
@@ -18,18 +17,18 @@ use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
  *   stage()  parsed rows are kept in a server temp file under a random token
  *            (owned by the staff member) and a preview + suggested column
  *            mapping is returned;
- *   run()    the staged rows are written to the list with the confirmed
+ *   run()    the staged rows are written to the masterlist with the confirmed
  *            mapping, one batch per call (the page shows progress and a log
  *            of every problem row); after the last batch the temp file is
  *            removed. A dry run checks the rows without writing.
  *
- * Contacts are matched on email within the list: a new address is added as
- * subscribed; an existing one gets its name / member code / field values
+ * Contacts are matched on email across the masterlist: a new address is added as
+ * subscribed; an existing one gets its name / field values
  * updated but keeps its status, so an unsubscribed contact is never
  * re-subscribed by an import. The update mode (GetResponse's "What should we
  * do with contact information?") can limit a run to new addresses only or to
  * existing contacts only. Suppressed addresses are imported (they stay on the
- * list) but the send queue never emails them.
+ * masterlist) but the send queue never emails them.
  *
  * Custom field values are checked against the field type: text is clipped at
  * 255 characters, a date YYYY-MM-DD or day-first D/M/YYYY (stored as
@@ -42,7 +41,6 @@ final class ContactImport
 {
     public const TARGET_SKIP = 'skip';
     public const TARGET_EMAIL = 'email';
-    public const TARGET_MEMBER_CODE = 'member_code';
     public const TARGET_NAME = 'name';
     public const FIELD_PREFIX = 'field:';
 
@@ -119,7 +117,6 @@ final class ContactImport
      */
     public function run(
         string $token,
-        int $listId,
         array $mapping,
         bool $hasHeader,
         string $mode = self::MODE_ADD_UPDATE,
@@ -127,7 +124,6 @@ final class ContactImport
         int $limit = self::BATCH_ROWS,
         bool $dryRun = false,
     ): array {
-        ContactList::findOrFail($listId);
         if (!isset(self::MODES[$mode])) {
             throw ValidationException::single('mode', 'Choose what to do with contact information.');
         }
@@ -190,9 +186,9 @@ final class ContactImport
         if ($emails !== []) {
             $in = implode(',', array_fill(0, count($emails), '?'));
             foreach ($this->db->select(
-                'SELECT `id`, LOWER(TRIM(`email`)) AS email, `fields` FROM `edm_list_members`
-                 WHERE `list_id` = ? AND `deleted_at` IS NULL AND LOWER(TRIM(`email`)) IN (' . $in . ')',
-                [$listId, ...array_keys($emails)]
+                'SELECT `id`, LOWER(TRIM(`email`)) AS email, `fields` FROM `edm_contacts`
+                 WHERE `deleted_at` IS NULL AND LOWER(TRIM(`email`)) IN (' . $in . ')',
+                array_keys($emails)
             ) as $r) {
                 $existing[$r['email']] = ['id' => (int) $r['id'], 'fields' => json_decode((string) $r['fields'], true) ?: []];
             }
@@ -210,7 +206,7 @@ final class ContactImport
         }
         $now = date('Y-m-d H:i:s');
 
-        $work = function () use ($rows, $mapping, $emailCol, $listId, $now, $mode, $customFields, $existing, $suppressed, $firstRowNumber, $dryRun, &$seen, &$sum, &$issues): void {
+        $work = function () use ($rows, $mapping, $emailCol, $now, $mode, $customFields, $existing, $suppressed, $firstRowNumber, $dryRun, &$seen, &$sum, &$issues): void {
             foreach ($rows as $i => $row) {
                 $rowNumber = $firstRowNumber + $i;
                 $raw = trim((string) ($row[$emailCol] ?? ''));
@@ -239,7 +235,7 @@ final class ContactImport
                 }
                 if (isset($suppressed[$email])) {
                     $sum['suppressed']++;
-                    $issues[] = ['row' => $rowNumber, 'email' => $email, 'type' => 'suppressed', 'message' => 'On the suppression list - imported but never emailed.'];
+                    $issues[] = ['row' => $rowNumber, 'email' => $email, 'type' => 'suppressed', 'message' => 'On the exclusion list - imported but never emailed.'];
                 }
 
                 $data = [];
@@ -273,7 +269,7 @@ final class ContactImport
                             $data['fields'] = $fields + $existing[$email]['fields'];
                         }
                         if ($data !== []) {
-                            ListMember::update($existing[$email]['id'], $data);
+                            Contact::update($existing[$email]['id'], $data);
                         }
                     }
                     $sum['updated']++;
@@ -283,14 +279,12 @@ final class ContactImport
                 if (!$dryRun) {
                     // Plain insert (Model::create re-reads every row - too slow
                     // for a 200K-row file); values are already in storage form.
-                    $this->db->insert('edm_list_members', [
-                        'list_id'       => $listId,
+                    $this->db->insert('edm_contacts', [
                         'email'         => $email,
-                        'member_code'   => $data['member_code'] ?? '',
                         'name'          => $data['name'] ?? null,
                         'fields'        => $fields !== [] ? json_encode($fields, JSON_UNESCAPED_UNICODE) : null,
                         'source'        => 'import',
-                        'status'        => ListMember::SUBSCRIBED,
+                        'status'        => Contact::SUBSCRIBED,
                         'subscribed_at' => $now,
                         'created_at'    => $now,
                         'updated_at'    => $now,
@@ -363,25 +357,26 @@ final class ContactImport
             'number'  => 'a number',
             'date'    => 'a date as YYYY-MM-DD or D/M/YYYY',
             'boolean' => '1 or 0',
-            'select'  => 'one of: ' . implode(', ', array_map('strval', (array) ($field['options'] ?? []))),
-            default   => 'text',
+            'select'      => 'one of: ' . implode(', ', array_map('strval', (array) ($field['options'] ?? []))),
+            'multiselect' => 'comma-separated, each one of: ' . implode(', ', array_map('strval', (array) ($field['options'] ?? []))),
+            default       => 'text',
         };
     }
 
     /**
      * Rows of the downloadable import template (audience/api.php
      * import_template): a header row whose names are matched automatically -
-     * email, name, member_code, then the key of every active custom field -
+     * email, name, then the key of every active custom field -
      * and two sample contacts with a valid value for each field type.
      *
      * @return list<list<string>>
      */
     public static function template(): array
     {
-        $header = ['email', 'name', 'member_code'];
+        $header = ['email', 'name'];
         $rows = [
-            ['jane.tan@example.com', 'Jane Tan', 'M0001'],
-            ['ali.ahmad@example.com', 'Ali Ahmad', 'M0002'],
+            ['jane.tan@example.com', 'Jane Tan'],
+            ['ali.ahmad@example.com', 'Ali Ahmad'],
         ];
         foreach (CustomField::where('`is_active` = 1') as $f) {
             $header[] = (string) $f['key'];
@@ -391,6 +386,7 @@ final class ContactImport
                 'date'    => ['2026-01-31', '2026-12-15'],
                 'boolean' => ['1', '0'],
                 'select'  => [$options[0] ?? '', $options[1] ?? ($options[0] ?? '')],
+                'multiselect' => [$options[0] ?? '', implode(', ', array_slice($options, 0, 2))],
                 default   => ['Sample text', ''],
             };
             $rows[0][] = $a;
@@ -402,13 +398,17 @@ final class ContactImport
 
     /**
      * A custom field value in storage form, or null when it does not fit the
-     * field type (see the class comment).
+     * field type (see the class comment). A multi-select value is a list of
+     * its options.
      *
      * @param array<string, mixed>|null $field
+     * @return string|list<string>|null
      */
-    private static function fieldValue(?array $field, string $value): ?string
+    private static function fieldValue(?array $field, string $value): string|array|null
     {
         switch ($field['type'] ?? 'text') {
+            case 'multiselect':
+                return self::multiValue((array) ($field['options'] ?? []), $value);
             case 'number':
                 return is_numeric($value) ? $value : null;
             case 'date':
@@ -430,6 +430,39 @@ final class ContactImport
             default:
                 return mb_substr($value, 0, self::MAX_VALUE);
         }
+    }
+
+    /**
+     * A multi-select cell ("Alpro Apps, Xilnex"; commas or semicolons) as the
+     * matching options in their stored spelling, each once - or null when
+     * any part is not one of the options, so a typo never imports half a
+     * list.
+     *
+     * @param list<mixed> $options
+     * @return list<string>|null
+     */
+    private static function multiValue(array $options, string $value): ?array
+    {
+        $out = [];
+        foreach (preg_split('/[,;]/', $value) ?: [] as $part) {
+            $part = trim($part);
+            if ($part === '') {
+                continue;
+            }
+            $match = null;
+            foreach ($options as $option) {
+                if (strcasecmp((string) $option, $part) === 0) {
+                    $match = (string) $option;
+                    break;
+                }
+            }
+            if ($match === null) {
+                return null;
+            }
+            $out[$match] = true;
+        }
+
+        return $out === [] ? null : array_keys($out);
     }
 
     /**
@@ -465,7 +498,6 @@ final class ContactImport
             ['value' => self::TARGET_SKIP, 'label' => 'Do not import'],
             ['value' => self::TARGET_EMAIL, 'label' => 'Email (required)'],
             ['value' => self::TARGET_NAME, 'label' => 'Name'],
-            ['value' => self::TARGET_MEMBER_CODE, 'label' => 'Member code'],
         ];
         foreach (CustomField::where('`is_active` = 1') as $f) {
             $out[] = ['value' => self::FIELD_PREFIX . $f['key'], 'label' => $f['label'] . ' (custom field)'];
@@ -486,7 +518,6 @@ final class ContactImport
         $aliases = [
             self::TARGET_EMAIL       => ['email', 'e-mail', 'email address', 'e-mail address', 'emel', 'mail'],
             self::TARGET_NAME        => ['name', 'full name', 'fullname', 'nama', 'contact name', 'first name', 'firstname'],
-            self::TARGET_MEMBER_CODE => ['member code', 'member_code', 'membercode', 'member id', 'member no', 'membership no', 'code'],
         ];
         foreach (CustomField::where('`is_active` = 1') as $f) {
             $aliases[self::FIELD_PREFIX . $f['key']] = [strtolower((string) $f['key']), strtolower((string) $f['label'])];

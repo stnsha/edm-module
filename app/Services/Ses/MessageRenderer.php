@@ -9,9 +9,9 @@ namespace Edm\Services\Ses;
  *
  * Known variables: {{email}}, {{name}}, {{first_name}} / {{FirstName}}
  * (first word of the name), {{last_name}} / {{LastName}} (the rest),
- * {{member_code}} / {{MemberCode}}, {{unsubscribe_url}} /
+ * {{unsubscribe_url}} /
  * {{UnsubscribeLink}}, and every Contacts > Custom field key from the
- * contact's stored values (edm_list_members.fields, filled by Import),
+ * contact's stored values (edm_contacts.fields, filled by Import),
  * matched ignoring case and underscores (fieldKey(): {{PointsBalance}} =
  * points_balance). A variable with no value renders empty.
  *
@@ -23,7 +23,7 @@ final class MessageRenderer
     private const UNSUBSCRIBE_KEYS = ['unsubscribe_url', 'unsubscribelink', 'unsubscribe'];
 
     /**
-     * @param array{email: string, member_code?: ?string, unsubscribe_url: string} $vars
+     * @param array{email: string, unsubscribe_url: string} $vars
      */
     public static function html(string $html, array $vars): string
     {
@@ -44,7 +44,7 @@ final class MessageRenderer
         return $out;
     }
 
-    /** @param array{email: string, member_code?: ?string, unsubscribe_url: string} $vars */
+    /** @param array{email: string, unsubscribe_url: string} $vars */
     public static function subject(string $subject, array $vars): string
     {
         return preg_replace_callback(
@@ -55,7 +55,7 @@ final class MessageRenderer
     }
 
     /**
-     * @param array{email: string, member_code?: ?string, name?: ?string,
+     * @param array{email: string, name?: ?string,
      *              fields?: ?array<string, string>, unsubscribe_url: string} $vars
      */
     private static function value(string $key, array $vars): string
@@ -66,14 +66,19 @@ final class MessageRenderer
 
         return match (true) {
             $key === 'email' => $vars['email'],
-            $key === 'member_code', $key === 'membercode' => (string) ($vars['member_code'] ?? ''),
             $key === 'name' => $name,
             $key === 'first_name', $key === 'firstname' => (string) ($parts[0] ?? ''),
             // Everything after the first word of the name (spec {{LastName}}).
             $key === 'last_name', $key === 'lastname' => implode(' ', array_slice($parts, 1)),
             in_array($key, self::UNSUBSCRIBE_KEYS, true) => $vars['unsubscribe_url'],
-            default => (string) ($fields[self::fieldKey($key, array_keys($fields)) ?? ''] ?? ''),
+            default => self::text($fields[self::fieldKey($key, array_keys($fields)) ?? ''] ?? ''),
         };
+    }
+
+    /** A stored field value as text: a multi-select list is joined with ", ". */
+    private static function text(mixed $value): string
+    {
+        return is_array($value) ? implode(', ', array_map('strval', $value)) : (string) $value;
     }
 
     /**

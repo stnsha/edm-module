@@ -11,13 +11,13 @@ use Edm\Core\ValidationException;
 use Edm\Models\Campaign;
 use Edm\Models\CampaignContent;
 use Edm\Models\CustomField;
-use Edm\Services\SegmentQuery;
+use Edm\Services\CampaignRecipients;
 use Edm\Services\Ses\MessageRenderer;
 use Edm\Services\Ses\SesGateway;
 use Throwable;
 
 /**
- * Automated QA checklist for a campaign (spec 5.2 step 5, section 11), run
+ * Automated QA checklist for a newsletter (spec 5.2 step 5, section 11), run
  * on the saved design by QaQueue. Each check returns
  * { key, label, result: pass|warn|fail, summary, details[] }; any fail blocks
  * scheduling, warnings do not.
@@ -32,7 +32,7 @@ use Throwable;
  *   utm            web links carry utm_source / utm_medium / utm_campaign
  *   mobile         layout hints: widths over 600px, tiny fonts
  *   spam           in-house spam score (rules below), 3+ warn, 5+ fail
- *   deliverability SES configured, sending enabled, quota covers the list
+ *   deliverability SES configured, sending enabled, quota covers the recipients
  */
 final class QaChecker
 {
@@ -41,7 +41,7 @@ final class QaChecker
     private const SPAM_FAIL = 5.0;
 
     private const BUILT_IN_VARS = [
-        'email', 'name', 'first_name', 'firstname', 'last_name', 'lastname', 'member_code', 'membercode',
+        'email', 'name', 'first_name', 'firstname', 'last_name', 'lastname',
         'unsubscribe_url', 'unsubscribelink', 'unsubscribe',
     ];
     private const UNSUBSCRIBE_VARS = ['unsubscribe_url', 'unsubscribelink', 'unsubscribe'];
@@ -65,7 +65,7 @@ final class QaChecker
         $subject = trim((string) ($campaign['subject'] ?? ''));
 
         if (trim($html) === '') {
-            return [$this->check('design', 'Design', 'fail', 'The campaign has no saved design yet.')];
+            return [$this->check('design', 'Design', 'fail', 'The newsletter has no saved design yet.')];
         }
 
         [$links, $images, $doc] = $this->parse($html);
@@ -78,7 +78,7 @@ final class QaChecker
             $this->emptyValues($campaign, $tokens),
             $this->links($links),
             $this->images($images),
-            $this->utm($links),
+            $this->utm($links, $campaign),
             $this->mobile($doc),
             $this->spam($subject, $html, $links, $images),
             $this->deliverability($campaign),
@@ -99,7 +99,7 @@ final class QaChecker
     {
         $len = mb_strlen($subject);
         if ($len === 0) {
-            return $this->check('subject', 'Subject line length', 'fail', 'The campaign has no subject line.');
+            return $this->check('subject', 'Subject line length', 'fail', 'The newsletter has no subject line.');
         }
 
         return $len > self::SUBJECT_MAX
@@ -134,8 +134,8 @@ final class QaChecker
     }
 
     /**
-     * Recipients (list + segment, subscribed) with no value for a variable
-     * the campaign uses - spec: "no blank fields sent to customers".
+     * Recipients (the newsletter's audience, subscribed) with no value for a variable
+     * the newsletter uses - spec: "no blank fields sent to customers".
      *
      * @param list<string> $tokens
      */
@@ -146,27 +146,15 @@ final class QaChecker
         if ($tokens === []) {
             return $this->check('empty_values', $label, 'pass', 'No contact data variables used.');
         }
-        if (!Campaign::hasAudience($campaign)) {
-            return $this->check('empty_values', $label, 'warn', 'No recipient list chosen yet - cannot check the contacts.');
-        }
-        $listId = Campaign::audienceListId($campaign);
         try {
-            $segment = SegmentQuery::forCampaign(
-                $campaign['segment_id'] !== null ? (int) $campaign['segment_id'] : null,
-                $listId
-            );
+            [$audSql, $params] = (new CampaignRecipients($this->db))->where(CampaignRecipients::of($campaign), 'm');
         } catch (ValidationException $e) {
             return $this->check('empty_values', $label, 'fail', $e->getMessage());
         }
-        [$where, $params] = ['m.`deleted_at` IS NULL AND m.`status` = 1 AND (? IS NULL OR m.`list_id` = ?)', [$listId, $listId]];
-        if ($segment !== null) {
-            [$segSql, $segParams] = (new SegmentQuery($this->db))->where($segment, 'm');
-            $where .= ' AND ' . $segSql;
-            $params = [...$params, ...$segParams];
-        }
-        $total = (int) $this->db->scalar('SELECT COUNT(*) FROM `edm_list_members` m WHERE ' . $where, $params);
+        $where = 'm.`deleted_at` IS NULL AND m.`status` = 1 AND ' . $audSql;
+        $total = (int) $this->db->scalar('SELECT COUNT(*) FROM `edm_contacts` m WHERE ' . $where, $params);
         if ($total === 0) {
-            return $this->check('empty_values', $label, 'warn', 'The campaign currently reaches no subscribed contacts.');
+            return $this->check('empty_values', $label, 'warn', 'The newsletter currently reaches no subscribed contacts.');
         }
 
         $details = [];
@@ -176,11 +164,11 @@ final class QaChecker
             $expr = match ($t) {
                 'name', 'first_name', 'firstname' => ['m.`name`', []],
                 'last_name', 'lastname'           => ['SUBSTRING(TRIM(m.`name`), LOCATE(\' \', CONCAT(TRIM(m.`name`), \' \')) + 1)', []],
-                'member_code', 'membercode'       => ['m.`member_code`', []],
                 default                           => ['JSON_UNQUOTE(JSON_EXTRACT(m.`fields`, ?))', ['$."' . (MessageRenderer::fieldKey($t, $keys) ?? $t) . '"']],
             };
             $empty = (int) $this->db->scalar(
-                'SELECT COUNT(*) FROM `edm_list_members` m WHERE ' . $where . ' AND TRIM(COALESCE(' . $expr[0] . ", '')) = ''",
+                // '[]' is an empty multi-select list.
+                'SELECT COUNT(*) FROM `edm_contacts` m WHERE ' . $where . ' AND TRIM(COALESCE(' . $expr[0] . ", '')) IN ('', '[]')",
                 [...$params, ...$expr[1]]
             );
             if ($empty > 0) {
@@ -246,12 +234,21 @@ final class QaChecker
             : $this->check('images', 'Images load', 'pass', count($results) . ' of ' . count($results) . ' images OK.');
     }
 
-    /** @param list<string> $links */
-    private function utm(array $links): array
+    /**
+     * With UTM on in the Tracking step every link is tagged when sent, so
+     * the design itself needs no tags.
+     *
+     * @param list<string> $links
+     */
+    private function utm(array $links, array $campaign): array
     {
         $web = array_values(array_unique(array_filter($links, static fn (string $u): bool => (bool) preg_match('#^https?://#i', $u))));
         if ($web === []) {
             return $this->check('utm', 'UTM parameters', 'pass', 'No web links to tag.');
+        }
+        if (!empty($campaign['utm_enabled'])) {
+            $u = Campaign::utm($campaign);
+            return $this->check('utm', 'UTM parameters', 'pass', 'UTM tags are added to all ' . count($web) . ' links when sent (source ' . $u['source'] . ', medium ' . $u['medium'] . ', campaign ' . $u['campaign'] . ').');
         }
         $untagged = array_values(array_filter($web, static fn (string $u): bool => !UtmTagger::isTagged($u)));
 
@@ -361,17 +358,14 @@ final class QaChecker
         $left = (int) max(0, $a['max_24h'] - $a['sent_24h']);
         $summary = 'SES quota OK: ' . number_format($left) . ' of ' . number_format((int) $a['max_24h']) . ' left in the last 24 hours'
             . ($a['production_access'] ? '.' : ' (sandbox - only verified recipients).');
-        $listId = Campaign::audienceListId($campaign);
-        $recipients = Campaign::hasAudience($campaign)
-            ? (int) $this->db->scalar(
-                'SELECT COUNT(DISTINCT LOWER(TRIM(`email`))) FROM `edm_list_members`
-                  WHERE (? IS NULL OR `list_id` = ?) AND `status` = 1 AND `deleted_at` IS NULL',
-                [$listId, $listId]
-            )
-            : 0;
+        try {
+            $recipients = (new CampaignRecipients($this->db))->count(CampaignRecipients::of($campaign))['matched'];
+        } catch (ValidationException) {
+            $recipients = 0;
+        }
 
         return $recipients > $left
-            ? $this->check('deliverability', $label, 'warn', 'The list (' . number_format($recipients) . ') is larger than today\'s remaining quota (' . number_format($left) . ') - sending will spread over more than one day.')
+            ? $this->check('deliverability', $label, 'warn', 'The recipients (' . number_format($recipients) . ') are more than today\'s remaining quota (' . number_format($left) . ') - sending will spread over more than one day.')
             : $this->check('deliverability', $label, 'pass', $summary);
     }
 

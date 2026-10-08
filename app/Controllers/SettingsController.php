@@ -96,7 +96,7 @@ final class SettingsController extends Controller
 
     private function senders(string $verb): mixed
     {
-        $payload = $this->request->only(['email', 'from_name', 'reply_to']);
+        $payload = $this->request->only(['email', 'from_name']);
         if ($this->request->has('is_default')) {
             $payload['is_default'] = !empty($this->request->get('is_default'));
         }
@@ -108,7 +108,6 @@ final class SettingsController extends Controller
                 $data = $this->validator->validate($payload + $this->stamp(), [
                     'email'           => ['required', 'email', 'max:255', 'unique:edm_senders,email'],
                     'from_name'       => ['required', 'string', 'max:255'],
-                    'reply_to'        => ['nullable', 'email', 'max:255'],
                     'is_default'      => ['sometimes', 'boolean'],
                     'created_by'      => ['nullable', 'integer'],
                     'created_by_name' => ['nullable', 'string', 'max:150'],
@@ -124,7 +123,6 @@ final class SettingsController extends Controller
                 $data = $this->validator->validate($payload, [
                     'email'      => ['sometimes', 'email', 'max:255', 'unique:edm_senders,email'],
                     'from_name'  => ['sometimes', 'string', 'max:255'],
-                    'reply_to'   => ['nullable', 'email', 'max:255'],
                     'is_default' => ['sometimes', 'boolean'],
                 ], $id);
                 // Changing the address re-triggers verification once SES is wired.

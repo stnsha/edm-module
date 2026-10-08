@@ -54,31 +54,90 @@ window.EDM_EB_CUSTOM_VARS = <?php echo json_encode($edm_custom_vars); ?>;
 window.EDM_EB_ASSETS = <?php echo json_encode($edm_assets); ?>;
 </script>
 
-<!-- Template settings (same fields as the Templates create form). Saved
-     together with the design by the Save button / Ctrl+S. -->
-<form class="edm-eb-settings" id="edm-eb-settings" autocomplete="off" onsubmit="return false;">
+<!-- Wizard, like the Email creator (email-builder/index.php): Details,
+     Design, Review. The top-bar Save (Ctrl+S) saves everything from any step;
+     the step is kept in the URL hash (#step-2). -->
+<nav class="edm-wiz-steps edm-wiz-steps--3" id="edm-wiz-steps" aria-label="Template steps">
+    <button type="button" class="edm-wiz-step" data-step="1"><span class="edm-wiz-dot">1</span><span class="edm-wiz-label">Details</span></button>
+    <button type="button" class="edm-wiz-step" data-step="2"><span class="edm-wiz-dot">2</span><span class="edm-wiz-label">Design</span></button>
+    <button type="button" class="edm-wiz-step" data-step="3"><span class="edm-wiz-dot">3</span><span class="edm-wiz-label">Review</span></button>
+</nav>
+
+<form class="edm-wiz" id="edm-eb-settings" autocomplete="off" onsubmit="return false;">
+
+<section class="edm-wiz-pane" data-pane="1" aria-label="Details">
+    <h2 class="edm-wiz-title">Template details</h2>
+    <p class="edm-wiz-sub">How the template is listed in the Template Library and in the Email creator's Start from template.</p>
     <div class="row g-3">
-        <div class="col-md-4">
+        <div class="col-12">
             <label class="form-label" for="edm-eb-f-name">Name <span class="text-danger" aria-hidden="true">*</span></label>
             <input type="text" class="form-control" id="edm-eb-f-name" maxlength="255" required>
         </div>
-        <div class="col-md-4">
+        <div class="col-md-6">
             <label class="form-label" for="edm-eb-f-category">Category</label>
-            <input type="text" class="form-control" id="edm-eb-f-category" maxlength="255">
+            <input type="text" class="form-control" id="edm-eb-f-category" maxlength="255" placeholder="e.g. Newsletter, Birthday, Promotion">
         </div>
-        <div class="col-md-4">
+        <div class="col-md-6">
             <label class="form-label" for="edm-eb-f-thumbnail">Thumbnail URL</label>
-            <input type="text" class="form-control" id="edm-eb-f-thumbnail" maxlength="255">
+            <input type="text" class="form-control" id="edm-eb-f-thumbnail" maxlength="255" placeholder="https://...">
+            <div class="form-text">Optional image shown on the template card.</div>
         </div>
     </div>
+    <div class="edm-wiz-nav">
+        <span></span>
+        <button type="button" class="btn btn-primary" data-wiz-next>Next: Design <i class="bi bi-arrow-right ms-1"></i></button>
+    </div>
+</section>
+
+<section class="edm-wiz-pane edm-wiz-pane--wide" data-pane="2" aria-label="Design" hidden>
+    <div class="edm-wiz-design-head">
+        <div>
+            <h2 class="edm-wiz-title">Design</h2>
+            <p class="edm-wiz-sub mb-0">Drag blocks into the email. Newsletters started from this template get a copy of the design.</p>
+        </div>
+    </div>
+    <!-- EmailBuilder.js, the same prebuilt editor the Email creator hosts
+         (email-builder/editor, source in email-builder/editor-src). Talks to
+         templates/edit.js over postMessage (see editor-src/src/bridge.ts). -->
+    <div class="edm-eb-frame-wrap" data-template="<?php echo (int)$template_id; ?>">
+        <iframe id="edm-eb-frame" class="edm-eb-frame" title="Template editor"
+            src="<?php echo EDM_BASE; ?>email-builder/editor/index.html?v=<?php echo (int)@filemtime(__DIR__ . '/../email-builder/editor/index.html'); ?>"></iframe>
+    </div>
+    <div class="edm-wiz-nav">
+        <button type="button" class="btn btn-outline-secondary" data-wiz-prev><i class="bi bi-arrow-left me-1"></i>Previous</button>
+        <button type="button" class="btn btn-primary" data-wiz-next>Next: Review <i class="bi bi-arrow-right ms-1"></i></button>
+    </div>
+</section>
+
+<section class="edm-wiz-pane" data-pane="3" aria-label="Review" hidden>
+    <h2 class="edm-wiz-title">Review and save</h2>
+    <p class="edm-wiz-sub">Check the template, preview it, then save.</p>
+    <dl class="edm-wiz-summary" id="edm-wiz-summary"></dl>
+    <div class="edm-wiz-nav">
+        <button type="button" class="btn btn-outline-secondary" data-wiz-prev><i class="bi bi-arrow-left me-1"></i>Previous</button>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-secondary" id="edm-eb-preview"><i class="bi bi-eye me-1"></i>Preview</button>
+            <button type="button" class="btn btn-primary" id="edm-eb-save-final"><i class="bi bi-floppy me-1"></i>Save template</button>
+        </div>
+    </div>
+</section>
+
 </form>
 
-<!-- EmailBuilder.js, the same prebuilt editor the Email creator hosts
-     (email-builder/editor, source in email-builder/editor-src). Talks to
-     templates/edit.js over postMessage (see editor-src/src/bridge.ts). -->
-<div class="edm-eb-frame-wrap" data-template="<?php echo (int)$template_id; ?>">
-    <iframe id="edm-eb-frame" class="edm-eb-frame" title="Template editor"
-        src="<?php echo EDM_BASE; ?>email-builder/editor/index.html?v=<?php echo (int)@filemtime(__DIR__ . '/../email-builder/editor/index.html'); ?>"></iframe>
+<!-- Preview: the current design (exported from the editor, unsaved edits
+     included) in a sandboxed frame. -->
+<div class="modal fade" id="edm-eb-preview-modal" tabindex="-1" aria-labelledby="edm-eb-preview-title" aria-hidden="true">
+    <div class="modal-dialog modal-xl modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="edm-eb-preview-title">Preview</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body p-0">
+                <iframe class="edm-nl-preview-frame" id="edm-eb-preview-frame" sandbox="" title="Template preview"></iframe>
+            </div>
+        </div>
+    </div>
 </div>
 <?php
 include __DIR__ . '/../footer.php';
