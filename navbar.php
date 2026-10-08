@@ -82,7 +82,7 @@ $current_script = basename($_self);
  *
  * The marketing team is moving off GetResponse; this menu mirrors its grouping
  * and wording so the layout stays familiar. Folder names on disk remain
- * spec-aligned (campaign/, audience/, assets/ ...) - only the
+ * spec-aligned (newsletters/, audience/, assets/ ...) - only the
  * display label is decoupled here, via this map.
  *
  * Each entry:
@@ -118,13 +118,15 @@ $edm_nav = array(
         'items' => array(
             // Email creator has no menu entry of its own; it is reached from
             // the Newsletters list (Design button) and keeps this highlighted.
-            array('folder' => 'campaign',  'file' => 'index.php', 'label' => 'All newsletters',
+            array('folder' => 'newsletters', 'file' => 'index.php', 'label' => 'All newsletters',
                 'folders' => array('email-builder')),
             // Template editor (edit.php) is reached from the Templates list.
             array('folder' => 'templates', 'file' => 'index.php', 'label' => 'Templates',
                 'files' => array('edit.php')),
-            // Asset library: newsletter images live with the newsletters.
-            array('folder' => 'assets',    'file' => 'index.php', 'label' => 'Files'),
+            // Newsletter report: pick a sent newsletter, or opened from
+            // "View report" on the list. The Files library (assets/) has no
+            // menu entry; images are uploaded / picked in the Email creator.
+            array('folder' => 'newsletters', 'file' => 'report.php', 'label' => 'Reports'),
         ),
     ),
     array(
@@ -153,6 +155,7 @@ $edm_nav = array(
             array('folder' => 'settings', 'file' => 'domains.php',      'label' => 'Sending domains'),
             array('folder' => 'settings', 'file' => 'users.php',        'label' => 'Users & permissions'),
             array('folder' => 'settings', 'file' => 'integrations.php', 'label' => 'Integrations & API'),
+            array('folder' => 'settings', 'file' => 'events.php',       'label' => 'SES event log'),
         ),
     ),
 );

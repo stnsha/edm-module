@@ -331,7 +331,7 @@
         btn.hidden = false;
         $('edm-recall-inbox').innerHTML = '<div><strong>' + (esc(CFG.subject) || '<span class="text-muted">No subject</span>') + '</strong>' +
             (CFG.preheader ? ' <span class="text-muted">- ' + esc(CFG.preheader) + '</span>' : '') + '</div>';
-        $('edm-recall-frame').src = BASE + 'campaign/api.php?action=campaigns_preview&id=' + CFG.campaignId + '&t=' + Date.now();
+        $('edm-recall-frame').src = BASE + 'newsletters/api.php?action=campaigns_preview&id=' + CFG.campaignId + '&t=' + Date.now();
         clearInterval(recallTimer);
         if (sendAt === null) {
             var left = secs;
@@ -417,7 +417,7 @@
             var v = finalAt.value;
             var mine = ++conflictSeq;
             if (!v) { box.textContent = 'Choose the date the newsletter goes out.'; return; }
-            fetch(BASE + 'email-builder/api.php?action=conflicts&campaign=' + CFG.campaignId + '&date=' + encodeURIComponent(v),
+            fetch(BASE + 'email-builder/api.php?action=conflicts&newsletter=' + CFG.campaignId + '&date=' + encodeURIComponent(v),
                 { headers: { 'Accept': 'application/json' } })
                 .then(function (r) { return r.json(); })
                 .then(function (res) {
@@ -495,7 +495,7 @@
         }).join('');
         note.innerHTML = run.status === 5
             ? '<div class="alert alert-danger py-2 px-3 small mt-3 mb-0"><i class="bi bi-x-octagon me-1"></i>Scheduling is blocked until the failed checks are fixed. ' +
-                '<a href="' + BASE + 'email-builder/index.php?campaign=' + CFG.campaignId + '" target="_blank" rel="noopener">Open the newsletter in the Email creator</a> - saving the fix runs the check again.</div>'
+                '<a href="' + BASE + 'email-builder/index.php?newsletter=' + CFG.campaignId + '" target="_blank" rel="noopener">Open the newsletter in the Email creator</a> - saving the fix runs the check again.</div>'
             : '';
     }
 

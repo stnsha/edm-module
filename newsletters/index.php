@@ -2,7 +2,7 @@
 $page_title = 'Newsletters';
 $page_subtitle = 'One-time email newsletters. Create a newsletter, design it in the Email creator, then submit it for review.';
 require __DIR__ . '/../partials.php';
-// New campaign: creates an empty draft and opens it in the Email creator
+// New newsletter: creates an empty draft and opens it in the Email creator
 // (no pop-up form); settings are filled in there.
 $page_title_actions = edm_title_button('New newsletter', 'edm-nl-new');
 include __DIR__ . '/../header.php';
@@ -12,7 +12,7 @@ $page_js = EDM_BASE . 'js/edm-crud.js';
 <!-- Newsletters / Archived tabs, as atem/view.php HQ / Outlet: archived
      newsletters (status 9) are listed only under Archived (campaigns_list
      ?archived=1) and can be unarchived there. -->
-<ul class="nav nav-tabs edm-view-tabs mb-3" id="edm-campaign-tabs" role="tablist">
+<ul class="nav nav-tabs edm-view-tabs mb-3" id="edm-newsletter-tabs" role="tablist">
     <li class="nav-item" role="presentation">
         <button class="nav-link active edm-tab-color-outlet" type="button" role="tab" data-view="active" aria-selected="true">
             <i class="bi bi-envelope"></i> Newsletters <span class="edm-tab-count" id="edm-tab-active-count">0</span>
@@ -30,7 +30,7 @@ edm_crud_screen(array(
     'modal_size' => 'modal-lg',
 ));
 ?>
-<!-- Preview (email HTML is served by campaign/api.php?action=campaigns_preview
+<!-- Preview (email HTML is served by newsletters/api.php?action=campaigns_preview
      with a CSP sandbox header; the iframe is sandboxed as well). -->
 <div class="modal fade" id="edm-nl-preview-modal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
@@ -41,6 +41,30 @@ edm_crud_screen(array(
             </div>
             <div class="modal-body p-0">
                 <iframe class="edm-nl-preview-frame" id="edm-nl-preview-frame" sandbox="" title="Newsletter preview"></iframe>
+            </div>
+        </div>
+    </div>
+</div>
+<!-- Show recipients (campaigns_recipients): who the audience resolves to
+     now, or once sending has started, who it was sent to and how it went. -->
+<div class="modal fade" id="edm-nl-rcpt-modal" tabindex="-1" aria-hidden="true">
+    <div class="modal-dialog modal-lg modal-dialog-scrollable">
+        <div class="modal-content">
+            <div class="modal-header">
+                <h5 class="modal-title" id="edm-nl-rcpt-title">Recipients</h5>
+                <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
+            </div>
+            <div class="modal-body">
+                <div class="d-flex align-items-center justify-content-between flex-wrap gap-2 mb-2">
+                    <div class="small text-muted" id="edm-nl-rcpt-summary">Loading...</div>
+                    <input type="search" class="form-control form-control-sm" id="edm-nl-rcpt-search" placeholder="Search email or name" style="max-width: 16rem;" autocomplete="off">
+                </div>
+                <div class="table-responsive">
+                    <table class="table table-sm edm-view-tbl mb-0">
+                        <thead id="edm-nl-rcpt-head"></thead>
+                        <tbody id="edm-nl-rcpt-body"></tbody>
+                    </table>
+                </div>
             </div>
         </div>
     </div>
@@ -59,9 +83,73 @@ edm_crud_screen(array(
     function openPreview(r) {
         if (!previewModal) { previewModal = new bootstrap.Modal(previewModalEl); }
         document.getElementById('edm-nl-preview-title').textContent = r.name + (r.subject ? ' - ' + r.subject : '');
-        previewFrame.src = BASE + 'campaign/api.php?action=campaigns_preview&id=' + r.id;
+        previewFrame.src = BASE + 'newsletters/api.php?action=campaigns_preview&id=' + r.id;
         previewModal.show();
     }
+
+    // Show recipients: one modal, filled per newsletter.
+    var rcptModalEl = document.getElementById('edm-nl-rcpt-modal');
+    var rcptModal   = null;
+    var rcptRows    = [];
+    var rcptSource  = 'audience';
+    var RCPT_PILLS  = { 1: 'edm-pill-primary', 2: 'edm-pill-success', 3: 'edm-pill-danger', 4: 'edm-pill-danger', 5: 'edm-pill-danger', 6: 'edm-pill-secondary' };
+
+    function esc(v) {
+        return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
+            return { '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c];
+        });
+    }
+
+    function paintRecipients() {
+        var q = document.getElementById('edm-nl-rcpt-search').value.trim().toLowerCase();
+        var rows = rcptRows.filter(function (r) {
+            return !q || String(r.email).toLowerCase().indexOf(q) !== -1 || String(r.name || '').toLowerCase().indexOf(q) !== -1;
+        });
+        var sent = rcptSource === 'sent';
+        document.getElementById('edm-nl-rcpt-head').innerHTML = sent
+            ? '<tr><th style="width:3rem">#</th><th>Email</th><th>Status</th><th>Sent at</th></tr>'
+            : '<tr><th style="width:3rem">#</th><th>Email</th><th>Name</th><th>Status</th></tr>';
+        document.getElementById('edm-nl-rcpt-body').innerHTML = rows.length ? rows.map(function (r, i) {
+            if (sent) {
+                return '<tr><td>' + (i + 1) + '</td><td>' + esc(r.email) + '</td><td><span class="edm-pill ' + (RCPT_PILLS[r.status] || 'edm-pill-secondary') + '"' +
+                    (r.error ? ' title="' + esc(r.error) + '"' : '') + '>' + esc(r.label) + '</span>' +
+                    (r.error ? '<div class="small text-muted">' + esc(r.error) + '</div>' : '') + '</td><td>' + esc(r.sent_at || '-') + '</td></tr>';
+            }
+            return '<tr><td>' + (i + 1) + '</td><td>' + esc(r.email) + '</td><td>' + esc(r.name || '-') + '</td><td>' +
+                (r.suppressed
+                    ? '<span class="edm-pill edm-pill-warning" title="On the exclusion list - skipped at send time">Excluded</span>'
+                    : '<span class="edm-pill edm-pill-success">Will receive</span>') + '</td></tr>';
+        }).join('') : '<tr><td colspan="4" class="text-center text-muted py-3">' + (q ? 'No recipient matches the search.' : 'No recipients.') + '</td></tr>';
+    }
+
+    function openRecipients(r) {
+        if (!rcptModal) { rcptModal = new bootstrap.Modal(rcptModalEl); }
+        document.getElementById('edm-nl-rcpt-title').textContent = 'Recipients - ' + r.name;
+        document.getElementById('edm-nl-rcpt-summary').textContent = 'Loading...';
+        document.getElementById('edm-nl-rcpt-search').value = '';
+        document.getElementById('edm-nl-rcpt-head').innerHTML = '';
+        document.getElementById('edm-nl-rcpt-body').innerHTML = '';
+        rcptModal.show();
+        fetch(BASE + 'newsletters/api.php?action=campaigns_recipients&id=' + r.id, { headers: { 'Accept': 'application/json' } })
+            .then(function (res) { return res.json(); })
+            .then(function (res) {
+                if (!res.success) {
+                    document.getElementById('edm-nl-rcpt-summary').textContent = res.message || 'Could not load the recipients.';
+                    return;
+                }
+                rcptSource = res.data.source;
+                rcptRows = res.data.rows || [];
+                var shown = rcptRows.length < res.data.total ? ' (first ' + rcptRows.length + ' shown)' : '';
+                document.getElementById('edm-nl-rcpt-summary').textContent = rcptSource === 'sent'
+                    ? res.data.total + ' recipient(s) in the send log' + shown + '.'
+                    : res.data.total + ' subscribed contact(s) match the audience now' + shown + '. The list is worked out again when the newsletter is sent.';
+                paintRecipients();
+            })
+            .catch(function () {
+                document.getElementById('edm-nl-rcpt-summary').textContent = 'Could not load the recipients.';
+            });
+    }
+    document.getElementById('edm-nl-rcpt-search').addEventListener('input', paintRecipients);
 
     // Draft (1) and content revision (4) are the only states still being worked
     // on; later states are in review / scheduled / sent and stay read-only here.
@@ -70,7 +158,7 @@ edm_crud_screen(array(
     document.getElementById('edm-nl-new').addEventListener('click', function () {
         var btn = this;
         btn.disabled = true;
-        fetch(BASE + 'campaign/api.php?action=campaigns_new', { method: 'POST', headers: { 'Accept': 'application/json' } })
+        fetch(BASE + 'newsletters/api.php?action=campaigns_new', { method: 'POST', headers: { 'Accept': 'application/json' } })
             .then(function (r) { return r.json(); })
             .then(function (res) {
                 if (!res.success) {
@@ -80,13 +168,13 @@ edm_crud_screen(array(
                     el.hidden = false;
                     return;
                 }
-                window.location.href = BASE + 'email-builder/index.php?campaign=' + res.data.id;
+                window.location.href = BASE + 'email-builder/index.php?newsletter=' + res.data.id;
             })
             .catch(function () { btn.disabled = false; });
     });
 
     window.EDM_CRUD_CONFIG = {
-        api: 'campaign/api.php',
+        api: 'newsletters/api.php',
         entity: 'newsletter',
         actions: { list: 'campaigns_list', create: 'campaigns_create', update: 'campaigns_update', 'delete': 'campaigns_delete' },
         badges: { status: {
@@ -105,7 +193,7 @@ edm_crud_screen(array(
         noCreate: true,
         // Tab counts follow every reload (archive / unarchive / delete).
         onLoad: function () {
-            fetch(BASE + 'campaign/api.php?action=campaigns_counts', { headers: { 'Accept': 'application/json' } })
+            fetch(BASE + 'newsletters/api.php?action=campaigns_counts', { headers: { 'Accept': 'application/json' } })
                 .then(function (r) { return r.json(); })
                 .then(function (res) {
                     if (!res.success) { return; }
@@ -117,10 +205,15 @@ edm_crud_screen(array(
         noEdit: true,
         rowActions: [
             { label: 'Edit', visible: editable,
-                link: function (r) { return 'email-builder/index.php?campaign=' + r.id; } },
+                link: function (r) { return 'email-builder/index.php?newsletter=' + r.id; } },
             { label: 'Submit', action: 'campaigns_submit', confirm: 'Submit this newsletter for review?',
                 visible: editable },
             { label: 'Preview', handler: function (r) { openPreview(r); } },
+            { label: 'Show recipients', handler: function (r) { openRecipients(r); } },
+            // Once anything was sent (rows in the send log, `delivered` on the
+            // listing row): figures, opens / clicks per recipient.
+            { label: 'View report', visible: function (r) { return (r.delivered || 0) > 0; },
+                link: function (r) { return 'newsletters/report.php?newsletter=' + r.id; } },
             { label: 'Reuse', action: 'campaigns_duplicate', confirm: 'Create a copy of this newsletter as a new draft?' },
             { label: 'Recall - don’t send it', action: 'campaigns_recall',
                 confirm: 'Recall this newsletter? Nothing is sent; it returns to content revision and needs a new review.',
@@ -149,7 +242,7 @@ edm_crud_screen(array(
     };
 
     // Newsletters / Archived tabs: same table, list reloaded with ?archived=1.
-    var tabs = [].slice.call(document.querySelectorAll('#edm-campaign-tabs .nav-link'));
+    var tabs = [].slice.call(document.querySelectorAll('#edm-newsletter-tabs .nav-link'));
     tabs.forEach(function (b) {
         b.addEventListener('click', function () {
             var archived = b.getAttribute('data-view') === 'archived';

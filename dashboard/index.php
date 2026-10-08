@@ -19,7 +19,7 @@ $edm_kpis = array(
 );
 
 // Campaign::STATUSES label => [title, value colour]. Colours match the status
-// pills on the Newsletters list (campaign/index.php).
+// pills on the Newsletters list (newsletters/index.php).
 $edm_status_cards = array(
     'draft'               => array('Draft', '#6c757d'),
     'pending_submission'  => array('Pending Submission', '#0aa2c0'),

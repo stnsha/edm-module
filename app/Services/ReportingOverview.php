@@ -45,20 +45,27 @@ final class ReportingOverview
     /**
      * Platform delivery figures from edm_send_log (sent by the queue, updated
      * by SES events). Delivery and bounce rates are over emails sent; open,
-     * click, complaint and unsubscribe rates over emails delivered.
+     * click, complaint and unsubscribe rates over emails delivered. With
+     * $campaignId, the figures of that one newsletter (Newsletter report).
      *
      * @return array<string, int|float>
      */
-    private function delivery(): array
+    public function delivery(?int $campaignId = null): array
     {
+        $params = [SendLog::SENT, SendLog::DELIVERED, SendLog::BOUNCED, SendLog::COMPLAINED];
+        $scope = '';
+        if ($campaignId !== null) {
+            $scope = ' AND `campaign_id` = ?';
+            $params[] = $campaignId;
+        }
         $r = $this->db->first(
             'SELECT COUNT(*) AS sent,
                     COUNT(`delivered_at`) AS delivered, COUNT(`opened_at`) AS opened,
                     COUNT(`clicked_at`) AS clicked, COUNT(`bounced_at`) AS bounced,
                     COUNT(`complained_at`) AS complained, COUNT(`unsubscribed_at`) AS unsubscribed
                FROM `edm_send_log`
-              WHERE `deleted_at` IS NULL AND `status` IN (?, ?, ?, ?)',
-            [SendLog::SENT, SendLog::DELIVERED, SendLog::BOUNCED, SendLog::COMPLAINED]
+              WHERE `deleted_at` IS NULL AND `status` IN (?, ?, ?, ?)' . $scope,
+            $params
         ) ?? [];
         $n = static fn (string $k): int => (int) ($r[$k] ?? 0);
         $pct = static fn (int $part, int $whole, int $dp = 1): float => $whole > 0 ? round($part * 100 / $whole, $dp) : 0.0;

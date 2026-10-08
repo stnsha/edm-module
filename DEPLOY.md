@@ -59,6 +59,11 @@ git pull origin main
   files on the server, keep them aside with `git stash` (or discard with
   `git checkout -- <file>` if they are not needed), then pull.
 - Do not edit code on the server; change it locally, push, then pull here.
+- The Newsletters list moved from `edm\campaign\` to `edm\newsletters\`
+  (and the Email creator now uses `?newsletter=<id>`; old `?campaign=` links
+  still work). `git pull` removes the old folder; if the code is copied
+  instead, delete `edm\campaign\` by hand. Bookmarks to
+  `edm/campaign/index.php` must be updated.
 
 ---
 

@@ -46,9 +46,9 @@
  *   listParams: optional { name: value } query parameters sent with the
  *            // list action (e.g. { status: 1 }).
  *   onLoad: optional function (rows) - runs after every list load (e.g. tab
- *            // counts on campaign/index.php).
+ *            // counts on newsletters/index.php).
  *   onFormOpen: optional function (row|null, bodyEl) - runs after the modal
- *            // form is filled, e.g. to wire dependent selects (campaign/index.php).
+ *            // form is filled, e.g. to wire dependent selects (newsletters/index.php).
  *   saveAndGo: optional { label, icon, link: function (savedRow) -> path }
  *            // adds a second submit button to the modal that saves, then
  *            // navigates to BASE + link(savedRow) instead of closing.

@@ -199,6 +199,45 @@ final class CampaignRecipients
         return ['matched' => $matched, 'total' => $total, 'sample' => $rows];
     }
 
+    /**
+     * The recipients themselves (one row per address, newest contact first),
+     * each flagged when the address is on the exclusion list and so would
+     * be skipped at send time. At most $limit rows.
+     *
+     * @return list<array{email: string, name: ?string, suppressed: bool}>
+     */
+    public function rows(array $audience, int $limit = 5000): array
+    {
+        [$cond, $params] = $this->where($audience);
+        $rows = $this->db->select(
+            'SELECT m.`email`, m.`name`,
+                    EXISTS (SELECT 1 FROM `edm_suppressions` s
+                             WHERE s.`deleted_at` IS NULL AND LOWER(s.`email`) = LOWER(TRIM(m.`email`))) AS `suppressed`
+               FROM `edm_contacts` m
+              WHERE m.`deleted_at` IS NULL AND m.`status` = ? AND ' . $cond . '
+              ORDER BY m.`id` DESC',
+            [Contact::SUBSCRIBED, ...$params]
+        );
+
+        $out = [];
+        foreach ($rows as $r) {
+            $key = strtolower(trim((string) $r['email']));
+            if (isset($out[$key])) {
+                continue;
+            }
+            $out[$key] = [
+                'email'      => (string) $r['email'],
+                'name'       => $r['name'] !== null ? (string) $r['name'] : null,
+                'suppressed' => (bool) $r['suppressed'],
+            ];
+            if (count($out) >= $limit) {
+                break;
+            }
+        }
+
+        return array_values($out);
+    }
+
     /** Of the recipients, how many addresses are on the exclusion list. */
     public function suppressedCount(array $audience): int
     {

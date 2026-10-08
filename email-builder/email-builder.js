@@ -16,7 +16,7 @@
 
     var BASE   = window.EDM_MODULE_BASE || '/odb/edm/';
     var CID    = wrap.getAttribute('data-campaign');
-    var API    = BASE + 'email-builder/api.php?campaign=' + encodeURIComponent(CID);
+    var API    = BASE + 'email-builder/api.php?newsletter=' + encodeURIComponent(CID);
     var SOURCE = 'edm-email-creator';
 
     var frameEl = document.getElementById('edm-eb-frame');
@@ -45,7 +45,7 @@
     var submitBtn = document.getElementById('edm-eb-submit');
     var templateBtn = document.getElementById('edm-eb-template');
 
-    // Same labels / pill colours as the Newsletters list (campaign/index.php).
+    // Same labels / pill colours as the Newsletters list (newsletters/index.php).
     var STATUS = {
         1: { label: 'Draft', cls: 'edm-pill-secondary' },
         2: { label: 'Pending submission', cls: 'edm-pill-info' },
@@ -848,7 +848,7 @@
             '<div class="edm-wiz-inbox-from">' + (sender ? esc(sender) : '<span class="text-muted">No sender</span>') + '</div>' +
             '<div><strong>' + (esc(f.subject.value.trim()) || '<span class="text-muted">No subject</span>') + '</strong>' +
             (f.preheader.value.trim() ? ' <span class="text-muted">- ' + esc(f.preheader.value.trim()) + '</span>' : '') + '</div>';
-        previewFrame.src = BASE + 'campaign/api.php?action=campaigns_preview&id=' + encodeURIComponent(CID) + '&t=' + Date.now();
+        previewFrame.src = BASE + 'newsletters/api.php?action=campaigns_preview&id=' + encodeURIComponent(CID) + '&t=' + Date.now();
         previewModal.show();
     }
     previewModalEl.addEventListener('hidden.bs.modal', function () { previewFrame.src = 'about:blank'; });

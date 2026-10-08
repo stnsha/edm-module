@@ -1,6 +1,7 @@
 <?php
 $page_title  = 'Email creator';
-$campaign_id = isset($_GET['campaign']) ? (int)$_GET['campaign'] : 0;
+// ?newsletter=<id>; ?campaign= is the old name, still read for saved links.
+$campaign_id = isset($_GET['newsletter']) ? (int)$_GET['newsletter'] : (isset($_GET['campaign']) ? (int)$_GET['campaign'] : 0);
 if (!$campaign_id) {
     $page_subtitle = 'Pick a newsletter to design.';
 } else {
@@ -67,7 +68,7 @@ $page_js = EDM_BASE . 'email-builder/email-builder.js';
                             ' data-bs-popper-config=\'{"strategy":"fixed"}\' aria-label="Actions" title="Actions">' +
                             '<i class="bi bi-three-dots-vertical"></i></button>' +
                         '<ul class="dropdown-menu dropdown-menu-end edm-row-menu">' +
-                            '<li><a class="dropdown-item" href="' + esc(BASE + 'email-builder/index.php?campaign=' + r.id) + '">Design</a></li>' +
+                            '<li><a class="dropdown-item" href="' + esc(BASE + 'email-builder/index.php?newsletter=' + r.id) + '">Design</a></li>' +
                         '</ul></div></td>' +
                 '</tr>';
             }).join('');
@@ -79,7 +80,7 @@ $page_js = EDM_BASE . 'email-builder/email-builder.js';
 </script>
 <?php else: ?>
 <div class="edm-eb-bar">
-    <a class="edm-eb-back" href="<?php echo EDM_BASE; ?>campaign/index.php" title="Back to newsletters" aria-label="Back to newsletters">
+    <a class="edm-eb-back" href="<?php echo EDM_BASE; ?>newsletters/index.php" title="Back to newsletters" aria-label="Back to newsletters">
         <i class="bi bi-arrow-left"></i>
     </a>
     <div class="edm-eb-heading">
@@ -333,7 +334,7 @@ window.EDM_EB_TAGS = <?php echo json_encode($edm_master_tags); ?>;
 </form>
 
 <!-- Preview message: the saved email as it will be sent (preview text, UTM
-     tags), from campaign/api.php campaigns_preview (CSP sandboxed). -->
+     tags), from newsletters/api.php campaigns_preview (CSP sandboxed). -->
 <div class="modal fade" id="edm-eb-preview-modal" tabindex="-1" aria-labelledby="edm-eb-preview-title" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">

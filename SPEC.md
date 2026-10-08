@@ -42,7 +42,7 @@ with superadmin / BPT override.
 | Module              | Folder            | Phase | Menu gate            |
 | ------------------- | ----------------- | ----- | ------------------- |
 | Dashboard (incl. Reporting Dashboard) | `dashboard/` | 1 | edm >= 1     |
-| Newsletter Management  | `campaign/`       | 1     | edm in (1,2,3)      |
+| Newsletter Management  | `newsletters/`    | 1     | edm in (1,2,3)      |
 | Email Builder       | `email-builder/`  | 1     | edm in (1,2,3)      |
 | Audience Builder    | `audience/`       | 1     | edm in (1,2,3)      |
 | Newsletter Calendar   | `calendar/`       | 1     | edm >= 1            |
@@ -182,14 +182,14 @@ decoupled via the `$edm_nav` map in `navbar.php`.
 | Contacts > Custom fields | `audience/fields.php`            | Audience Builder     | build |
 | (not in menu) Tags       | `audience/tags.php`             | Audience Builder     | build |
 | Contacts > Exclusion lists | `suppression/index.php`         | Suppression Centre   | build |
-| Newsletters > All newsletters | `campaign/index.php`       | Newsletter Management  | build |
+| Newsletters > All newsletters | `newsletters/index.php`    | Newsletter Management  | build |
 | (no menu entry; via Newsletters > Design, keeps All newsletters active) | `email-builder/index.php` | Email Builder | build |
 | Automation > Workflows   | `automation/index.php`           | Automation Builder   | build |
 | Automation > Autoresponders | `automation/autoresponders.php` | Automation Builder | build |
 | Calendar                | `calendar/index.php`             | Newsletter Calendar    | view  |
 | Newsletters > Templates | `templates/index.php`           | Template Library     | build |
 | (no menu entry; via Templates > Edit / Design template) | `templates/edit.php` | Template Library | build |
-| Newsletters > Files     | `assets/index.php`              | Asset Library        | build |
+| Newsletters > Reports   | `newsletters/report.php`        | Reporting            | build |
 | Approval                | `approval/index.php`           | Approval Centre      | build |
 | Settings > Senders      | `settings/senders.php`         | Settings             | super |
 | Settings > Sending domains | `settings/domains.php`       | Settings             | super |

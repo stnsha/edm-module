@@ -22,8 +22,8 @@ use Edm\Services\Ses\SesGateway;
 use Edm\Services\Ses\Unsubscribe;
 
 /**
- * Email creator (email-builder/). The newsletter id comes from ?campaign= or
- * the body's `campaign`. Actions:
+ * Email creator (email-builder/). The newsletter id comes from ?newsletter=
+ * (?campaign= still read, the old name) or the body's `campaign`. Actions:
  *   campaigns_list  picker for the bare landing page
  *   load            newsletter + content + audience
  *   settings_save   the wizard settings: name, subject, preheader, tags (ids)
@@ -60,7 +60,7 @@ final class EmailBuilderController extends Controller
             return Campaign::listing();
         }
 
-        $id = (int) ($this->request->query('campaign') ?? $this->request->get('campaign', 0));
+        $id = (int) ($this->request->query('newsletter') ?? $this->request->query('campaign') ?? $this->request->get('campaign', 0));
         if ($id <= 0) {
             throw new HttpException('A newsletter id is required', 422);
         }

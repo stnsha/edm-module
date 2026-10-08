@@ -259,7 +259,7 @@ $page_js = EDM_BASE . 'approval/edit.js';
                         <?php endif; ?>
                         <?php endif; ?>
                         <a href="<?php echo EDM_BASE; ?>calendar/index.php" target="_blank" rel="noopener">Open calendar</a>
-                        <?php if ($slot_campaign !== null): ?> &middot; <a href="<?php echo EDM_BASE; ?>email-builder/index.php?campaign=<?php echo (int)$slot_campaign['id']; ?>" target="_blank" rel="noopener">Set send date</a><?php endif; ?>
+                        <?php if ($slot_campaign !== null): ?> &middot; <a href="<?php echo EDM_BASE; ?>email-builder/index.php?newsletter=<?php echo (int)$slot_campaign['id']; ?>" target="_blank" rel="noopener">Set send date</a><?php endif; ?>
                     </div>
                     <div class="form-check mt-2">
                         <input class="form-check-input edm-bpt-check" type="checkbox" id="edm-bpt-slot" value="slot"
@@ -327,7 +327,7 @@ $page_js = EDM_BASE . 'approval/edit.js';
                             <span class="text-muted">(send limits per contact can lower this)</span></p>
                         <?php endif; ?>
                         <?php if ($slot_campaign !== null && !\Edm\Models\Campaign::isLocked($slot_campaign)): ?>
-                        <a href="<?php echo EDM_BASE; ?>email-builder/index.php?campaign=<?php echo (int)$slot_campaign['id']; ?>#step-2" target="_blank" rel="noopener">Change recipients</a>
+                        <a href="<?php echo EDM_BASE; ?>email-builder/index.php?newsletter=<?php echo (int)$slot_campaign['id']; ?>#step-2" target="_blank" rel="noopener">Change recipients</a>
                         <?php endif; ?>
                     </div>
                 </div>

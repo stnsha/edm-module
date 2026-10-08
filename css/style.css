@@ -4055,3 +4055,99 @@ button {
 .edm-final-checks li:last-child {
     border-bottom: 0;
 }
+
+/* ===== Newsletter report (newsletters/report.php): minimalist ===== */
+.edm-rp-pick {
+    margin-bottom: 1.25rem;
+}
+.edm-rp-pick .form-select {
+    max-width: 24rem;
+    font-weight: 600;
+    font-size: 13px;
+    border-color: transparent;
+    background-color: #f4f6f9;
+    padding-top: .3rem;
+    padding-bottom: .3rem;
+}
+/* The open list follows the select's size; options stay regular weight. */
+.edm-rp-pick .form-select option { font-size: 13px; font-weight: 400; }
+.edm-rp-pick .form-select:focus { border-color: #86b7fe; background-color: #fff; }
+.edm-rp-meta {
+    margin-top: .4rem;
+    padding-left: .75rem;
+    font-size: 12px;
+    color: #6c757d;
+}
+.edm-rp-dot { margin: 0 .5rem; color: #c3c8cf; }
+.edm-rp-notice {
+    display: flex;
+    align-items: center;
+    gap: .5rem;
+    margin-bottom: 1.25rem;
+    font-size: 12px;
+    color: #6c757d;
+    cursor: help;
+}
+.edm-rp-notice[hidden] { display: none; }
+/* odb's shared page.css sizes bare spans; keep the notice text at 12px. */
+.edm-rp-notice span,
+.edm-rp-meta span,
+.edm-rp-more span { font-size: 12px; }
+.edm-rp-notice .bi { color: #0d6efd; }
+.edm-rp-stats {
+    display: grid;
+    grid-template-columns: repeat(4, minmax(0, 1fr));
+    border-top: 1px solid #edf0f3;
+    border-bottom: 1px solid #edf0f3;
+}
+.edm-rp-stat {
+    padding: 1.1rem 1.25rem;
+}
+.edm-rp-stat + .edm-rp-stat { border-left: 1px solid #edf0f3; }
+.edm-rp-stat-title {
+    font-size: 12px;
+    color: #6c757d;
+    text-transform: uppercase;
+    letter-spacing: .04em;
+}
+.edm-rp-stat-value {
+    font-size: 28px;
+    font-weight: 600;
+    line-height: 1.2;
+    margin-top: .25rem;
+    color: #212529;
+}
+.edm-rp-stat-sub { font-size: 12px; color: #8a929b; }
+.edm-rp-more {
+    margin: .75rem 0 2rem;
+    font-size: 12px;
+    color: #6c757d;
+}
+.edm-rp-toolbar {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    flex-wrap: wrap;
+    gap: .5rem;
+    margin-bottom: .75rem;
+}
+.edm-rp-heading { font-size: 15px; font-weight: 600; margin: 0; }
+.edm-rp-toolbar .form-select { width: auto; }
+.edm-rp-toolbar .form-control { width: 12rem; }
+/* Recipients table at 12px throughout (header, email, name, time). */
+.edm-rp-table th,
+.edm-rp-table td,
+.edm-rp-table td div,
+.edm-rp-table td .edm-pill { font-size: 12px; }
+.edm-rp-table .edm-rp-sub { color: #8a929b; }
+.edm-rp-empty {
+    text-align: center;
+    color: #8a929b;
+    padding: 3rem 1rem;
+}
+.edm-rp-empty .bi { font-size: 32px; display: block; margin-bottom: .5rem; color: #c3c8cf; }
+@media (max-width: 767.98px) {
+    .edm-rp-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+    .edm-rp-stat:nth-child(3) { border-left: 0; }
+    .edm-rp-stat:nth-child(n+3) { border-top: 1px solid #edf0f3; }
+}

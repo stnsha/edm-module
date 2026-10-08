@@ -7,11 +7,14 @@ namespace Edm\Controllers;
 use Edm\Core\Controller;
 use Edm\Models\Campaign;
 use Edm\Models\CampaignContent;
+use Edm\Models\SendLog;
 use Edm\Services\CampaignRecall;
+use Edm\Services\CampaignRecipients;
+use Edm\Services\CampaignReport;
 use Edm\Services\Ses\CampaignMessage;
 
 /**
- * Newsletters (campaign/). Actions:
+ * Newsletters (newsletters/). Actions:
  *   campaigns_list (?archived=1: only archived, else all but archived)
  *   campaigns_create | campaigns_update | campaigns_delete
  *   (campaigns_create takes an optional template_id: its design is copied in)
@@ -27,6 +30,12 @@ use Edm\Services\Ses\CampaignMessage;
  *   campaigns_counts    { active, archived } for the Newsletters / Archived tabs
  *   Scheduled is reached only by final approval (ApprovalController, spec
  *   5.2 step 6); from then on the newsletter is locked (Campaign::isLocked()).
+ *   campaigns_recipients ?id= "Show recipients": once sending has started, the
+ *                       addresses in edm_send_log with their send status
+ *                       (source "sent"); before that, who the audience
+ *                       resolves to now (source "audience", suppressed flag)
+ *   campaigns_report    ?id= Newsletter report (newsletters/report.php):
+ *                       figures + every send log row (CampaignReport)
  *   campaigns_preview   raw email HTML for an <iframe> (not JSON)
  *   campaigns_new    POST -> empty draft (default sender preset), opened in the
  *                    Email creator by the New newsletter button
@@ -97,6 +106,10 @@ final class CampaignController extends Controller
                 return ['archived' => $byStatus['archived'], 'active' => array_sum($byStatus) - $byStatus['archived']];
             case 'campaigns_unarchive':
                 return Campaign::unarchive($this->requireId('Newsletter'));
+            case 'campaigns_recipients':
+                return $this->recipients($this->requireId('Newsletter'));
+            case 'campaigns_report':
+                return (new CampaignReport($this->db))->build($this->requireId('Newsletter'));
             case 'campaigns_preview':
                 $this->preview();
         }
@@ -108,6 +121,44 @@ final class CampaignController extends Controller
     {
         return $this->request->only(['name', 'subject', 'subject_b', 'preheader', 'scheduled_at'])
             + $this->request->ids(['sender_id', 'reply_to_id']);
+    }
+
+    /** Most rows the Show recipients list returns. */
+    private const RECIPIENTS_LIMIT = 5000;
+
+    /**
+     * @return array{source: string, total: int, rows: list<array<string, mixed>>}
+     */
+    private function recipients(int $id): array
+    {
+        $campaign = Campaign::findOrFail($id);
+        $sent = $this->db->select(
+            'SELECT `email`, `status`, `sent_at`, `error` FROM `edm_send_log`
+              WHERE `campaign_id` = ? AND `deleted_at` IS NULL ORDER BY `id` ASC LIMIT ' . self::RECIPIENTS_LIMIT,
+            [$id]
+        );
+        if ($sent !== []) {
+            return [
+                'source' => 'sent',
+                'total'  => (int) $this->db->scalar('SELECT COUNT(*) FROM `edm_send_log` WHERE `campaign_id` = ? AND `deleted_at` IS NULL', [$id]),
+                'rows'   => array_map(static fn (array $r): array => [
+                    'email'   => (string) $r['email'],
+                    'status'  => (int) $r['status'],
+                    'label'   => ucfirst(SendLog::STATUSES[(int) $r['status']] ?? ''),
+                    'sent_at' => $r['sent_at'] !== null ? date('d-m-Y H:i:s', strtotime((string) $r['sent_at'])) : null,
+                    'error'   => $r['error'],
+                ], $sent),
+            ];
+        }
+
+        $service = new CampaignRecipients($this->db);
+        $audience = CampaignRecipients::of($campaign);
+
+        return [
+            'source' => 'audience',
+            'total'  => $service->count($audience)['matched'],
+            'rows'   => $service->rows($audience, self::RECIPIENTS_LIMIT),
+        ];
     }
 
     /**

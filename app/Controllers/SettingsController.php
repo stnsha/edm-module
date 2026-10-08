@@ -9,6 +9,7 @@ use Edm\Core\HttpException;
 use Edm\Core\ValidationException;
 use Edm\Models\Sender;
 use Edm\Models\SendingDomain;
+use Edm\Models\SesEvent;
 use Edm\Models\Setting;
 use Edm\Services\Ses\IdentitySync;
 use Edm\Services\Ses\SesException;
@@ -21,6 +22,10 @@ use Edm\Services\Ses\SesGateway;
  *   (integrations|general)_(list|create|update|delete)   grouped key/value
  *   users_list, users_search, users_save, users_delete   staff.edm role (superadmin only)
  *   ses_status, ses_sender_check, ses_sender_request, ses_domain_check   Amazon SES
+ *   events_list  ?type= (SesEvent::TYPES) &days= (0 = all, default 30): the
+ *                SES event log (settings/events.php), newest first, at most
+ *                SesEvent::LOG_LIMIT rows, payload left out
+ *   events_get   ?id= one event with its full payload (raw JSON view)
  */
 final class SettingsController extends Controller
 {
@@ -46,7 +51,33 @@ final class SettingsController extends Controller
         if (str_starts_with($action, 'ses_')) {
             return $this->ses($action);
         }
+        if ($action === 'events_list' || $action === 'events_get') {
+            return $this->events($action);
+        }
         $this->unknown();
+    }
+
+    /** SES event log (superadmin, like the rest of Amazon SES settings). */
+    private function events(string $action): mixed
+    {
+        if (!$this->auth->isSuperadmin && $this->auth->permission !== 1) {
+            throw new HttpException('Only EDM superadmins can view the SES event log.', 403);
+        }
+        if ($action === 'events_get') {
+            $id = $this->request->id();
+            $event = $id > 0 ? SesEvent::find($id) : null;
+            if ($event === null) {
+                throw new HttpException('Event not found', 404);
+            }
+            return $event;
+        }
+        $type = (string) $this->request->query('type', '');
+        if ($type !== '' && !in_array($type, SesEvent::TYPES, true)) {
+            throw ValidationException::single('type', 'Unknown event type.');
+        }
+        $days = (int) $this->request->query('days', 30);
+
+        return SesEvent::log($type, max(0, $days));
     }
 
     /**
