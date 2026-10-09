@@ -705,6 +705,7 @@
         setStatus(c.status);
         renderApproval();
         paintSteps();
+        if (typeof wizStep !== 'undefined' && wizStep === LAST_STEP) { renderSummary(approvalSummaryEl, true); }
     }
 
     function sendTimeText(c) {
@@ -860,6 +861,7 @@
     var wizSteps = [].slice.call(document.querySelectorAll('.edm-wiz-step'));
     var wizPanes = [].slice.call(document.querySelectorAll('.edm-wiz-pane'));
     var summaryEl = document.getElementById('edm-wiz-summary');
+    var approvalSummaryEl = document.getElementById('edm-eb-approval-summary');
     var wizStep = 1;
     var visited = {};
     var designBlocks = null; // top-level blocks in the design; null until known
@@ -899,6 +901,7 @@
         // resolve against it and change the URL.
         try { window.history.replaceState(null, '', window.location.pathname + window.location.search + '#step-' + wizStep); } catch (err) { /* ignore */ }
         if (wizStep === SEND_STEP) { renderSummary(); }
+        if (wizStep === LAST_STEP) { renderSummary(approvalSummaryEl, true); }
         paintSteps();
         if (scroll !== false) {
             document.getElementById('edm-wiz-steps').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -917,12 +920,17 @@
         });
     }
 
-    function renderSummary() {
+    // Summary of steps 1-5: in step 5 (Edit links, When row) and in step 6
+    // for the approver (View links - the newsletter is locked there; the
+    // send time is in the approval details above it).
+    function renderSummary(target, forApproval) {
+        target = target || summaryEl;
+        var linkLabel = forApproval ? 'View' : 'Edit';
         function row(label, value, step, missing) {
             return '<div class="edm-wiz-row' + (missing ? ' is-missing' : '') + '">' +
                 '<dt>' + esc(label) + '</dt>' +
                 '<dd>' + (missing ? '<i class="bi bi-exclamation-circle me-1"></i>' : '') + value + '</dd>' +
-                '<dd class="edm-wiz-row-edit"><button type="button" class="btn btn-link btn-sm p-0" data-wiz-go="' + step + '">Edit</button></dd>' +
+                '<dd class="edm-wiz-row-edit"><button type="button" class="btn btn-link btn-sm p-0" data-wiz-go="' + step + '">' + linkLabel + '</button></dd>' +
             '</div>';
         }
         function onOff(v) { return v ? 'on' : 'off'; }
@@ -932,7 +940,7 @@
             var when = f.whenNow.checked ? 'Send now - one minute after approval'
                 : (f.scheduled.value ? f.scheduled.value.replace('T', ' ') : '');
             var u = utmValues();
-            summaryEl.innerHTML =
+            target.innerHTML =
                 row('Title', esc(f.name.value.trim()) || 'Not set', 1, !f.name.value.trim()) +
                 row('From', sender ? esc(sender) : 'Not chosen', 1, !sender) +
                 row('Reply-to', esc(optionText(f.replyTo)) || 'Same as sender', 1, false) +
@@ -949,7 +957,7 @@
                     ', Google Analytics ' + onOff(f.utmEnabled.checked) +
                     (f.utmEnabled.checked ? '<div class="edm-wiz-row-note">utm_source=' + esc(u.source) + ', utm_medium=' + esc(u.medium) +
                         ', utm_campaign=' + esc(u.campaign) + (u.content ? ', utm_content=' + esc(u.content) : '') + '</div>' : ''), 4, false) +
-                row('When', when ? esc(when) : 'Choose a date and time above', SEND_STEP, !when);
+                (forApproval ? '' : row('When', when ? esc(when) : 'Choose a date and time above', SEND_STEP, !when));
         }
         draw();
         refreshDesignState(draw);
@@ -1000,10 +1008,12 @@
         previewModal.show();
     }
     previewModalEl.addEventListener('hidden.bs.modal', function () { previewFrame.src = 'about:blank'; });
-    document.getElementById('edm-eb-preview').addEventListener('click', function () {
-        if (!dirty || saveBtn.hidden) { openPreview(); return; }
-        afterSave = openPreview;
-        save();
+    [].forEach.call(document.querySelectorAll('[data-eb-preview]'), function (b) {
+        b.addEventListener('click', function () {
+            if (!dirty || saveBtn.hidden) { openPreview(); return; }
+            afterSave = openPreview;
+            save();
+        });
     });
 
     (function initialStep() {

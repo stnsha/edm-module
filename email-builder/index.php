@@ -338,7 +338,7 @@ window.EDM_EB_PIC = <?php echo !empty($edm_is_pic) ? 'true' : 'false'; ?>;
     <div class="edm-wiz-nav">
         <button type="button" class="btn btn-outline-secondary" data-wiz-prev><i class="bi bi-arrow-left me-1"></i>Previous</button>
         <div class="d-flex gap-2">
-            <button type="button" class="btn btn-outline-secondary" id="edm-eb-preview"><i class="bi bi-eye me-1"></i>Preview message</button>
+            <button type="button" class="btn btn-outline-secondary" id="edm-eb-preview" data-eb-preview><i class="bi bi-eye me-1"></i>Preview message</button>
             <button type="button" class="btn btn-success" id="edm-eb-submit" hidden title="Save, then submit for review">
                 <i class="bi bi-send me-1"></i>Submit for review
             </button>
@@ -357,6 +357,8 @@ window.EDM_EB_PIC = <?php echo !empty($edm_is_pic) ? 'true' : 'false'; ?>;
     <p class="edm-wiz-sub">The EDM approver checks the newsletter before it is sent. Approving schedules it for the requested time.</p>
     <div id="edm-eb-approval-state"></div>
     <dl class="edm-wiz-summary" id="edm-eb-approval-info"></dl>
+    <h3 class="edm-wiz-subtitle">Newsletter summary</h3>
+    <dl class="edm-wiz-summary" id="edm-eb-approval-summary"></dl>
     <h3 class="edm-wiz-subtitle">Checks</h3>
     <ul class="edm-eb-checks" id="edm-eb-approval-checks"></ul>
     <div id="edm-eb-approval-decide" hidden>
@@ -366,6 +368,7 @@ window.EDM_EB_PIC = <?php echo !empty($edm_is_pic) ? 'true' : 'false'; ?>;
     <div class="edm-wiz-nav">
         <button type="button" class="btn btn-outline-secondary" data-wiz-prev><i class="bi bi-arrow-left me-1"></i>Previous</button>
         <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-secondary" data-eb-preview><i class="bi bi-eye me-1"></i>Preview message</button>
             <button type="button" class="btn btn-outline-secondary" id="edm-eb-withdraw" hidden><i class="bi bi-arrow-counterclockwise me-1"></i>Withdraw</button>
             <button type="button" class="btn btn-outline-danger" id="edm-eb-reject" hidden><i class="bi bi-x-lg me-1"></i>Reject</button>
             <button type="button" class="btn btn-success" id="edm-eb-approve" hidden><i class="bi bi-check-lg me-1"></i>Approve</button>
