@@ -1,0 +1,1 @@
+import{u as t,r as s,j as n}from"./index-BZyeHiGS.js";import{H as r}from"./HighlightedCodePanel-B1Snffxu.js";function i(){const e=t(),o=s.useMemo(()=>JSON.stringify(e,null,"  "),[e]);return n.jsx(r,{type:"json",value:o})}export{i as default};

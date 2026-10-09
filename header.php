@@ -86,7 +86,6 @@ if ((int)$edm_permission === 0 && !$_is_superadmin) {
 
 <body>
     <?php include(dirname(__FILE__) . '/navbar.php'); ?>
-    <?php include(dirname(__FILE__) . '/getresponse-help.php'); ?>
     <div class="header" style="position: relative;">
         <b class="rtop"><b class="r1"></b><b class="r2"></b><b class="r3"></b><b class="r4"></b></b>
         <h1 class="headerH1"><img src='<?php echo EDM_BASE; ?>css/logo.svg?v=<?php echo filemtime(__DIR__ . '/css/logo.svg'); ?>' width='20px'>EDM</h1>

@@ -33,3 +33,6 @@ CLAUDE.md
 # Uploaded files (Files / Image block). The folder guard is tracked.
 /uploads/*
 !/uploads/.htaccess
+
+# NAS image cache (public/file.php)
+/cache/

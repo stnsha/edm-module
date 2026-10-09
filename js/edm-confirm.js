@@ -10,10 +10,10 @@
  * it without a page needing to provide the HTML.
  *
  *   edmConfirm('Delete this list?', function () { ... });
- *   edmConfirm('Submit for review?', fn, { title: 'Submit newsletter', variant: 'info', confirmLabel: 'Submit' });
+ *   edmConfirm('Schedule this newsletter?', fn, { title: 'Schedule newsletter', variant: 'success', confirmLabel: 'Schedule' });
  *   edmAlert('Saved.', { variant: 'success', title: 'Done' });
- *   edmPrompt('Why is it rejected?', function (text) { ... },
- *             { title: 'Reject review', variant: 'danger', label: 'Comment', required: true });
+ *   edmPrompt('Name of the new tag?', function (text) { ... },
+ *             { title: 'New tag', variant: 'info', label: 'Name', required: true });
  *
  * edmConfirm without options guesses from the message: Delete / Remove /
  * Stop / Reject / Deactivate -> danger with that word on the button;
@@ -107,7 +107,7 @@
             pending = null;
             if (p && p.onCancel) { p.onCancel(); }
             // Bootstrap ignores show() mid-transition, so a dialog opened
-            // while this one was closing (e.g. "Approved" after a decision)
+            // while this one was closing (e.g. "Saved" after a confirm)
             // is shown now.
             if (queued) {
                 var next = queued;

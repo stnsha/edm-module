@@ -22,10 +22,6 @@ $edm_kpis = array(
 // pills on the Newsletters list (newsletters/index.php).
 $edm_status_cards = array(
     'draft'               => array('Draft', '#6c757d'),
-    'pending_submission'  => array('Pending Submission', '#0aa2c0'),
-    'under_bpt_review'    => array('Under BPT Review', '#0aa2c0'),
-    'content_revision'    => array('Content Revision', '#fd7e14'),
-    'audience_validation' => array('Audience Validation', '#0aa2c0'),
     'scheduled'           => array('Scheduled', '#0d6efd'),
     'sending'             => array('Sending', '#0d6efd'),
     'completed'           => array('Completed', '#198754'),

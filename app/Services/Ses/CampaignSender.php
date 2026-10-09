@@ -36,7 +36,7 @@ final class CampaignSender
     /**
      * A scheduled newsletter starts this long after its send time, so it can
      * still be recalled ("Don't send it", Campaign::recall()) - also right
-     * after final approval of a Send now newsletter.
+     * after scheduling a Send now newsletter.
      */
     public const RECALL_SECONDS = 60;
 

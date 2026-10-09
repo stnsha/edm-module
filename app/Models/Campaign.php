@@ -4,16 +4,20 @@ declare(strict_types=1);
 
 namespace Edm\Models;
 
+use DateTimeImmutable;
 use Edm\Core\Database;
 use Edm\Core\HttpException;
 use Edm\Core\Model;
 use Edm\Services\CampaignRecipients;
-use Edm\Services\Qa\UtmTagger;
+use Edm\Services\ScheduleReadiness;
+use Edm\Services\UtmTagger;
 
 /**
  * A newsletter. Table: edm_campaigns.
  *
- * status is an integer, never a word (spec 5.1, 9-state flow) - see STATUSES.
+ * status is an integer, never a word - see STATUSES. Draft -> Scheduled
+ * (schedule(), from the Email creator) -> Sending -> Completed; Archived on
+ * the side. Values 2-5 belonged to the removed approval chain and are unused.
  * Recipients: the `audience` JSON (included / excluded segments and
  * contacts on the masterlist), resolved by Services\CampaignRecipients.
  * Tracking: track_opens / track_clicks (SES) and utm_enabled + utm (links).
@@ -21,22 +25,14 @@ use Edm\Services\Qa\UtmTagger;
 final class Campaign extends Model
 {
     public const STATUSES = [
-        1 => 'draft', 2 => 'pending_submission', 3 => 'under_bpt_review', 4 => 'content_revision',
-        5 => 'audience_validation', 6 => 'scheduled', 7 => 'sending', 8 => 'completed', 9 => 'archived',
+        1 => 'draft', 6 => 'scheduled', 7 => 'sending', 8 => 'completed', 9 => 'archived',
     ];
 
     public const DRAFT = 1;
-    public const PENDING_SUBMISSION = 2;
-    public const UNDER_BPT_REVIEW = 3;
-    public const CONTENT_REVISION = 4;
-    public const AUDIENCE_VALIDATION = 5;
     public const SCHEDULED = 6;
     public const SENDING = 7;
     public const COMPLETED = 8;
     public const ARCHIVED = 9;
-
-    /** Statuses a newsletter can be raised for review from (approval/edit.php). */
-    public const REVIEWABLE = [self::DRAFT, self::PENDING_SUBMISSION, self::CONTENT_REVISION];
 
     protected const TABLE = 'edm_campaigns';
 
@@ -121,10 +117,10 @@ final class Campaign extends Model
 
     protected const ORDER = '`created_at` DESC, `id` DESC';
 
-    /** Draft and content revision are the only states still being worked on. */
+    /** Draft is the only state still being worked on. */
     public static function isEditable(array $campaign): bool
     {
-        return in_array($campaign['status'], [self::DRAFT, self::CONTENT_REVISION], true);
+        return $campaign['status'] === self::DRAFT;
     }
 
     /**
@@ -249,26 +245,23 @@ final class Campaign extends Model
     }
 
     /**
-     * Soft delete with its dependants: content, approvals and revisions are
-     * soft-deleted too; calendar slots keep their date but lose the link.
+     * Soft delete with its dependants: content is soft-deleted too;
+     * calendar slots keep their date but lose the link.
      */
     public static function delete(int $id): void
     {
         self::findOrFail($id);
         self::db()->transaction(static function () use ($id): void {
             CampaignContent::deleteWhere('campaign_id', $id);
-            Approval::deleteWhere('campaign_id', $id);
-            Revision::deleteWhere('campaign_id', $id);
             CalendarSlot::unlinkWhere('campaign_id', $id);
             parent::delete($id);
         });
     }
 
-    /** Draft / content revision -> pending submission. */
     /**
      * New newsletter from the Newsletters list: an empty draft opened
      * straight in the Email creator. Sender and subject are filled in
-     * there; the default sender is preset. They are checked on submit().
+     * there; the default sender is preset. They are checked on schedule().
      *
      * @param array<string, mixed> $stamp requested_by / requested_by_name
      * @return array<string, mixed>
@@ -285,23 +278,32 @@ final class Campaign extends Model
         ] + $stamp);
     }
 
-    public static function submit(int $id): array
+    /**
+     * Draft -> Scheduled, from the Email creator's Send step. When it goes
+     * out comes from the saved settings: send_now (stamped with the current
+     * time) or scheduled_at. Refused while any ScheduleReadiness check fails.
+     * The send queue waits CampaignSender::RECALL_SECONDS after the send
+     * time, so a Send now newsletter can still be recalled.
+     */
+    public static function schedule(int $id): array
     {
         $campaign = self::findOrFail($id);
         if (!self::isEditable($campaign)) {
-            throw new HttpException('Only a draft or a newsletter in revision can be submitted for review.', 422);
+            throw new HttpException('Only a draft newsletter can be scheduled.', 422);
         }
-        // Drafts may be saved half-filled; a submitted one must be complete.
-        $missing = self::missing($campaign);
-        if ($missing !== []) {
-            throw new HttpException('Before submitting, add ' . implode(', ', $missing) . '.', 422);
+        $sendAt = $campaign['send_now']
+            ? new DateTimeImmutable()
+            : self::parseDate((string) ($campaign['scheduled_at'] ?? ''));
+        $problems = (new ScheduleReadiness())->problems($campaign, $sendAt);
+        if ($problems !== []) {
+            throw new HttpException('Cannot schedule yet: ' . implode(' ', $problems), 422);
         }
 
-        return self::update($id, ['status' => self::PENDING_SUBMISSION]);
+        return self::update($id, ['status' => self::SCHEDULED, 'scheduled_at' => $sendAt?->format('Y-m-d H:i:s')]);
     }
 
     /**
-     * What a newsletter still lacks before it can be submitted or scheduled,
+     * What a newsletter still lacks before it can be scheduled,
      * e.g. ['a sender', 'a design']; empty when complete.
      *
      * @return list<string>
@@ -316,7 +318,7 @@ final class Campaign extends Model
     }
 
     /**
-     * Locked (spec 5.2 step 6): from final approval on - scheduled, sending,
+     * Locked: from scheduling on - scheduled, sending,
      * completed or archived - the settings and design can no longer change.
      */
     public static function isLocked(array $campaign): bool
@@ -333,18 +335,18 @@ final class Campaign extends Model
     }
 
     /**
-     * Statuses a newsletter can be archived from: not in review, scheduled or
+     * Statuses a newsletter can be archived from: not scheduled or
      * sending. Archived newsletters are hidden from the Newsletters list (they
      * show under its Archived tab) and locked until unarchived.
      */
-    public const ARCHIVABLE = [self::DRAFT, self::CONTENT_REVISION, self::COMPLETED];
+    public const ARCHIVABLE = [self::DRAFT, self::COMPLETED];
 
     /** -> archived (spec 5.1 status 9), remembering the status it had. */
     public static function archive(int $id): array
     {
         $campaign = self::findOrFail($id);
         if (!in_array($campaign['status'], self::ARCHIVABLE, true)) {
-            throw new HttpException('Only a draft, a newsletter in content revision or a completed newsletter can be archived.', 422);
+            throw new HttpException('Only a draft or a completed newsletter can be archived.', 422);
         }
 
         return self::update($id, ['status' => self::ARCHIVED, 'archived_from' => $campaign['status']]);
@@ -364,7 +366,7 @@ final class Campaign extends Model
 
     /**
      * "Recall" / "Don't send it": a scheduled newsletter that has not started
-     * sending goes back to content revision (a new review is needed). The
+     * sending goes back to draft (schedule it again when ready). The
      * send queue waits CampaignSender::RECALL_SECONDS after the send time,
      * so there is always at least that long to recall it.
      */
@@ -377,7 +379,7 @@ final class Campaign extends Model
                 : 'Only a scheduled newsletter can be recalled.', 422);
         }
 
-        return self::update($id, ['status' => self::CONTENT_REVISION]);
+        return self::update($id, ['status' => self::DRAFT]);
     }
 
     /**

@@ -139,6 +139,8 @@ window.EDM_EB_ASSETS = <?php echo json_encode($edm_assets); ?>;
         </div>
     </div>
 </div>
+<!-- edmConfirm for the editor iframe (Files library delete in the Image block). -->
+<script src="<?php echo EDM_BASE; ?>js/edm-confirm.js?v=<?php echo filemtime(__DIR__ . '/../js/edm-confirm.js'); ?>"></script>
 <?php
 include __DIR__ . '/../footer.php';
 ?>

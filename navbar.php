@@ -143,11 +143,6 @@ $edm_nav = array(
         'href'  => 'calendar/index.php',
     ),
     array(
-        'label' => 'Approval',
-        'gate'  => 'build',
-        'href'  => 'approval/index.php',
-    ),
-    array(
         'label' => 'Settings',
         'gate'  => 'super',
         'items' => array(

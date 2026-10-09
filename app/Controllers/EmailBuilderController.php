@@ -12,7 +12,6 @@ use Edm\Models\CampaignContent;
 use Edm\Models\MasterTag;
 use Edm\Models\Sender;
 use Edm\Models\Template;
-use Edm\Services\Qa\QaQueue;
 use Edm\Services\ScheduleConflicts;
 use Edm\Services\Ses\CampaignMessage;
 use Edm\Services\Ses\IdentitySync;
@@ -35,7 +34,7 @@ use Edm\Services\Ses\Unsubscribe;
  *   conflicts       calendar conflicts for ?date= (Scheduled send warning)
  *   template_get    a template's html + editor_json ("Start from template";
  *                   loaded into the editor only, saved by the next Save)
- *   submit          draft / revision -> pending submission
+ *   schedule        draft -> scheduled (Campaign::schedule())
  *   send_test       { to } one "[Test]" email of the saved design via SES
  *   sender_create   { from_name, email } "Create new sender" in the Sender /
  *                   Reply-to selects: adds a pending sender to Settings >
@@ -44,7 +43,7 @@ use Edm\Services\Ses\Unsubscribe;
 final class EmailBuilderController extends Controller
 {
     // Only the name is required: a draft is saved half-filled while it is
-    // being built; Campaign::submit() checks sender, subject, design.
+    // being built; Campaign::schedule() checks sender, subject, design.
     private const SETTINGS_RULES = [
         'name'         => ['sometimes', 'required', 'string', 'max:255'],
         'subject'      => ['nullable', 'string', 'max:255'],
@@ -83,8 +82,6 @@ final class EmailBuilderController extends Controller
                     }
                     Campaign::update($id, $data);
                 });
-                // Subject / recipient changes are part of the QA too.
-                (new QaQueue($this->db))->requeueIfFailed($id, $this->auth->staffId, $this->auth->staffName);
                 return Campaign::withDetails($id);
             case 'content_get':
                 Campaign::findOrFail($id);
@@ -92,12 +89,9 @@ final class EmailBuilderController extends Controller
             case 'content_save':
                 Campaign::assertUnlocked(Campaign::findOrFail($id));
                 $json = $this->request->get('editor_json');
-                $saved = CampaignContent::saveBody($id, (string) $this->request->get('html', ''), is_array($json) ? $json : null);
-                // A fix after a failed automated QA run is checked again.
-                (new QaQueue($this->db))->requeueIfFailed($id, $this->auth->staffId, $this->auth->staffName);
-                return $saved;
-            case 'submit':
-                return Campaign::submit($id);
+                return CampaignContent::saveBody($id, (string) $this->request->get('html', ''), is_array($json) ? $json : null);
+            case 'schedule':
+                return Campaign::schedule($id);
             case 'conflicts':
                 $date = Model::parseDate((string) $this->request->query('date', ''));
                 if ($date === null) {

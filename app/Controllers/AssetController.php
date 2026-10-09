@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Edm\Controllers;
 
 use Edm\Core\Controller;
+use Edm\Core\HttpException;
 use Edm\Core\ValidationException;
 use Edm\Models\Asset;
-use Edm\Services\Ses\SesConfig;
+use Edm\Services\Nas\NasException;
+use Edm\Services\Nas\NasImageStore;
 use finfo;
 
 /**
@@ -15,10 +17,15 @@ use finfo;
  *   assets_(list|create|update|delete)   create = an external image URL
  *   assets_upload                         multipart image upload (field `file`)
  *
- * Uploads are stored in edm/uploads/assets/ under a random name (the original
- * name is kept only on the row) and served as static files. Their URL is
- * absolute because mail clients load images from the internet: on a local
- * machine it points at localhost and only renders there.
+ * Uploads are stored on the Synology NAS (Services\Nas\NasImageStore) under a
+ * random name (the original name is kept only on the row) and linked through
+ * the public proxy public/file.php. Their URL is absolute because mail
+ * clients load images from the internet: on a local machine it points at
+ * localhost and only renders there. Uploads made before the NAS stay in
+ * edm/uploads/assets/ and keep their static URLs.
+ *
+ * Delete removes the row; the stored file is removed too, unless a newsletter
+ * or template has used it - emails already sent keep their images.
  */
 final class AssetController extends Controller
 {
@@ -32,7 +39,8 @@ final class AssetController extends Controller
         'image/webp' => 'webp',
     ];
 
-    private const UPLOAD_DIR = 'uploads/assets';
+    /** Uploads from before the NAS, served as static files. */
+    private const LEGACY_DIR = 'uploads/assets';
 
     protected function handle(string $action): mixed
     {
@@ -46,7 +54,10 @@ final class AssetController extends Controller
             $id = $this->requireId('File');
             $asset = Asset::findOrFail($id);
             Asset::delete($id);
-            $this->removeStoredFile((string) $asset['url']);
+            $url = (string) $asset['url'];
+            if (!$this->isUsed($url)) {
+                $this->removeStoredFile($url);
+            }
 
             return null;
         }
@@ -94,13 +105,12 @@ final class AssetController extends Controller
             throw ValidationException::single('file', 'Only JPG, PNG, GIF or WebP images can be uploaded.');
         }
 
-        $dir = dirname(__DIR__, 2) . '/' . self::UPLOAD_DIR;
-        if (!is_dir($dir) && !mkdir($dir, 0755, true) && !is_dir($dir)) {
-            throw ValidationException::single('file', 'The upload folder is not writable.');
-        }
-        $stored = bin2hex(random_bytes(16)) . '.' . self::TYPES[$mime];
-        if (!move_uploaded_file($file['tmp_name'], $dir . '/' . $stored)) {
-            throw ValidationException::single('file', 'The upload could not be saved.');
+        $stored = NasImageStore::newName(self::TYPES[$mime]);
+        try {
+            NasImageStore::fromEnv()->put($file['tmp_name'], $stored);
+        } catch (NasException $e) {
+            error_log('[EDM] assets_upload: ' . $e->getMessage());
+            throw new HttpException('The image could not be saved to the NAS: ' . $e->getMessage(), 502);
         }
 
         $name = trim((string) ($this->request->get('name') ?: $file['name']));
@@ -108,42 +118,52 @@ final class AssetController extends Controller
 
         return Asset::create([
             'name'       => $name,
-            'url'        => $this->publicUrl($stored),
+            'url'        => NasImageStore::url($stored),
             'type'       => 'image',
             'size_bytes' => (int) $file['size'],
         ] + $this->stamp('uploaded_by'));
     }
 
     /**
-     * Absolute URL of an uploaded file. Images go into emails, so they must
-     * load for recipients: EDM_PUBLIC_URL (the module's public base URL) when
-     * set; otherwise however odb is being served (on localhost the image then
-     * shows in the editor but not in a recipient's inbox - QA warns).
+     * Whether a newsletter or template refers to the image URL. Soft-deleted
+     * rows count too: a deleted newsletter's emails may already be in inboxes.
      */
-    private function publicUrl(string $stored): string
+    private function isUsed(string $url): bool
     {
-        $base = SesConfig::fromEnv()->publicUrl;
-        if ($base !== null) {
-            return $base . '/' . self::UPLOAD_DIR . '/' . $stored;
-        }
-        $https = (!empty($_SERVER['HTTPS']) && $_SERVER['HTTPS'] !== 'off')
-            || strtolower((string) ($_SERVER['HTTP_X_FORWARDED_PROTO'] ?? '')) === 'https';
-        $host = (string) ($_SERVER['HTTP_HOST'] ?? 'localhost');
+        $like = '%' . addcslashes($url, '%_' . chr(92)) . '%';
 
-        return ($https ? 'https' : 'http') . '://' . $host . EDM_BASE . self::UPLOAD_DIR . '/' . $stored;
+        return (bool) $this->db->scalar(
+            'SELECT EXISTS (SELECT 1 FROM `edm_campaign_content` WHERE `html` LIKE ? OR CAST(`editor_json` AS CHAR) LIKE ?)
+                 OR EXISTS (SELECT 1 FROM `edm_templates` WHERE `html` LIKE ? OR CAST(`editor_json` AS CHAR) LIKE ? OR `thumbnail_url` = ?)',
+            [$like, $like, $like, $like, $url]
+        );
     }
 
-    /** Remove the stored file for an uploaded asset; external URLs are left alone. */
+    /**
+     * Remove the stored file of an uploaded image: on the NAS (proxy URL) or
+     * in the legacy upload folder. External URLs are left alone. A NAS
+     * failure is only logged - the row is already gone.
+     */
     private function removeStoredFile(string $url): void
     {
-        $marker = EDM_BASE . self::UPLOAD_DIR . '/';
+        $name = NasImageStore::nameFromUrl($url);
+        if ($name !== null) {
+            try {
+                NasImageStore::fromEnv()->delete($name);
+            } catch (NasException $e) {
+                error_log('[EDM] assets_delete ' . $name . ': ' . $e->getMessage());
+            }
+
+            return;
+        }
+        $marker = EDM_BASE . self::LEGACY_DIR . '/';
         $pos = strpos($url, $marker);
         if ($pos === false) {
             return;
         }
         $file = basename(substr($url, $pos + strlen($marker)));
-        if (preg_match('/^[a-f0-9]{32}\.(jpg|png|gif|webp)$/', $file)) {
-            @unlink(dirname(__DIR__, 2) . '/' . self::UPLOAD_DIR . '/' . $file);
+        if (NasImageStore::isName($file)) {
+            @unlink(dirname(__DIR__, 2) . '/' . self::LEGACY_DIR . '/' . $file);
         }
     }
 }

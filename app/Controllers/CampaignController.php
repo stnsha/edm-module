@@ -8,7 +8,6 @@ use Edm\Core\Controller;
 use Edm\Models\Campaign;
 use Edm\Models\CampaignContent;
 use Edm\Models\SendLog;
-use Edm\Services\CampaignRecall;
 use Edm\Services\CampaignRecipients;
 use Edm\Services\CampaignReport;
 use Edm\Services\Ses\CampaignMessage;
@@ -18,18 +17,18 @@ use Edm\Services\Ses\CampaignMessage;
  *   campaigns_list (?archived=1: only archived, else all but archived)
  *   campaigns_create | campaigns_update | campaigns_delete
  *   (campaigns_create takes an optional template_id: its design is copied in)
- *   campaigns_submit    draft / revision -> pending submission
+ *   campaigns_schedule  draft -> scheduled (Campaign::schedule(): saved
+ *                       send_now / scheduled_at, ScheduleReadiness checks)
  *   campaigns_duplicate "Reuse": a copy as a new draft
  *   campaigns_stop      scheduled -> draft, sending -> completed
- *   campaigns_recall    "Don't send it": scheduled (not yet sending) -> content revision
+ *   campaigns_recall    "Don't send it": scheduled (not yet sending) -> draft
  *   Settings also take audience { include, exclude: { segments, contacts } },
  *   send_now, track_opens, track_clicks, utm_enabled, utm { source, medium,
  *   campaign, content } (Campaign::settingsInput()).
- *   campaigns_archive   draft / content revision / completed -> archived (archived_from kept)
+ *   campaigns_archive   draft / completed -> archived (archived_from kept)
  *   campaigns_unarchive archived -> the status it had before
  *   campaigns_counts    { active, archived } for the Newsletters / Archived tabs
- *   Scheduled is reached only by final approval (ApprovalController, spec
- *   5.2 step 6); from then on the newsletter is locked (Campaign::isLocked()).
+ *   From Scheduled on the newsletter is locked (Campaign::isLocked()).
  *   campaigns_recipients ?id= "Show recipients": once sending has started, the
  *                       addresses in edm_send_log with their send status
  *                       (source "sent"); before that, who the audience
@@ -62,7 +61,7 @@ final class CampaignController extends Controller
         'sender_id'    => ['sometimes', 'required', 'integer', 'exists:edm_senders,id'],
         'reply_to_id'  => ['nullable', 'integer', 'exists:edm_senders,id'],
         'scheduled_at' => ['nullable', 'date'],
-        'status'     => ['sometimes', 'integer', 'in:1,2,3,4,5,6,7,8,9'],
+        'status'     => ['sometimes', 'integer', 'in:1,6,7,8,9'],
     ];
 
     protected function handle(string $action): mixed
@@ -91,14 +90,14 @@ final class CampaignController extends Controller
             case 'campaigns_delete':
                 Campaign::delete($this->requireId('Newsletter'));
                 return null;
-            case 'campaigns_submit':
-                return Campaign::submit($this->requireId('Newsletter'));
+            case 'campaigns_schedule':
+                return Campaign::schedule($this->requireId('Newsletter'));
             case 'campaigns_duplicate':
                 return Campaign::duplicate($this->requireId('Newsletter'), $this->stamp('requested_by'));
             case 'campaigns_stop':
                 return Campaign::stop($this->requireId('Newsletter'));
             case 'campaigns_recall':
-                return (new CampaignRecall($this->db))->recall($this->requireId('Newsletter'), $this->auth);
+                return Campaign::recall($this->requireId('Newsletter'));
             case 'campaigns_archive':
                 return Campaign::archive($this->requireId('Newsletter'));
             case 'campaigns_counts':

@@ -42,16 +42,12 @@
     var alertEl = document.getElementById('edm-eb-alert');
     var stateEl = document.getElementById('edm-eb-state');
     var saveBtn = document.getElementById('edm-eb-save');
-    var submitBtn = document.getElementById('edm-eb-submit');
+    var scheduleBtn = document.getElementById('edm-eb-schedule');
     var templateBtn = document.getElementById('edm-eb-template');
 
     // Same labels / pill colours as the Newsletters list (newsletters/index.php).
     var STATUS = {
         1: { label: 'Draft', cls: 'edm-pill-secondary' },
-        2: { label: 'Pending submission', cls: 'edm-pill-info' },
-        3: { label: 'Under BPT review', cls: 'edm-pill-info' },
-        4: { label: 'Content revision', cls: 'edm-pill-warning' },
-        5: { label: 'Audience validation', cls: 'edm-pill-info' },
         6: { label: 'Scheduled', cls: 'edm-pill-primary' },
         7: { label: 'Sending', cls: 'edm-pill-primary' },
         8: { label: 'Completed', cls: 'edm-pill-success' },
@@ -181,8 +177,8 @@
             dirty:  '<i class="bi bi-circle-fill text-warning"></i> Unsaved changes',
             saving: '<span class="spinner-border spinner-border-sm"></span> Saving...',
             saved:  '<i class="bi bi-check-circle-fill text-success"></i> All changes saved',
-            submitting: '<span class="spinner-border spinner-border-sm"></span> Submitting...',
-            submitted:  '<i class="bi bi-send-check-fill text-success"></i> Submitted for review'
+            scheduling: '<span class="spinner-border spinner-border-sm"></span> Scheduling...',
+            scheduled:  '<i class="bi bi-send-check-fill text-success"></i> Scheduled'
         }[kind] || '';
         stateEl.innerHTML = html;
     }
@@ -311,10 +307,12 @@
         el.addEventListener('change', syncTracking);
     });
 
-    // Send step: the date only for Schedule.
+    // Send step: the date only for Schedule; the button says what it does.
     var scheduleRow = document.getElementById('edm-eb-schedule-row');
+    var scheduleLabel = document.getElementById('edm-eb-schedule-label');
     function syncWhen() {
         scheduleRow.hidden = !f.whenLater.checked;
+        scheduleLabel.textContent = f.whenNow.checked ? 'Send now' : 'Schedule';
     }
     f.whenNow.addEventListener('change', syncWhen);
     f.whenLater.addEventListener('change', syncWhen);
@@ -396,7 +394,7 @@
 
     function saveFailed(msg) {
         saveBtn.disabled = false;
-        submitBtn.disabled = false;
+        scheduleBtn.disabled = false;
         afterSave = null;
         setState(dirty ? 'dirty' : '');
         showAlert(msg);
@@ -409,7 +407,7 @@
     // Required settings, checked in form order before anything is sent
     // (the server enforces the same rules).
     // A draft saves with just a name (New newsletter opens an empty one);
-    // Submit needs every field (the server checks the design too), a test
+    // Scheduling needs every field (the server checks the design too), a test
     // email needs a sender and a subject.
     var FIELD = {
         name:    { el: f.name,    label: 'Title' },
@@ -417,7 +415,7 @@
         subject: { el: f.subject, label: 'Subject line' }
     };
     var REQUIRED_SAVE   = [FIELD.name];
-    var REQUIRED_SUBMIT = [FIELD.name, FIELD.sender, FIELD.subject];
+    var REQUIRED_SCHEDULE = [FIELD.name, FIELD.sender, FIELD.subject];
     var REQUIRED_TEST   = [FIELD.name, FIELD.sender, FIELD.subject];
 
     function missingField(list) {
@@ -434,10 +432,10 @@
         var missing = saveBtn.disabled ? null : missingField();
         if (saveBtn.disabled || missing) {
             // Could not start (still loading / already saving / a required
-            // field is empty): drop a pending Submit so its button does not
+            // field is empty): drop a pending Schedule so its button does not
             // stay stuck.
             afterSave = null;
-            submitBtn.disabled = false;
+            scheduleBtn.disabled = false;
             if (missing) {
                 missing.el.focus();
                 showAlert(missing.label + ' is required.');
@@ -644,8 +642,8 @@
         });
     }
 
-    // Only a draft (1) or content revision (4) can go to review. From final
-    // approval on (scheduled 6, sending 7, completed 8, archived 9 -
+    // Only a draft (1) can be scheduled. From scheduling on
+    // (scheduled 6, sending 7, completed 8, archived 9 -
     // Campaign::isLocked()) the newsletter is locked: the server refuses saves,
     // so Save and Start from template are hidden and a notice says why.
     var lockNotice = null;
@@ -655,7 +653,7 @@
         statusEl.className = 'edm-pill ' + st.cls;
         statusEl.textContent = st.label;
         statusEl.hidden = false;
-        submitBtn.hidden = !(status === 1 || status === 4);
+        scheduleBtn.hidden = status !== 1;
         saveBtn.hidden = locked;
         templateBtn.hidden = locked;
         audiencePicker.disable(locked);
@@ -664,45 +662,49 @@
         if (locked && !lockNotice) {
             lockNotice = document.createElement('div');
             lockNotice.className = 'alert alert-info py-2 px-3 small';
-            lockNotice.innerHTML = '<i class="bi bi-lock-fill me-1"></i>This newsletter has final approval and is locked - changes are not saved.' +
-                (status === 6 ? ' To change it, use Stop sending on the Newsletters list (it returns to Draft and needs a new review).' : '');
+            lockNotice.innerHTML = '<i class="bi bi-lock-fill me-1"></i>This newsletter is scheduled or sent and is locked - changes are not saved.' +
+                (status === 6 ? ' To change it, use Recall on the Newsletters list (it returns to Draft).' : '');
             alertEl.parentNode.insertBefore(lockNotice, alertEl);
         }
     }
 
-    // Submit = save everything first (so review sees the current version),
-    // then move the newsletter into review.
-    submitBtn.addEventListener('click', function () {
-        var missing = missingField(REQUIRED_SUBMIT);
+    // Schedule = save everything first (so the saved version is what goes
+    // out), then schedule it; the server runs the readiness checks.
+    scheduleBtn.addEventListener('click', function () {
+        var missing = missingField(REQUIRED_SCHEDULE);
         if (missing) {
             goStep(1);
             missing.el.focus();
-            showAlert(missing.label + ' is required before submitting for review.');
+            showAlert(missing.label + ' is required before scheduling.');
             return;
         }
         if (!f.whenNow.checked && !f.scheduled.value) {
             f.scheduled.focus();
-            showAlert('Choose Send now, or a send date and time, before submitting for review.');
+            showAlert('Choose Send now, or a send date and time, before scheduling.');
             return;
         }
         var name = f.name.value.trim() || 'this newsletter';
-        window.edmConfirm('Save and submit "' + name + '" for review? It cannot be edited while under review.', function () {
-            submitBtn.disabled = true;
+        var question = f.whenNow.checked
+            ? 'Save and send "' + name + '" now? It starts in one minute and is locked from then on.'
+            : 'Save and schedule "' + name + '" for ' + f.scheduled.value.replace('T', ' ') + '? It is locked once scheduled.';
+        window.edmConfirm(question, function () {
+            scheduleBtn.disabled = true;
             afterSave = function () {
-                setState('submitting');
-                call('submit', 'POST', {}).then(function (res) {
-                    submitBtn.disabled = false;
+                setState('scheduling');
+                call('schedule', 'POST', {}).then(function (res) {
+                    scheduleBtn.disabled = false;
                     if (!res.success) { setState(''); showAlert(firstError(res)); return; }
-                    setStatus((res.data && res.data.status) || 2);
-                    setState('submitted');
+                    setStatus((res.data && res.data.status) || 6);
+                    setState('scheduled');
                 }).catch(function () {
-                    submitBtn.disabled = false;
+                    scheduleBtn.disabled = false;
                     setState('');
                     showAlert('Could not reach the server.');
                 });
             };
             save();
-        });
+        }, { title: f.whenNow.checked ? 'Send newsletter' : 'Schedule newsletter', variant: 'success',
+            confirmLabel: f.whenNow.checked ? 'Send now' : 'Schedule' });
     });
 
     // Wizard: five steps on one page (Setup, Recipients, Design, Tracking,
@@ -724,7 +726,7 @@
     }
     function stepComplete(n) {
         switch (n) {
-            case 1: return !missingField(REQUIRED_SUBMIT);
+            case 1: return !missingField(REQUIRED_SCHEDULE);
             case 2: return !!visited[2];
             case 3: return designBlocks !== null && designBlocks > 0;
             case 4: return !!visited[4];
@@ -781,7 +783,7 @@
         function draw() {
             var sender = optionText(f.sender);
             var count = audiencePicker.lastCount;
-            var when = f.whenNow.checked ? 'Send now - right after final approval'
+            var when = f.whenNow.checked ? 'Send now - one minute after scheduling'
                 : (f.scheduled.value ? f.scheduled.value.replace('T', ' ') : '');
             var u = utmValues();
             summaryEl.innerHTML =

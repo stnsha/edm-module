@@ -1,7 +1,6 @@
 @echo off
 rem ==========================================================================
-rem  EDM send queue - runs edm\cron\send.php once (about 50 seconds of work),
-rem  then edm\cron\qa.php (automated QA checks, up to about 40 seconds).
+rem  EDM send queue - runs edm\cron\send.php once (about 50 seconds of work).
 rem
 rem  Schedule it every minute with Windows Task Scheduler. From an
 rem  Administrator command prompt on the server (adjust the path):
@@ -12,7 +11,7 @@ rem
 rem  Check it:   schtasks /Query /TN "EDM send queue"
 rem  Remove it:  schtasks /Delete /TN "EDM send queue" /F
 rem
-rem  send.php logs to edm\logs\ses-send.log, qa.php to edm\logs\qa.log.
+rem  send.php logs to edm\logs\ses-send.log.
 rem  Everything PHP prints (including a fatal error that stops it before it
 rem  can log) is appended to edm\logs\cron.log.
 rem ==========================================================================
@@ -45,9 +44,6 @@ if not defined PHP_EXE (
 "%PHP_EXE%" "%~dp0send.php" >>"%CRON_LOG%" 2>&1
 set "RC=%ERRORLEVEL%"
 if not "%RC%"=="0" >>"%CRON_LOG%" echo [%DATE% %TIME%] send.php exited with code %RC% (%PHP_EXE%).
-
-rem Automated QA checks on queued newsletters (log: edm\logs\qa.log).
-"%PHP_EXE%" "%~dp0qa.php" >>"%CRON_LOG%" 2>&1
 
 endlocal & exit /b %RC%
 

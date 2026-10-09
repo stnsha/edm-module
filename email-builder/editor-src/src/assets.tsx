@@ -1,8 +1,8 @@
 import React, { useRef, useState } from 'react';
 import { create } from 'zustand';
 
-import { CloudUploadOutlined } from '@mui/icons-material';
-import { Alert, Box, Button, LinearProgress, TextField, Tooltip, Typography } from '@mui/material';
+import { CloseOutlined, CloudUploadOutlined } from '@mui/icons-material';
+import { Alert, Box, Button, IconButton, LinearProgress, TextField, Tooltip, Typography } from '@mui/material';
 
 /**
  * EDM: images from the Files library (edm_assets), offered in the Image
@@ -17,12 +17,20 @@ import { Alert, Box, Button, LinearProgress, TextField, Tooltip, Typography } fr
  * box): they go to the Files library through assets/api.php assets_upload
  * (same origin, the odb session), appear first in the grid and - for a
  * single file - are applied to the selected Image block straight away.
+ *
+ * Each tile has a delete button (assets/api.php assets_delete). It asks
+ * first with the parent page's edmConfirm (js/edm-confirm.js - never a native
+ * confirm()); the server keeps the stored file when a newsletter or template
+ * already uses it.
  */
 const SHOW_LIMIT = 30;
 const MAX_BYTES = 5 * 1024 * 1024; // AssetController::MAX_BYTES
 const ACCEPT = ['image/jpeg', 'image/png', 'image/gif', 'image/webp'];
 // editor/index.html -> edm/assets/api.php
 const UPLOAD_URL = new URL('../../assets/api.php?action=assets_upload', window.location.href).toString();
+const DELETE_URL = new URL('../../assets/api.php?action=assets_delete', window.location.href).toString();
+
+type TConfirm = (message: string, onConfirm: () => void, options?: { title?: string; variant?: string; confirmLabel?: string }) => void;
 
 export type TAsset = { id: number; name: string; url: string };
 
@@ -34,6 +42,35 @@ export function setAssets(assets: TAsset[]) {
 
 function addAssets(added: TAsset[]) {
   assetsStore.setState((s) => ({ assets: [...added, ...s.assets.filter((a) => !added.some((n) => n.id === a.id))] }));
+}
+
+function removeAsset(id: number) {
+  assetsStore.setState((s) => ({ assets: s.assets.filter((a) => a.id !== id) }));
+}
+
+/** The parent page's edmConfirm (same origin), or null when it is not loaded. */
+function parentConfirm(): TConfirm | null {
+  try {
+    const fn = (window.parent as unknown as { edmConfirm?: TConfirm }).edmConfirm;
+    return typeof fn === 'function' ? fn : null;
+  } catch {
+    return null;
+  }
+}
+
+/** Removes an asset from the Files library; rejects with a message. */
+function deleteOne(asset: TAsset): Promise<void> {
+  return fetch(DELETE_URL + '&id=' + encodeURIComponent(String(asset.id)), {
+    method: 'POST',
+    headers: { Accept: 'application/json' },
+    credentials: 'same-origin',
+  })
+    .then((r) => r.json())
+    .then((res) => {
+      if (!res || !res.success) {
+        throw new Error(asset.name + ': ' + ((res && res.message) || 'could not be deleted.'));
+      }
+    });
 }
 
 /** One file to the Files library; resolves with the new asset or rejects with a message. */
@@ -68,8 +105,11 @@ export function AssetPicker({ selectedUrl, onPick }: Props) {
   const [busy, setBusy] = useState<{ done: number; total: number } | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
   const [dragOver, setDragOver] = useState(false);
+  const [deleting, setDeleting] = useState<number | null>(null);
   const fileInput = useRef<HTMLInputElement>(null);
 
+  // Delete needs the parent page's confirm dialog; without it there is no button.
+  const canDelete = parentConfirm() !== null;
   const q = query.trim().toLowerCase();
   const matches = q === '' ? assets : assets.filter((a) => a.name.toLowerCase().includes(q));
   const shown = matches.slice(0, SHOW_LIMIT);
@@ -100,6 +140,29 @@ export function AssetPicker({ selectedUrl, onPick }: Props) {
     if (added.length === 1) {
       onPick(added[0]);
     }
+  };
+
+  // Delete: confirm in the parent page's dialog, then remove from the grid.
+  const askDelete = (a: TAsset) => {
+    const confirm = parentConfirm();
+    if (!confirm || deleting !== null) {
+      return;
+    }
+    const inUse = !!selectedUrl && selectedUrl === a.url;
+    confirm(
+      'Delete "' + a.name + '" from the Files library? It disappears from the library for everyone. ' +
+        'Newsletters and templates that already use it keep showing it.' +
+        (inUse ? ' This Image block still uses it - choose another image if you do not want it here.' : ''),
+      () => {
+        setErrors([]);
+        setDeleting(a.id);
+        deleteOne(a)
+          .then(() => removeAsset(a.id))
+          .catch((e) => setErrors([e instanceof Error ? e.message : String(e)]))
+          .finally(() => setDeleting(null));
+      },
+      { title: 'Delete image', variant: 'danger', confirmLabel: 'Delete' }
+    );
   };
 
   return (
@@ -217,34 +280,65 @@ export function AssetPicker({ selectedUrl, onPick }: Props) {
           {shown.map((a) => {
             const selected = !!selectedUrl && selectedUrl === a.url;
             return (
-              <Tooltip key={a.id} title={a.name}>
-                <Box
-                  component="button"
-                  type="button"
-                  onClick={() => onPick(a)}
-                  aria-label={'Use ' + a.name}
-                  aria-pressed={selected}
-                  sx={{
-                    p: 0,
-                    height: 72,
-                    cursor: 'pointer',
-                    borderRadius: 1,
-                    overflow: 'hidden',
-                    bgcolor: '#f5f5f5',
-                    border: '2px solid',
-                    borderColor: selected ? 'primary.main' : 'divider',
-                    '&:hover': { borderColor: 'primary.light' },
-                  }}
-                >
+              <Box
+                key={a.id}
+                sx={{
+                  position: 'relative',
+                  opacity: deleting === a.id ? 0.4 : 1,
+                }}
+              >
+                <Tooltip title={a.name}>
                   <Box
-                    component="img"
-                    src={a.url}
-                    alt=""
-                    loading="lazy"
-                    sx={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
-                  />
-                </Box>
-              </Tooltip>
+                    component="button"
+                    type="button"
+                    onClick={() => onPick(a)}
+                    aria-label={'Use ' + a.name}
+                    aria-pressed={selected}
+                    sx={{
+                      p: 0,
+                      width: '100%',
+                      height: 72,
+                      cursor: 'pointer',
+                      borderRadius: 1,
+                      overflow: 'hidden',
+                      bgcolor: '#f5f5f5',
+                      border: '2px solid',
+                      borderColor: selected ? 'primary.main' : 'divider',
+                      '&:hover': { borderColor: 'primary.light' },
+                    }}
+                  >
+                    <Box
+                      component="img"
+                      src={a.url}
+                      alt=""
+                      loading="lazy"
+                      sx={{ width: '100%', height: '100%', objectFit: 'contain', display: 'block' }}
+                    />
+                  </Box>
+                </Tooltip>
+                {canDelete && (
+                  <Tooltip title="Delete image">
+                    <IconButton
+                      size="small"
+                      aria-label={'Delete ' + a.name}
+                      disabled={deleting !== null}
+                      onClick={() => askDelete(a)}
+                      sx={{
+                        position: 'absolute',
+                        top: 4,
+                        right: 4,
+                        p: 0.25,
+                        bgcolor: 'rgba(255,255,255,0.9)',
+                        border: '1px solid',
+                        borderColor: 'divider',
+                        '&:hover': { bgcolor: 'error.main', color: '#fff', borderColor: 'error.main' },
+                      }}
+                    >
+                      <CloseOutlined sx={{ fontSize: 14 }} />
+                    </IconButton>
+                  </Tooltip>
+                )}
+              </Box>
             );
           })}
         </Box>

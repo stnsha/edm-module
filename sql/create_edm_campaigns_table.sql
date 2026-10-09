@@ -1,10 +1,10 @@
 -- Table `edm_campaigns` (EDM module, odb database).
--- Newsletters. status: 1=draft, 2=pending_submission, 3=under_bpt_review, 4=content_revision, 5=audience_validation, 6=scheduled, 7=sending, 8=completed, 9=archived.
+-- Newsletters. status: 1=draft, 6=scheduled, 7=sending, 8=completed, 9=archived (2-5 unused, from the removed approval chain).
 -- audience: JSON { include: { segments: [id], contacts: [id] }, exclude: { segments: [id], contacts: [id] } };
 --   NULL / empty include = every subscribed contact (edm_contacts), minus the excluded ones.
 -- archived_from: the status before archiving (9); unarchiving restores it.
 -- tag_ids: JSON list of edm_master_tags ids (newsletter tags, optional).
--- send_now: 1 = send as soon as final approval is given, 0 = at scheduled_at. Every send waits
+-- send_now: 1 = send as soon as it is scheduled, 0 = at scheduled_at. Every send waits
 --   60 seconds after its time so it can be recalled (CampaignSender::RECALL_SECONDS).
 -- track_opens / track_clicks: SES open / click tracking; utm_enabled + utm (JSON source, medium,
 --   campaign, content): UTM parameters added to every link when sent.

@@ -2,15 +2,12 @@
 
 declare(strict_types=1);
 
-namespace Edm\Services\Qa;
+namespace Edm\Services;
 
 /**
- * "Add UTM tags" (QA UTM parameter check): adds utm_source=edm,
- * utm_medium=email and utm_campaign=<newsletter slug> to every http(s) link
- * that does not have them yet. Existing utm_* values are kept. Applied to
- * both the rendered html (href attributes) and the EmailBuilder.js
- * editor_json (any string that is a URL, or HTML with href attributes), so
- * the next Save in the Email creator keeps the tags.
+ * Adds utm_source=edm, utm_medium=email and utm_campaign=<newsletter slug>
+ * to every http(s) link that does not have them yet. Existing utm_* values
+ * are kept. Applied to the rendered html (href attributes).
  *
  * $params (source, medium, campaign, content - Campaign::utm()) replace the
  * defaults; the send queue tags every link this way when the newsletter's
@@ -69,60 +66,6 @@ final class UtmTagger
             '/(\bhref\s*=\s*)(["\'])(.*?)\2/i',
             fn (array $m): string => $m[1] . $m[2] . htmlspecialchars($this->tag(html_entity_decode($m[3], ENT_QUOTES | ENT_HTML5, 'UTF-8')), ENT_QUOTES, 'UTF-8', false) . $m[2],
             $html
-        );
-    }
-
-    /**
-     * Walks the EmailBuilder.js document ({ blockId: { type, data: { props } } })
-     * block by block, so only real links are tagged: Button props.url, Image
-     * props.linkHref (props.url is the image itself and is left alone),
-     * markdown / HTML links in Text, Heading and Html blocks.
-     */
-    public function editorJson(mixed $node): mixed
-    {
-        if (!is_array($node)) {
-            return $node;
-        }
-        if (isset($node['type'], $node['data']) && is_string($node['type']) && is_array($node['data'])) {
-            $props = is_array($node['data']['props'] ?? null) ? $node['data']['props'] : [];
-            switch ($node['type']) {
-                case 'Button':
-                    if (is_string($props['url'] ?? null)) {
-                        $props['url'] = $this->tag($props['url']);
-                    }
-                    break;
-                case 'Image':
-                    if (is_string($props['linkHref'] ?? null)) {
-                        $props['linkHref'] = $this->tag($props['linkHref']);
-                    }
-                    break;
-                default:
-                    foreach (['text', 'contents'] as $k) {
-                        if (is_string($props[$k] ?? null)) {
-                            $props[$k] = $this->markdown($this->html($props[$k]));
-                        }
-                    }
-            }
-            if ($props !== []) {
-                $node['data']['props'] = $props;
-            }
-
-            return $node;
-        }
-        foreach ($node as $k => $v) {
-            $node[$k] = $this->editorJson($v);
-        }
-
-        return $node;
-    }
-
-    /** Tags [label](https://...) links in markdown text. */
-    private function markdown(string $text): string
-    {
-        return (string) preg_replace_callback(
-            '/\]\((https?:\/\/[^)\s]+)\)/i',
-            fn (array $m): string => '](' . $this->tag($m[1]) . ')',
-            $text
         );
     }
 }

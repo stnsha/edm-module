@@ -2,7 +2,9 @@
 
 Condensed from `SES_EDM_Frontend_Specification v1.0` (19 May 2026, Marketing / CRM
 Team). Amazon SES is the delivery engine only; this app owns all newsletter logic,
-audience selection, scheduling, approval, and reporting.
+audience selection, scheduling, and reporting. The spec's Approval Centre /
+8-step approval chain and Automated QA are **not used** (removed from the
+module): a newsletter is scheduled straight from the Email creator.
 
 ## Architecture
 
@@ -34,7 +36,7 @@ POS / Membership  ->  Customer Data Warehouse  ->  CRM Segmentation
 a newsletter; management (4) is read-only. Ownership is tracked per newsletter in
 `campaigns.requested_by` / `requested_by_name` (snapshot), same split as the atem
 module's `issuer_staff_id` vs `staff.atem` grade. Owner-only actions (edit own
-draft, resubmit revision, view own status) are gated by `requested_by === staff_id`
+draft, view own status) are gated by `requested_by === staff_id`
 with superadmin / BPT override.
 
 ## Modules -> pages (one page, one folder)
@@ -49,7 +51,6 @@ with superadmin / BPT override.
 | Suppression Centre  | `suppression/`    | 1     | edm in (1,2,3)      |
 | Settings            | `settings/`       | 1     | edm == 1 / superadmin |
 | Automation Builder  | `automation/`     | 2     | edm in (1,2,3)      |
-| Approval Centre     | `approval/`       | 2     | edm in (1,2,3)      |
 | Template Library    | `templates/`      | 2     | edm in (1,2,3)      |
 | Asset Library       | `assets/`         | 2     | edm in (1,2,3)      |
 
@@ -57,25 +58,19 @@ Phase 1 folders are scaffolded as empty-card stubs plus an `api.php` router
 skeleton. Real screens and endpoints are filled in per feature; every endpoint
 change goes through the module's MVC layer (see CLAUDE.md "MVC layer").
 
-## Newsletter status flow (9)
+## Newsletter status flow
 
-`draft` -> `pending_submission` -> `under_bpt_review` -> `content_revision`
--> `audience_validation` -> `scheduled` -> `sending` -> `completed` -> `archived`
+`draft` (1) -> `scheduled` (6) -> `sending` (7) -> `completed` (8), and
+`archived` (9) from draft or completed. The spec's review statuses
+(2 pending_submission, 3 under_bpt_review, 4 content_revision,
+5 audience_validation) are not used; their integer values stay reserved.
 
-The system enforces valid transitions. Owner of each state per spec section 5.1
-(Draft/Pending/Revision = PIC; Under Review/Scheduled = BPT; Audience Validation =
-BI/CRM; Sending/Completed/Archived = system).
-
-## Approval chain (8 steps, spec 5.2)
-
-1. PIC submits request (objective, audience brief, artwork, copy).
-2. BPT reviews content, artwork, CTA, grammar, compliance, objective.
-3. BPT checks calendar for a free slot; conflict detection runs.
-4. BI / CRM validates audience segment (LOFRA + suppression filters).
-5. Automated QA runs (see below).
-6. Final approval; newsletter locked.
-7. SES queue triggered at scheduled datetime.
-8. Reporting dashboard updated with live delivery data.
+Scheduling (Email creator Send step, `Campaign::schedule()`) runs the
+readiness checks (complete newsletter, verified sender, usable recipients,
+future send date) and locks the newsletter. Recall returns a scheduled
+newsletter to draft. The SES queue starts it at the scheduled datetime (after
+the one-minute recall window); the reporting dashboard reads live delivery
+data.
 
 ## Suppression rules (hard, no manual override, applied at QUEUE time)
 
@@ -112,14 +107,7 @@ data comes from the Customer Data Warehouse.
 
 `{{FirstName}}` `{{LastName}}` `{{MembershipType}}`
 `{{PointsBalance}}` `{{PointsExpiry}}` `{{VoucherCode}}` `{{NearestOutlet}}`
-`{{UnsubscribeLink}}` (mandatory footer). QA blocks any unresolved / blank variable.
-
-## Automated QA checklist (runs at Scheduled; all must pass before SES queue)
-
-Broken link check; image load check; spam score below threshold; mobile responsive
-render; unsubscribe footer present; subject line <= 60 chars; UTM parameters on all
-links; every `{{variable}}` resolved; high-bounce-rate alert; SES sending quota
-verified.
+`{{UnsubscribeLink}}` (mandatory footer).
 
 ## Reporting KPIs (per newsletter, per segment, platform level)
 
@@ -145,7 +133,7 @@ exit conditions, per-journey analytics.
   Scheduling, SES API integration, core Reporting, Contact Segmentation,
   Suppression Centre.
 - Phase 2 Automation: visual Automation Builder, Welcome / Birthday /
-  Re-engagement / Cart-Abandonment journeys, Approval workflow, advanced
+  Re-engagement / Cart-Abandonment journeys, advanced
   reporting, bounce recovery.
 - Phase 3 CRM Intelligence: AI send-time optimisation, AI segmentation, predictive
   analytics, product recommendation engine, AI-assisted email generation.
@@ -190,7 +178,6 @@ decoupled via the `$edm_nav` map in `navbar.php`.
 | Newsletters > Templates | `templates/index.php`           | Template Library     | build |
 | (no menu entry; via Templates > Edit / Design template) | `templates/edit.php` | Template Library | build |
 | Newsletters > Reports   | `newsletters/report.php`        | Reporting            | build |
-| Approval                | `approval/index.php`           | Approval Centre      | build |
 | Settings > Senders      | `settings/senders.php`         | Settings             | super |
 | Settings > Sending domains | `settings/domains.php`       | Settings             | super |
 | Settings > Users & permissions | `settings/users.php`     | Settings             | super |
@@ -225,20 +212,15 @@ and a newsletter's audience is all subscribed contacts or a Segment.
    status `draft`.
 2. Design - template picker -> Email creator (drag-drop + HTML) -> desktop /
    mobile preview -> spam score -> dynamic variable insertion -> test send.
-3. Summary - review + pre-submit checks. Requester clicks **Submit for review**
-   (never a bare "Send"); GPT precheck gates this -> status `pending_submission`.
-   BPT / BI / QA proceed per section 5. Automated QA checklist runs at
-   `scheduled` before the SES queue.
+3. Summary - review + readiness checks. Requester clicks **Schedule** (or
+   **Send now**) -> status `scheduled`.
 
 ### Intentional divergences from GetResponse
 
-- Approval Centre + 8-step chain + 9-status flow (GetResponse sends immediately).
-- Requester UI says "Submit for review", not "Send".
+- One-minute recall window after the send time (Recall - don't send it).
 - Hard suppression caps (8/month, 2/week, 1/day) enforced at queue time - shown
   as a visible pre-send check.
 - LOFRA / RFM segment filters sourced from the Customer Data Warehouse.
-- GPT precheck step before submission.
-- Automated QA checklist at the Scheduled stage.
 - `staff.edm` tier RBAC (5 spec roles mapped onto 4 tiers, see "Access model").
 
 ## Data model
@@ -262,12 +244,10 @@ Ownership boundaries:
 | Module      | Tables                                                                                                                                          | Phase |
 | ----------- | ------------------------------------------------------------------------------------------------------------------------------------------------- | ----- |
 | Contacts    | `edm_contacts` (the masterlist, one row per email), `edm_segments` (filter JSON), `edm_tags`, `edm_member_tags`, `edm_custom_fields`               | 1     |
-| Newsletters | `edm_campaigns` (9-status enum, `requested_by` / `requested_by_name` snapshot), `edm_campaign_content` (html + editor JSON + version), `edm_campaign_ab_variants`, `edm_campaign_recipients` (resolved snapshot), `edm_campaign_status_log` | 1 |
+| Newsletters | `edm_campaigns` (status enum, `requested_by` / `requested_by_name` snapshot), `edm_campaign_content` (html + editor JSON + version), `edm_campaign_ab_variants`, `edm_campaign_recipients` (resolved snapshot), `edm_campaign_status_log` | 1 |
 | Suppression | `edm_suppressions` (email, reason enum, source), `edm_send_log` (drives 8/month, 2/week, 1/day rolling caps)                                     | 1     |
 | Calendar    | `edm_calendar_slots` (slot allocation + conflict detection)                                                                                      | 1     |
 | Settings    | `edm_senders` (from-field + verified flag), `edm_sending_domains` (dkim / spf status), `edm_settings` (kv)                                        | 1     |
-| QA          | `edm_qa_checks` (campaign_id, check_type, status, detail)                                                                                         | 1     |
 | Templates   | `edm_templates`, `edm_template_content`                                                                                                          | 2     |
 | Files       | `edm_assets`                                                                                                                                     | 2     |
 | Automation  | `edm_workflows`, `edm_workflow_nodes`, `edm_workflow_runs`, `edm_autoresponders`                                                                 | 2     |
-| Approval    | `edm_approvals` (request: title, requester, objective, audience brief, copywriting; step 1-8, reviewer, decision, comment), `edm_approval_files` (artwork), `edm_revisions`                                                                          | 2     |

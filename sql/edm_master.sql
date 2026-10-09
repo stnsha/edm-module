@@ -10,12 +10,6 @@ SET NAMES utf8mb4;
 
 SET FOREIGN_KEY_CHECKS = 0;
 DROP TABLE IF EXISTS `edm_calendar_slots`;
-DROP TABLE IF EXISTS `edm_revisions`;
-DROP TABLE IF EXISTS `edm_campaign_qa`;
-DROP TABLE IF EXISTS `edm_approval_decisions`;
-DROP TABLE IF EXISTS `edm_approval_logs`;
-DROP TABLE IF EXISTS `edm_approval_files`;
-DROP TABLE IF EXISTS `edm_approvals`;
 DROP TABLE IF EXISTS `edm_autoresponders`;
 DROP TABLE IF EXISTS `edm_workflows`;
 DROP TABLE IF EXISTS `edm_triggers`;
@@ -258,12 +252,12 @@ CREATE TABLE `edm_master_tags` (
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------
--- edm_campaigns: Newsletters. status: 1=draft, 2=pending_submission, 3=under_bpt_review, 4=content_revision, 5=audience_validation, 6=scheduled, 7=sending, 8=completed, 9=archived.
+-- edm_campaigns: Newsletters. status: 1=draft, 6=scheduled, 7=sending, 8=completed, 9=archived (2-5 unused, from the removed approval chain).
 -- audience: JSON { include: { segments: [id], contacts: [id] }, exclude: { segments: [id], contacts: [id] } };
 --   NULL / empty include = every subscribed contact (edm_contacts), minus the excluded ones.
 -- archived_from: the status before archiving (9); unarchiving restores it.
 -- tag_ids: JSON list of edm_master_tags ids (newsletter tags, optional).
--- send_now: 1 = send as soon as final approval is given, 0 = at scheduled_at. Every send waits
+-- send_now: 1 = send as soon as it is scheduled, 0 = at scheduled_at. Every send waits
 --   60 seconds after its time so it can be recalled (CampaignSender::RECALL_SECONDS).
 -- track_opens / track_clicks: SES open / click tracking; utm_enabled + utm (JSON source, medium,
 --   campaign, content): UTM parameters added to every link when sent.
@@ -406,130 +400,6 @@ CREATE TABLE `edm_autoresponders` (
   PRIMARY KEY (`id`),
   KEY `edm_autoresponders_workflow_id_foreign` (`workflow_id`),
   CONSTRAINT `edm_autoresponders_workflow_id_foreign` FOREIGN KEY (`workflow_id`) REFERENCES `edm_workflows` (`id`) ON DELETE SET NULL
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ----------------------------------------------------------------------
--- edm_approvals: Approval steps per newsletter. status: 1=pending, 2=approved, 3=rejected.
--- ----------------------------------------------------------------------
-CREATE TABLE `edm_approvals` (
-  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `campaign_id` bigint unsigned NOT NULL,
-  `title` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `requested_by` int unsigned DEFAULT NULL,
-  `requested_by_name` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `objective` mediumtext COLLATE utf8mb4_unicode_ci,
-  `audience_brief` mediumtext COLLATE utf8mb4_unicode_ci,
-  `copywriting` mediumtext COLLATE utf8mb4_unicode_ci,
-  `step` tinyint unsigned NOT NULL DEFAULT '1',
-  `status` tinyint unsigned NOT NULL DEFAULT '1',
-  `reviewer_id` int unsigned DEFAULT NULL,
-  `reviewer_name` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `comment` varchar(1000) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `created_at` datetime NULL DEFAULT NULL,
-  `updated_at` datetime NULL DEFAULT NULL,
-  `deleted_at` datetime NULL DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  KEY `edm_approvals_campaign_id_step_index` (`campaign_id`,`step`),
-  CONSTRAINT `edm_approvals_campaign_id_foreign` FOREIGN KEY (`campaign_id`) REFERENCES `edm_campaigns` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ----------------------------------------------------------------------
--- edm_approval_files: Artwork attached to a review request.
--- ----------------------------------------------------------------------
-CREATE TABLE `edm_approval_files` (
-  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `approval_id` bigint unsigned NOT NULL,
-  `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `url` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `mime` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `size_bytes` int unsigned DEFAULT NULL,
-  `uploaded_by` int unsigned DEFAULT NULL,
-  `uploaded_by_name` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `created_at` datetime NULL DEFAULT NULL,
-  `updated_at` datetime NULL DEFAULT NULL,
-  `deleted_at` datetime NULL DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  KEY `edm_approval_files_approval_id_foreign` (`approval_id`),
-  CONSTRAINT `edm_approval_files_approval_id_foreign` FOREIGN KEY (`approval_id`) REFERENCES `edm_approvals` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ----------------------------------------------------------------------
--- edm_approval_logs: Activity log of a review request.
--- ----------------------------------------------------------------------
-CREATE TABLE `edm_approval_logs` (
-  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `approval_id` bigint unsigned NOT NULL,
-  `event` varchar(30) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `summary` varchar(1000) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `changes` json DEFAULT NULL,
-  `actor_id` int unsigned DEFAULT NULL,
-  `actor_name` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `created_at` datetime NULL DEFAULT NULL,
-  `updated_at` datetime NULL DEFAULT NULL,
-  `deleted_at` datetime NULL DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  KEY `edm_approval_logs_approval_id_foreign` (`approval_id`),
-  CONSTRAINT `edm_approval_logs_approval_id_foreign` FOREIGN KEY (`approval_id`) REFERENCES `edm_approvals` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ----------------------------------------------------------------------
--- edm_approval_decisions: Stage decisions (bpt / audience) on a review request.
--- ----------------------------------------------------------------------
-CREATE TABLE `edm_approval_decisions` (
-  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `approval_id` bigint unsigned NOT NULL,
-  `stage` varchar(20) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `decision` tinyint unsigned NOT NULL,
-  `checks` json DEFAULT NULL,
-  `comment` varchar(1000) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `decided_by` int unsigned DEFAULT NULL,
-  `decided_by_name` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `created_at` datetime NULL DEFAULT NULL,
-  `updated_at` datetime NULL DEFAULT NULL,
-  `deleted_at` datetime NULL DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  KEY `edm_approval_decisions_approval_id_stage_index` (`approval_id`,`stage`),
-  CONSTRAINT `edm_approval_decisions_approval_id_foreign` FOREIGN KEY (`approval_id`) REFERENCES `edm_approvals` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ----------------------------------------------------------------------
--- edm_campaign_qa: Automated QA runs per newsletter (1 queued, 2 running, 3 passed, 4 warnings, 5 failed).
--- ----------------------------------------------------------------------
-CREATE TABLE `edm_campaign_qa` (
-  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `campaign_id` bigint unsigned NOT NULL,
-  `approval_id` bigint unsigned DEFAULT NULL,
-  `status` tinyint unsigned NOT NULL DEFAULT '1',
-  `trigger` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `results` json DEFAULT NULL,
-  `queued_by` int unsigned DEFAULT NULL,
-  `queued_by_name` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `started_at` datetime NULL DEFAULT NULL,
-  `finished_at` datetime NULL DEFAULT NULL,
-  `created_at` datetime NULL DEFAULT NULL,
-  `updated_at` datetime NULL DEFAULT NULL,
-  `deleted_at` datetime NULL DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  KEY `edm_campaign_qa_campaign_id_foreign` (`campaign_id`),
-  KEY `edm_campaign_qa_status_index` (`status`),
-  CONSTRAINT `edm_campaign_qa_campaign_id_foreign` FOREIGN KEY (`campaign_id`) REFERENCES `edm_campaigns` (`id`) ON DELETE CASCADE
-) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
-
--- ----------------------------------------------------------------------
--- edm_revisions: Revision requests on a newsletter.
--- ----------------------------------------------------------------------
-CREATE TABLE `edm_revisions` (
-  `id` bigint unsigned NOT NULL AUTO_INCREMENT,
-  `campaign_id` bigint unsigned NOT NULL,
-  `note` varchar(1000) COLLATE utf8mb4_unicode_ci NOT NULL,
-  `requested_by` int unsigned DEFAULT NULL,
-  `requested_by_name` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
-  `created_at` datetime NULL DEFAULT NULL,
-  `updated_at` datetime NULL DEFAULT NULL,
-  `deleted_at` datetime NULL DEFAULT NULL,
-  PRIMARY KEY (`id`),
-  KEY `edm_revisions_campaign_id_foreign` (`campaign_id`),
-  CONSTRAINT `edm_revisions_campaign_id_foreign` FOREIGN KEY (`campaign_id`) REFERENCES `edm_campaigns` (`id`) ON DELETE CASCADE
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
 
 -- ----------------------------------------------------------------------

@@ -1,6 +1,6 @@
 <?php
 $page_title = 'Newsletters';
-$page_subtitle = 'One-time email newsletters. Create a newsletter, design it in the Email creator, then submit it for review.';
+$page_subtitle = 'One-time email newsletters. Create a newsletter, design it in the Email creator, then schedule it.';
 require __DIR__ . '/../partials.php';
 // New newsletter: creates an empty draft and opens it in the Email creator
 // (no pop-up form); settings are filled in there.
@@ -151,9 +151,9 @@ edm_crud_screen(array(
     }
     document.getElementById('edm-nl-rcpt-search').addEventListener('input', paintRecipients);
 
-    // Draft (1) and content revision (4) are the only states still being worked
-    // on; later states are in review / scheduled / sent and stay read-only here.
-    function editable(r) { return r.status === 1 || r.status === 4; }
+    // Draft (1) is the only state still being worked on; later states are
+    // scheduled / sent and stay read-only here.
+    function editable(r) { return r.status === 1; }
 
     document.getElementById('edm-nl-new').addEventListener('click', function () {
         var btn = this;
@@ -179,10 +179,6 @@ edm_crud_screen(array(
         actions: { list: 'campaigns_list', create: 'campaigns_create', update: 'campaigns_update', 'delete': 'campaigns_delete' },
         badges: { status: {
             1: { cls: 'edm-pill-secondary', label: 'Draft' },
-            2: { cls: 'edm-pill-info', label: 'Pending submission' },
-            3: { cls: 'edm-pill-info', label: 'Under BPT review' },
-            4: { cls: 'edm-pill-warning', label: 'Content revision' },
-            5: { cls: 'edm-pill-info', label: 'Audience validation' },
             6: { cls: 'edm-pill-primary', label: 'Scheduled' },
             7: { cls: 'edm-pill-primary', label: 'Sending' },
             8: { cls: 'edm-pill-success', label: 'Completed' },
@@ -206,8 +202,6 @@ edm_crud_screen(array(
         rowActions: [
             { label: 'Edit', visible: editable,
                 link: function (r) { return 'email-builder/index.php?newsletter=' + r.id; } },
-            { label: 'Submit', action: 'campaigns_submit', confirm: 'Submit this newsletter for review?',
-                visible: editable },
             { label: 'Preview', handler: function (r) { openPreview(r); } },
             { label: 'Show recipients', handler: function (r) { openRecipients(r); } },
             // Once anything was sent (rows in the send log, `delivered` on the
@@ -216,14 +210,14 @@ edm_crud_screen(array(
                 link: function (r) { return 'newsletters/report.php?newsletter=' + r.id; } },
             { label: 'Reuse', action: 'campaigns_duplicate', confirm: 'Create a copy of this newsletter as a new draft?' },
             { label: 'Recall - don’t send it', action: 'campaigns_recall',
-                confirm: 'Recall this newsletter? Nothing is sent; it returns to content revision and needs a new review.',
+                confirm: 'Recall this newsletter? Nothing is sent; it returns to Draft and can be scheduled again.',
                 visible: function (r) { return r.status === 6; } },
             { label: 'Stop sending', action: 'campaigns_stop',
                 confirm: 'Stop this newsletter? Emails already sent stay sent; the rest are not sent and the newsletter is closed as completed.',
                 visible: function (r) { return r.status === 7; } },
             { label: 'Archive', action: 'campaigns_archive',
                 confirm: 'Archive this newsletter? It moves to the Archived tab and is locked until you unarchive it.',
-                visible: function (r) { return r.status === 1 || r.status === 4 || r.status === 8; } },
+                visible: function (r) { return r.status === 1 || r.status === 8; } },
             { label: 'Unarchive', action: 'campaigns_unarchive',
                 confirm: 'Unarchive this newsletter? It returns to the Newsletters list with the status it had before.',
                 visible: function (r) { return r.status === 9; } }

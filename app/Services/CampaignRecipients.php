@@ -19,7 +19,7 @@ use Edm\Models\Segment;
  * included segment or are an included contact (nothing included = every
  * subscribed contact), minus anyone in an excluded segment or excluded as a
  * contact. The one place that turns an audience into SQL; used by the send
- * queue, QA, the approval audience check and the Email creator count.
+ * queue, Show recipients, scheduling checks and the Email creator count.
  */
 final class CampaignRecipients
 {

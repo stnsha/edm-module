@@ -84,14 +84,16 @@ command again.
 
 ## 4. Folders that must be writable
 
-`uploads/` and `logs/` are git-ignored (only `uploads/.htaccess` is tracked).
-Create them if missing; the Apache user and the account that runs the
-scheduler need write access.
+`uploads/`, `cache/` and `logs/` are git-ignored (only `uploads/.htaccess` is
+tracked). Create them if missing; the Apache user and the account that runs
+the scheduler need write access. New images go to the NAS (section 5);
+`uploads/assets/` only holds images uploaded before that, and `cache/nas/`
+is the image proxy's cache (safe to empty - it refills from the NAS).
 
 ```bat
 cd /d C:\xampp\htdocs\odb\edm
 if not exist uploads\assets mkdir uploads\assets
-if not exist uploads\approvals mkdir uploads\approvals
+if not exist cache\nas mkdir cache\nas
 if not exist logs mkdir logs
 ```
 
@@ -116,6 +118,10 @@ Restore files from the backup if this is a fresh clone:
 | `SES_DAILY_LIMIT` | Empty, or a cap below the SES 24-hour quota |
 | `EDM_PUBLIC_URL` | Public HTTPS base URL of the module, no trailing slash, e.g. `https://odb.alpropharmacy.com/odb/edm`. Used for unsubscribe links and for the address of uploaded images. **Required** - if empty, unsubscribe links in sent emails are broken. |
 | `EDM_APP_KEY` | Random secret, generated **once** per server: `C:\xampp\php\php.exe -r "echo bin2hex(random_bytes(32));"`. Never change it afterwards - it would invalidate every unsubscribe link already sent. |
+| `NAS_HOST` / `NAS_PORT` | Synology DSM host (e.g. the QuickConnect direct host, no `https://`) and HTTPS port. Files library images are stored there. |
+| `NAS_USER` / `NAS_PASSWORD` | DSM account with read / write access to `NAS_FOLDER`. |
+| `NAS_FOLDER` | Base folder, e.g. `/DigitalInnovation/edm`; images go to `<NAS_FOLDER>/assets`. |
+| `NAS_VERIFY_TLS` | `true` (default). `false` only for a NAS with a self-signed certificate on a trusted network. |
 | `EDM_SERVICE_EMAIL` / `EDM_SERVICE_PASSWORD` | Legacy (old edm-api). Not used; leave empty. |
 
 Images inserted into designs before `EDM_PUBLIC_URL` was set keep their old
@@ -157,7 +163,7 @@ C:\xampp\mysql\bin\mysql.exe -u root -p odb < sql\check_schema.sql
 
 **Path A - no EDM data to keep (first install, or only test data on the
 server).** Rebuild everything from scratch. This **deletes all rows in every
-`edm_*` table** (newsletters, contacts, approvals, send history):
+`edm_*` table** (newsletters, contacts, send history):
 
 ```bat
 C:\xampp\mysql\bin\mysql.exe -u root -p odb < sql\edm_master.sql
@@ -195,6 +201,14 @@ Also run `sql\migrate_master_tags.sql` (newsletter tags: creates
 `sql\migrate_workflow_content.sql` (workflow newsletter / template, custom
 triggers, and when to send: `trigger_type` + `timing`) (adds `edm_workflows.content_type`
 / `content_id` - the newsletter or template a workflow sends; safe to run again).
+
+Then run `sql\migrate_remove_approval.sql`: the Approval Centre and
+Automated QA are removed. It moves newsletters in a review status (pending
+submission, under BPT review, content revision, audience validation) back to
+Draft and drops `edm_approvals`, `edm_approval_files`, `edm_approval_logs`,
+`edm_approval_decisions`, `edm_campaign_qa` and `edm_revisions` (safe to run
+again). Delete `uploads\approvals\` by hand once its artwork is no longer
+needed.
 
 Optional: to honour "Open rate off" in a newsletter's Tracking step, create a
 second SES configuration set (a copy of `SES_CONFIGURATION_SET` whose event
@@ -278,8 +292,8 @@ unless you delete those contacts afterwards.
 
 ## 7. Send queue scheduler
 
-`cron\edm-send.bat` runs one send pass (about 50 seconds) and the automated QA
-checks. It must run **every minute**.
+`cron\edm-send.bat` runs one send pass (about 50 seconds). It must run
+**every minute**.
 
 PHP selection: the script uses the first PHP **8.1 or newer** it finds, in
 this order: the `EDM_PHP` environment variable, `C:\xampp\php\php.exe`,
@@ -307,7 +321,6 @@ minute, State: Hidden (no console window every minute).
 | ---- | ------- |
 | `cron.log` | Everything PHP printed, including a fatal error that stops a run before it can log. Check this first when nothing happens. |
 | `ses-send.log` | Send runs: "Newsletter #N started sending", "Sent N email(s)", "completed" |
-| `qa.log` | Automated QA runs |
 
 A scheduler result of exit code 255 means PHP crashed - the reason is at the
 end of `logs\cron.log`.
@@ -344,9 +357,9 @@ Settings > Users & permissions (superadmin only) - give each user a role
 
 | Role | Value | Can |
 | ---- | ----- | --- |
-| Superadmin | 1 | Everything, every approval stage |
-| Admin | 2 | Build newsletters; **audience validation** (approval step 4, until a BI role exists) |
-| BPT team | 3 | Build; **BPT review** (steps 2-3) and **final approval / scheduling** (step 6) |
+| Superadmin | 1 | Everything, including Settings |
+| Admin | 2 | Build and schedule newsletters |
+| BPT team | 3 | Build and schedule newsletters |
 | Management | 4 | Read only |
 
 `dev-switch-role.php` (the DEV ROLE bar) only works on localhost and is
@@ -359,12 +372,13 @@ inert on production.
 1. Open `https://<host>/odb/edm/` - the dashboard loads without PHP warnings.
 2. Contacts > Custom fields - 29 fields with categories. Contacts > Segments -
    the pre-built segments show contact counts (0 is fine with no contacts).
-3. Files - upload an image; its URL must start with `EDM_PUBLIC_URL`, not
-   `localhost`.
+3. Email creator > Design > Image block - upload an image; it appears in the
+   grid, its URL is `<EDM_PUBLIC_URL>/public/file.php?f=...` (not
+   `localhost`), opening that URL in a private window shows the image, and
+   the file is in `<NAS_FOLDER>/assets` on the NAS. An upload error "could not
+   be saved to the NAS" means the `NAS_*` settings are wrong.
 4. Create a newsletter with a segment that matches only test contacts ->
-   Submit -> Approval > Raise review ->
-   BPT approve -> Audience validation -> wait for Automated QA -> Final
-   approval with a send time 3-5 minutes ahead.
+   Email creator Send step -> Schedule with a send time 3-5 minutes ahead.
 5. At that time `logs\ses-send.log` shows the newsletter starting and
    completing; the newsletter status becomes Completed; the test inbox
    receives the email with images and a working Unsubscribe link.
@@ -397,16 +411,17 @@ scheduler task while restoring so no newsletter sends half-way.
 
 **New files**: `sql/edm_seed.sql`, `sql/edm_seed_uat.sql`,
 `sql/check_schema.sql`, `sql/migrate_lists_to_masterlist.sql`,
-`sql/edm_truncate.sql`, `app/Services/CampaignAudience.php`,
+`sql/edm_truncate.sql`, `sql/migrate_remove_approval.sql`,
 `app/Services/ScheduleReadiness.php`, this guide.
 
 **Behaviour**:
 
-- Approval chain completed end to end: raise review -> BPT review ->
-  audience validation (new) -> automated QA -> final approval with send date
-  (new) -> Scheduled. Final approval is the only way to schedule; the
-  newsletter is then locked. Newsletters list has a new Archive action for
-  completed newsletters.
+- Approval Centre and Automated QA removed: a newsletter is scheduled
+  (Send now or a send date) straight from the Email creator's Send step,
+  after the readiness checks (complete, verified sender, usable recipients,
+  future send date), and is then locked. Recall returns it to Draft.
+  Newsletters list has an Archive action for drafts and completed
+  newsletters.
 - One contact masterlist instead of contact lists: Contacts > All contacts,
   import straight into it, newsletters go to every subscribed contact or to a
   segment.

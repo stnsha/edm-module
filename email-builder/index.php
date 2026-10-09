@@ -35,10 +35,6 @@ $page_js = EDM_BASE . 'email-builder/email-builder.js';
     var rowsEl = document.getElementById('edm-eb-picker-rows');
     var badges = {
         1: { cls: 'edm-pill-secondary', label: 'Draft' },
-        2: { cls: 'edm-pill-info', label: 'Pending submission' },
-        3: { cls: 'edm-pill-info', label: 'Under BPT review' },
-        4: { cls: 'edm-pill-warning', label: 'Content revision' },
-        5: { cls: 'edm-pill-info', label: 'Audience validation' },
         6: { cls: 'edm-pill-primary', label: 'Scheduled' },
         7: { cls: 'edm-pill-primary', label: 'Sending' },
         8: { cls: 'edm-pill-success', label: 'Completed' },
@@ -300,11 +296,11 @@ window.EDM_EB_TAGS = <?php echo json_encode($edm_master_tags); ?>;
 
 <section class="edm-wiz-pane" data-pane="5" aria-label="Send" hidden>
     <h2 class="edm-wiz-title">Send</h2>
-    <p class="edm-wiz-sub">Choose when it goes out, check everything, then submit it for review. It is sent only after final approval - with one minute to recall it.</p>
+    <p class="edm-wiz-sub">Choose when it goes out, check everything, then schedule it. Sending starts one minute after the send time, so there is time to recall it.</p>
     <div class="edm-wiz-when">
         <label class="edm-wiz-when-opt">
             <input class="form-check-input" type="radio" name="edm-eb-when" id="edm-eb-f-when-now" value="now" autocomplete="off">
-            <span><strong>Send now</strong><span class="edm-wiz-toggle-hint">As soon as final approval is given.</span></span>
+            <span><strong>Send now</strong><span class="edm-wiz-toggle-hint">As soon as you schedule it.</span></span>
         </label>
         <label class="edm-wiz-when-opt">
             <input class="form-check-input" type="radio" name="edm-eb-when" id="edm-eb-f-when-later" value="later" autocomplete="off">
@@ -324,8 +320,8 @@ window.EDM_EB_TAGS = <?php echo json_encode($edm_master_tags); ?>;
         <button type="button" class="btn btn-outline-secondary" data-wiz-prev><i class="bi bi-arrow-left me-1"></i>Previous</button>
         <div class="d-flex gap-2">
             <button type="button" class="btn btn-outline-secondary" id="edm-eb-preview"><i class="bi bi-eye me-1"></i>Preview message</button>
-            <button type="button" class="btn btn-success" id="edm-eb-submit" hidden title="Save, then submit for review">
-                <i class="bi bi-send me-1"></i>Submit for review
+            <button type="button" class="btn btn-success" id="edm-eb-schedule" hidden title="Save, then schedule">
+                <i class="bi bi-send me-1"></i><span id="edm-eb-schedule-label">Schedule</span>
             </button>
         </div>
     </div>

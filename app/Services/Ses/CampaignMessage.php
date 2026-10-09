@@ -5,13 +5,13 @@ declare(strict_types=1);
 namespace Edm\Services\Ses;
 
 use Edm\Models\Campaign;
-use Edm\Services\Qa\UtmTagger;
+use Edm\Services\UtmTagger;
 
 /**
  * The newsletter-wide part of an outgoing email, built once per run from the
  * saved design and the wizard's settings; MessageRenderer then fills each
  * recipient's {{variables}}. Used by the send queue (CampaignSender), Send
- * test and the review page preview, so all three show the same email.
+ * test and the Preview message, so all three show the same email.
  *
  *   preview text  (preheader) a hidden first line inbox lists show next to
  *                 the subject
