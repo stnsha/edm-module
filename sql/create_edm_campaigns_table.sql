@@ -1,13 +1,16 @@
 -- Table `edm_campaigns` (EDM module, odb database).
--- Newsletters. status: 1=draft, 6=scheduled, 7=sending, 8=completed, 9=archived (2-5 unused, from the removed approval chain).
+-- Newsletters. status: 1=draft, 2=pending_approval, 6=scheduled, 7=sending, 8=completed, 9=archived (3-5 unused).
 -- audience: JSON { include: { segments: [id], contacts: [id] }, exclude: { segments: [id], contacts: [id] } };
 --   NULL / empty include = every subscribed contact (edm_contacts), minus the excluded ones.
 -- archived_from: the status before archiving (9); unarchiving restores it.
 -- tag_ids: JSON list of edm_master_tags ids (newsletter tags, optional).
--- send_now: 1 = send as soon as it is scheduled, 0 = at scheduled_at. Every send waits
+-- send_now: 1 = send as soon as it is approved, 0 = at scheduled_at. Every send waits
 --   60 seconds after its time so it can be recalled (CampaignSender::RECALL_SECONDS).
 -- track_opens / track_clicks: SES open / click tracking; utm_enabled + utm (JSON source, medium,
 --   campaign, content): UTM parameters added to every link when sent.
+-- submitted_*: who submitted it for review (Email creator step 5) and their department
+--   (snapshot of odb staff_department.depart_name); reviewed_* + review_comment: the step 6
+--   decision (BPT team / superadmin) - review_comment holds the rejection reason.
 -- sender_id: From address; reply_to_id: Reply-to address (NULL = replies go to the sender). Both edm_senders.
 -- Drops and recreates the table (development: existing rows are lost).
 -- Datetime columns hold Asia/Kuala_Lumpur local time. deleted_at = soft delete (NULL = active).
@@ -36,6 +39,14 @@ CREATE TABLE `edm_campaigns` (
   `scheduled_at` datetime NULL DEFAULT NULL,
   `requested_by` int unsigned DEFAULT NULL,
   `requested_by_name` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `submitted_by` int unsigned DEFAULT NULL,
+  `submitted_by_name` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `submitted_department` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `submitted_at` datetime NULL DEFAULT NULL,
+  `reviewed_by` int unsigned DEFAULT NULL,
+  `reviewed_by_name` varchar(150) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `reviewed_at` datetime NULL DEFAULT NULL,
+  `review_comment` text COLLATE utf8mb4_unicode_ci,
   `created_at` datetime NULL DEFAULT NULL,
   `updated_at` datetime NULL DEFAULT NULL,
   `deleted_at` datetime NULL DEFAULT NULL,

@@ -13,6 +13,7 @@ use Edm\Models\MasterTag;
 use Edm\Models\Sender;
 use Edm\Models\Template;
 use Edm\Services\ScheduleConflicts;
+use Edm\Services\ScheduleReadiness;
 use Edm\Services\Ses\CampaignMessage;
 use Edm\Services\Ses\IdentitySync;
 use Edm\Services\Ses\MessageRenderer;
@@ -34,7 +35,13 @@ use Edm\Services\Ses\Unsubscribe;
  *   conflicts       calendar conflicts for ?date= (Scheduled send warning)
  *   template_get    a template's html + editor_json ("Start from template";
  *                   loaded into the editor only, saved by the next Save)
- *   schedule        draft -> scheduled (Campaign::schedule())
+ *   submit          "Submit for review" (step 5): draft -> pending approval,
+ *                   submitter + department stamped (Campaign::submit())
+ *   approve         step 6, BPT team / superadmin: pending -> scheduled
+ *   reject          { comment } step 6: pending -> draft with the reason
+ *   withdraw        the submitter: pending -> draft
+ *   load / submit / approve / reject / withdraw answer with the newsletter
+ *   plus `approval` (see details()).
  *   send_test       { to } one "[Test]" email of the saved design via SES
  *   sender_create   { from_name, email } "Create new sender" in the Sender /
  *                   Reply-to selects: adds a pending sender to Settings >
@@ -43,7 +50,7 @@ use Edm\Services\Ses\Unsubscribe;
 final class EmailBuilderController extends Controller
 {
     // Only the name is required: a draft is saved half-filled while it is
-    // being built; Campaign::schedule() checks sender, subject, design.
+    // being built; Campaign::submit() checks sender, subject, design.
     private const SETTINGS_RULES = [
         'name'         => ['sometimes', 'required', 'string', 'max:255'],
         'subject'      => ['nullable', 'string', 'max:255'],
@@ -66,7 +73,7 @@ final class EmailBuilderController extends Controller
 
         switch ($action) {
             case 'load':
-                return Campaign::withDetails($id);
+                return $this->details($id);
             case 'settings_save':
                 $existing = Campaign::findOrFail($id);
                 Campaign::assertUnlocked($existing);
@@ -90,8 +97,18 @@ final class EmailBuilderController extends Controller
                 Campaign::assertUnlocked(Campaign::findOrFail($id));
                 $json = $this->request->get('editor_json');
                 return CampaignContent::saveBody($id, (string) $this->request->get('html', ''), is_array($json) ? $json : null);
-            case 'schedule':
-                return Campaign::schedule($id);
+            case 'submit':
+                Campaign::submit($id, $this->auth);
+                return $this->details($id);
+            case 'approve':
+                Campaign::approve($id, $this->auth);
+                return $this->details($id);
+            case 'reject':
+                Campaign::reject($id, $this->auth, (string) $this->request->get('comment', ''));
+                return $this->details($id);
+            case 'withdraw':
+                Campaign::withdraw($id, $this->auth);
+                return $this->details($id);
             case 'conflicts':
                 $date = Model::parseDate((string) $this->request->query('date', ''));
                 if ($date === null) {
@@ -117,6 +134,27 @@ final class EmailBuilderController extends Controller
      *
      * @return array{sender: array<string, mixed>, verification: string}
      */
+    /**
+     * The newsletter plus `approval` for steps 5 and 6: who submits (the
+     * signed-in staff and their department until it is submitted), whether
+     * this user may approve / reject or withdraw, and the readiness checks
+     * with the send date.
+     *
+     * @return array<string, mixed>
+     */
+    private function details(int $id): array
+    {
+        $campaign = Campaign::withDetails($id);
+        $campaign['approval'] = [
+            'me'           => ['name' => $this->auth->staffName, 'department' => $this->auth->department($this->db)],
+            'can_approve'  => Campaign::canApprove($campaign, $this->auth),
+            'can_withdraw' => Campaign::canWithdraw($campaign, $this->auth),
+            'checks'       => (new ScheduleReadiness())->checks($campaign, Campaign::sendAt($campaign), true),
+        ];
+
+        return $campaign;
+    }
+
     private function createSender(): array
     {
         $data = $this->validator->validate($this->request->only(['from_name', 'email']) + $this->stamp(), [

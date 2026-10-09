@@ -53,6 +53,26 @@ final class Auth
         return $this->staffId !== null;
     }
 
+    /**
+     * The staff member's department name (odb staff.department ->
+     * staff_department.depart_name), or null when none is set. Looked up on
+     * demand - most requests do not need it.
+     */
+    public function department(Database $db): ?string
+    {
+        if ($this->staffId === null) {
+            return null;
+        }
+        $name = $db->scalar(
+            'SELECT d.`depart_name` FROM `staff` s
+               LEFT JOIN `staff_department` d ON d.`id` = s.`department`
+              WHERE s.`id` = ? LIMIT 1',
+            [$this->staffId]
+        );
+
+        return is_string($name) && trim($name) !== '' ? trim($name) : null;
+    }
+
     /** Any EDM tier (1-4) or a real superadmin. */
     public function hasAccess(): bool
     {

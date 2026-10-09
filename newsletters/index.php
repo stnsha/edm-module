@@ -1,6 +1,6 @@
 <?php
 $page_title = 'Newsletters';
-$page_subtitle = 'One-time email newsletters. Create a newsletter, design it in the Email creator, then schedule it.';
+$page_subtitle = 'One-time email newsletters. Create a newsletter, design it in the Email creator, then submit it for review.';
 require __DIR__ . '/../partials.php';
 // New newsletter: creates an empty draft and opens it in the Email creator
 // (no pop-up form); settings are filled in there.
@@ -179,6 +179,7 @@ edm_crud_screen(array(
         actions: { list: 'campaigns_list', create: 'campaigns_create', update: 'campaigns_update', 'delete': 'campaigns_delete' },
         badges: { status: {
             1: { cls: 'edm-pill-secondary', label: 'Draft' },
+            2: { cls: 'edm-pill-warning', label: 'Pending approval' },
             6: { cls: 'edm-pill-primary', label: 'Scheduled' },
             7: { cls: 'edm-pill-primary', label: 'Sending' },
             8: { cls: 'edm-pill-success', label: 'Completed' },
@@ -202,6 +203,10 @@ edm_crud_screen(array(
         rowActions: [
             { label: 'Edit', visible: editable,
                 link: function (r) { return 'email-builder/index.php?newsletter=' + r.id; } },
+            // Pending approval: opens the Email creator on step 6, where the
+            // BPT team approves / rejects and the submitter can withdraw.
+            { label: 'Review', visible: function (r) { return r.status === 2; },
+                link: function (r) { return 'email-builder/index.php?newsletter=' + r.id + '#step-6'; } },
             { label: 'Preview', handler: function (r) { openPreview(r); } },
             { label: 'Show recipients', handler: function (r) { openRecipients(r); } },
             // Once anything was sent (rows in the send log, `delivered` on the
@@ -210,7 +215,7 @@ edm_crud_screen(array(
                 link: function (r) { return 'newsletters/report.php?newsletter=' + r.id; } },
             { label: 'Reuse', action: 'campaigns_duplicate', confirm: 'Create a copy of this newsletter as a new draft?' },
             { label: 'Recall - don’t send it', action: 'campaigns_recall',
-                confirm: 'Recall this newsletter? Nothing is sent; it returns to Draft and can be scheduled again.',
+                confirm: 'Recall this newsletter? Nothing is sent; it returns to Draft and needs approval again.',
                 visible: function (r) { return r.status === 6; } },
             { label: 'Stop sending', action: 'campaigns_stop',
                 confirm: 'Stop this newsletter? Emails already sent stay sent; the rest are not sent and the newsletter is closed as completed.',

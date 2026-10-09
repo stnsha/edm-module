@@ -10,7 +10,8 @@ use Edm\Models\Sender;
 use Edm\Services\Ses\CampaignSender;
 
 /**
- * Whether a newsletter can be scheduled (Campaign::schedule()): complete,
+ * Whether a newsletter can be submitted and approved (Campaign::submit() /
+ * approve(); shown on the Email creator Approval step): complete,
  * verified sender, usable recipients and a send date in the future. Same
  * pre-send rules the send queue checks later
  * (Ses\CampaignSender::preflight()), surfaced before the newsletter locks.
@@ -42,7 +43,7 @@ final class ScheduleReadiness
 
         if ($checkDate && !empty($campaign['send_now'])) {
             $out[] = ['label' => 'Send date', 'ok' => true,
-                'detail' => 'Send now - starts ' . CampaignSender::RECALL_SECONDS . ' seconds after scheduling (time to recall it).'];
+                'detail' => 'Send now - starts ' . CampaignSender::RECALL_SECONDS . ' seconds after approval (time to recall it).'];
         } elseif ($checkDate) {
             $future = $sendAt !== null && $sendAt > new DateTimeImmutable();
             $out[] = ['label' => 'Send date', 'ok' => $future,
@@ -54,14 +55,12 @@ final class ScheduleReadiness
 
     /**
      * What blocks scheduling at $sendAt, as sentences; empty when it can go.
+     * The status is the caller's check (Campaign::submit() / approve()).
      *
      * @return list<string>
      */
     public function problems(array $campaign, ?DateTimeImmutable $sendAt): array
     {
-        if (Campaign::isLocked($campaign)) {
-            return ['The newsletter is already scheduled or sent.'];
-        }
         $out = [];
         foreach ($this->checks($campaign, $sendAt, true) as $c) {
             if (!$c['ok']) {

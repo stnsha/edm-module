@@ -2304,6 +2304,42 @@ button {
     color: #0d6efd;
     font-weight: 600;
 }
+/* Set on the label itself: odb's shared page.css sizes bare spans, so the
+   button's font-size is not inherited. */
+.edm-wiz-step .edm-wiz-label {
+    font-size: 12px;
+}
+/* "(optional)" / "(required to reject)" after a form label. Two classes so
+   it beats odb page.css's bare span size. */
+.form-label .edm-label-hint {
+    font-size: 12px;
+}
+/* Email creator step 6 (Approval): readiness checks */
+.edm-eb-checks {
+    margin: 0 0 16px;
+    padding: 0;
+    list-style: none;
+}
+.edm-eb-checks li {
+    display: flex;
+    gap: 8px;
+    align-items: baseline;
+    padding: 6px 0;
+    border-bottom: 1px solid #f1f3f5;
+    font-size: 13px;
+}
+.edm-eb-checks li:last-child {
+    border-bottom: 0;
+}
+.edm-eb-checks li span {
+    font-size: 13px;
+}
+.edm-eb-checks .is-ok .bi {
+    color: #198754;
+}
+.edm-eb-checks .is-fail .bi {
+    color: #dc3545;
+}
 .edm-wiz-pane {
     max-width: 760px;
     margin: 0 auto 16px;
@@ -2633,7 +2669,7 @@ button {
     .edm-wiz-when {
         grid-template-columns: minmax(0, 1fr);
     }
-    .edm-wiz-label {
+    .edm-wiz-step .edm-wiz-label {
         font-size: 11px;
     }
     .edm-wiz-row {

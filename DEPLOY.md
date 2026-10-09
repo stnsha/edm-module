@@ -207,8 +207,13 @@ Automated QA are removed. It moves newsletters in a review status (pending
 submission, under BPT review, content revision, audience validation) back to
 Draft and drops `edm_approvals`, `edm_approval_files`, `edm_approval_logs`,
 `edm_approval_decisions`, `edm_campaign_qa` and `edm_revisions` (safe to run
-again). Delete `uploads\approvals\` by hand once its artwork is no longer
-needed.
+again - the status reset only happens while the old tables exist). Delete
+`uploads\approvals\` by hand once its artwork is no longer needed.
+
+Then run `sql\migrate_newsletter_approval.sql`: adds the submitter /
+department and approval decision columns to `edm_campaigns` for the Email
+creator's Submit for review (step 5) and Approval (step 6). Safe to run again.
+Run it **after** `migrate_remove_approval.sql`.
 
 Optional: to honour "Open rate off" in a newsletter's Tracking step, create a
 second SES configuration set (a copy of `SES_CONFIGURATION_SET` whose event
@@ -358,8 +363,8 @@ Settings > Users & permissions (superadmin only) - give each user a role
 | Role | Value | Can |
 | ---- | ----- | --- |
 | Superadmin | 1 | Everything, including Settings |
-| Admin | 2 | Build and schedule newsletters |
-| BPT team | 3 | Build and schedule newsletters |
+| Admin | 2 | Build newsletters and submit them for review |
+| BPT team | 3 | Build and submit; **approve / reject** newsletters (Email creator step 6), except their own submissions |
 | Management | 4 | Read only |
 
 `dev-switch-role.php` (the DEV ROLE bar) only works on localhost and is
@@ -378,7 +383,10 @@ inert on production.
    the file is in `<NAS_FOLDER>/assets` on the NAS. An upload error "could not
    be saved to the NAS" means the `NAS_*` settings are wrong.
 4. Create a newsletter with a segment that matches only test contacts ->
-   Email creator Send step -> Schedule with a send time 3-5 minutes ahead.
+   Email creator step 5 (Send) -> Submit for review with a send time 3-5
+   minutes ahead; Submitted by / Department show your name and department.
+   A BPT team user (another person) opens it from Newsletters > Review ->
+   step 6 -> Approve; the status becomes Scheduled.
 5. At that time `logs\ses-send.log` shows the newsletter starting and
    completing; the newsletter status becomes Completed; the test inbox
    receives the email with images and a working Unsubscribe link.
@@ -412,16 +420,21 @@ scheduler task while restoring so no newsletter sends half-way.
 **New files**: `sql/edm_seed.sql`, `sql/edm_seed_uat.sql`,
 `sql/check_schema.sql`, `sql/migrate_lists_to_masterlist.sql`,
 `sql/edm_truncate.sql`, `sql/migrate_remove_approval.sql`,
-`app/Services/ScheduleReadiness.php`, this guide.
+`sql/migrate_newsletter_approval.sql`, `app/Services/ScheduleReadiness.php`,
+this guide.
 
 **Behaviour**:
 
-- Approval Centre and Automated QA removed: a newsletter is scheduled
-  (Send now or a send date) straight from the Email creator's Send step,
-  after the readiness checks (complete, verified sender, usable recipients,
-  future send date), and is then locked. Recall returns it to Draft.
-  Newsletters list has an Archive action for drafts and completed
-  newsletters.
+- Approval Centre and Automated QA removed; approval moved into the Email
+  creator. Step 5 (Send) shows Submitted by and Department (from odb
+  `staff.department`) and has only Submit for review -> Pending approval
+  (locked). Step 6 (Approval): the BPT team or a superadmin approves
+  (-> Scheduled at the requested time) or rejects with a reason (-> Draft);
+  the submitter can withdraw. Readiness checks (complete, verified sender,
+  usable recipients, future send date) run on submit and on approval.
+  Recall returns a scheduled newsletter to Draft. Newsletters list has a
+  Review action for pending newsletters and an Archive action for drafts and
+  completed newsletters.
 - One contact masterlist instead of contact lists: Contacts > All contacts,
   import straight into it, newsletters go to every subscribed contact or to a
   segment.

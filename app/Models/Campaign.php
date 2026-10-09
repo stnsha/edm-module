@@ -5,9 +5,11 @@ declare(strict_types=1);
 namespace Edm\Models;
 
 use DateTimeImmutable;
+use Edm\Core\Auth;
 use Edm\Core\Database;
 use Edm\Core\HttpException;
 use Edm\Core\Model;
+use Edm\Core\ValidationException;
 use Edm\Services\CampaignRecipients;
 use Edm\Services\ScheduleReadiness;
 use Edm\Services\UtmTagger;
@@ -15,9 +17,14 @@ use Edm\Services\UtmTagger;
 /**
  * A newsletter. Table: edm_campaigns.
  *
- * status is an integer, never a word - see STATUSES. Draft -> Scheduled
- * (schedule(), from the Email creator) -> Sending -> Completed; Archived on
- * the side. Values 2-5 belonged to the removed approval chain and are unused.
+ * status is an integer, never a word - see STATUSES. Draft -> Pending
+ * approval (submit(), Email creator step 5) -> Scheduled (approve(), step 6,
+ * BPT team / superadmin) -> Sending -> Completed; reject() and withdraw()
+ * return a pending newsletter to Draft; Archived on the side. Values 3-5
+ * belonged to the removed approval chain and are unused.
+ * Submission: submitted_by / _name / _department / _at (snapshot of the
+ * submitter); decision: reviewed_by / _name / _at and review_comment (the
+ * rejection reason).
  * Recipients: the `audience` JSON (included / excluded segments and
  * contacts on the masterlist), resolved by Services\CampaignRecipients.
  * Tracking: track_opens / track_clicks (SES) and utm_enabled + utm (links).
@@ -25,10 +32,11 @@ use Edm\Services\UtmTagger;
 final class Campaign extends Model
 {
     public const STATUSES = [
-        1 => 'draft', 6 => 'scheduled', 7 => 'sending', 8 => 'completed', 9 => 'archived',
+        1 => 'draft', 2 => 'pending_approval', 6 => 'scheduled', 7 => 'sending', 8 => 'completed', 9 => 'archived',
     ];
 
     public const DRAFT = 1;
+    public const PENDING_APPROVAL = 2;
     public const SCHEDULED = 6;
     public const SENDING = 7;
     public const COMPLETED = 8;
@@ -40,11 +48,14 @@ final class Campaign extends Model
         'name', 'subject', 'subject_b', 'preheader', 'tag_ids', 'sender_id', 'reply_to_id', 'audience', 'send_now',
         'track_opens', 'track_clicks', 'utm_enabled', 'utm',
         'status', 'archived_from', 'scheduled_at', 'requested_by', 'requested_by_name',
+        'submitted_by', 'submitted_by_name', 'submitted_department', 'submitted_at',
+        'reviewed_by', 'reviewed_by_name', 'reviewed_at', 'review_comment',
     ];
 
     protected const CASTS = [
         'status' => 'int', 'archived_from' => 'int', 'scheduled_at' => 'datetime', 'audience' => 'json', 'utm' => 'json',
         'tag_ids' => 'json',
+        'submitted_by' => 'int', 'submitted_at' => 'datetime', 'reviewed_by' => 'int', 'reviewed_at' => 'datetime',
         'send_now' => 'bool', 'track_opens' => 'bool', 'track_clicks' => 'bool', 'utm_enabled' => 'bool',
     ];
 
@@ -261,7 +272,7 @@ final class Campaign extends Model
     /**
      * New newsletter from the Newsletters list: an empty draft opened
      * straight in the Email creator. Sender and subject are filled in
-     * there; the default sender is preset. They are checked on schedule().
+     * there; the default sender is preset. They are checked on submit().
      *
      * @param array<string, mixed> $stamp requested_by / requested_by_name
      * @return array<string, mixed>
@@ -279,27 +290,139 @@ final class Campaign extends Model
     }
 
     /**
-     * Draft -> Scheduled, from the Email creator's Send step. When it goes
-     * out comes from the saved settings: send_now (stamped with the current
-     * time) or scheduled_at. Refused while any ScheduleReadiness check fails.
-     * The send queue waits CampaignSender::RECALL_SECONDS after the send
-     * time, so a Send now newsletter can still be recalled.
+     * When the newsletter goes out, from its saved settings: now for Send
+     * now, else scheduled_at (null when not chosen).
      */
-    public static function schedule(int $id): array
+    public static function sendAt(array $campaign): ?DateTimeImmutable
+    {
+        return !empty($campaign['send_now'])
+            ? new DateTimeImmutable()
+            : self::parseDate((string) ($campaign['scheduled_at'] ?? ''));
+    }
+
+    /**
+     * "Submit for review" (Email creator step 5): Draft -> Pending approval.
+     * The ScheduleReadiness checks must pass already, so an approver is not
+     * handed a newsletter that cannot go out. The submitter and their
+     * department (odb staff.department) are stamped; an earlier decision is
+     * cleared. The newsletter is locked while pending.
+     */
+    public static function submit(int $id, Auth $auth): array
     {
         $campaign = self::findOrFail($id);
         if (!self::isEditable($campaign)) {
-            throw new HttpException('Only a draft newsletter can be scheduled.', 422);
+            throw new HttpException('Only a draft newsletter can be submitted for review.', 422);
         }
-        $sendAt = $campaign['send_now']
-            ? new DateTimeImmutable()
-            : self::parseDate((string) ($campaign['scheduled_at'] ?? ''));
-        $problems = (new ScheduleReadiness())->problems($campaign, $sendAt);
+        $problems = (new ScheduleReadiness())->problems($campaign, self::sendAt($campaign));
         if ($problems !== []) {
-            throw new HttpException('Cannot schedule yet: ' . implode(' ', $problems), 422);
+            throw new HttpException('Cannot submit yet: ' . implode(' ', $problems), 422);
         }
 
-        return self::update($id, ['status' => self::SCHEDULED, 'scheduled_at' => $sendAt?->format('Y-m-d H:i:s')]);
+        return self::update($id, [
+            'status'               => self::PENDING_APPROVAL,
+            'submitted_by'         => $auth->staffId,
+            'submitted_by_name'    => $auth->staffName,
+            'submitted_department' => $auth->department(self::db()),
+            'submitted_at'         => date('Y-m-d H:i:s'),
+            'reviewed_by'          => null,
+            'reviewed_by_name'     => null,
+            'reviewed_at'          => null,
+            'review_comment'       => null,
+        ]);
+    }
+
+    /**
+     * Who may approve or reject (step 6): the BPT team (effective role 3,
+     * dev override included) or a superadmin; never the submitter, unless
+     * superadmin.
+     */
+    public static function canApprove(array $campaign, Auth $auth): bool
+    {
+        if ($campaign['status'] !== self::PENDING_APPROVAL) {
+            return false;
+        }
+        if ($auth->isSuperadmin) {
+            return true;
+        }
+
+        return $auth->permission === 3 && $campaign['submitted_by'] !== $auth->staffId;
+    }
+
+    /** The submitter (or a superadmin) may take a pending newsletter back to Draft. */
+    public static function canWithdraw(array $campaign, Auth $auth): bool
+    {
+        return $campaign['status'] === self::PENDING_APPROVAL
+            && ($auth->isSuperadmin || ($auth->staffId !== null && $campaign['submitted_by'] === $auth->staffId));
+    }
+
+    /**
+     * Approve (step 6): Pending approval -> Scheduled at the submitter's
+     * chosen time (Send now = now). The readiness checks run again; a send
+     * time that has passed meanwhile blocks approval (reject it with a note
+     * instead). The send queue waits CampaignSender::RECALL_SECONDS after the
+     * send time, so it can still be recalled.
+     */
+    public static function approve(int $id, Auth $auth): array
+    {
+        $campaign = self::findOrFail($id);
+        if (!self::canApprove($campaign, $auth)) {
+            throw new HttpException(self::decideRefusal($campaign), 403);
+        }
+        $sendAt = self::sendAt($campaign);
+        $problems = (new ScheduleReadiness())->problems($campaign, $sendAt);
+        if ($problems !== []) {
+            throw new HttpException('Cannot approve: ' . implode(' ', $problems) . ' Reject it so the submitter can fix it.', 422);
+        }
+
+        return self::update($id, [
+            'status'           => self::SCHEDULED,
+            'scheduled_at'     => $sendAt?->format('Y-m-d H:i:s'),
+            'reviewed_by'      => $auth->staffId,
+            'reviewed_by_name' => $auth->staffName,
+            'reviewed_at'      => date('Y-m-d H:i:s'),
+            'review_comment'   => null,
+        ]);
+    }
+
+    /** Reject (step 6): Pending approval -> Draft, with the reason for the submitter. */
+    public static function reject(int $id, Auth $auth, string $comment): array
+    {
+        $campaign = self::findOrFail($id);
+        if (!self::canApprove($campaign, $auth)) {
+            throw new HttpException(self::decideRefusal($campaign), 403);
+        }
+        $comment = trim($comment);
+        if ($comment === '') {
+            throw ValidationException::single('comment', 'State the reason for rejection.');
+        }
+
+        return self::update($id, [
+            'status'           => self::DRAFT,
+            'reviewed_by'      => $auth->staffId,
+            'reviewed_by_name' => $auth->staffName,
+            'reviewed_at'      => date('Y-m-d H:i:s'),
+            'review_comment'   => mb_substr($comment, 0, 2000),
+        ]);
+    }
+
+    /** Withdraw: the submitter takes a pending newsletter back to Draft to change it. */
+    public static function withdraw(int $id, Auth $auth): array
+    {
+        $campaign = self::findOrFail($id);
+        if (!self::canWithdraw($campaign, $auth)) {
+            throw new HttpException($campaign['status'] === self::PENDING_APPROVAL
+                ? 'Only the person who submitted it can withdraw this newsletter.'
+                : 'Only a newsletter pending approval can be withdrawn.', 403);
+        }
+
+        return self::update($id, ['status' => self::DRAFT]);
+    }
+
+    private static function decideRefusal(array $campaign): string
+    {
+        return $campaign['status'] !== self::PENDING_APPROVAL
+            ? 'This newsletter is not pending approval.'
+            : 'Only the BPT team or a superadmin can approve or reject, and not their own submission.';
     }
 
     /**
@@ -318,19 +441,22 @@ final class Campaign extends Model
     }
 
     /**
-     * Locked: from scheduling on - scheduled, sending,
+     * Locked: from submission on - pending approval, scheduled, sending,
      * completed or archived - the settings and design can no longer change.
      */
     public static function isLocked(array $campaign): bool
     {
-        return in_array($campaign['status'], [self::SCHEDULED, self::SENDING, self::COMPLETED, self::ARCHIVED], true);
+        return in_array($campaign['status'], [self::PENDING_APPROVAL, self::SCHEDULED, self::SENDING, self::COMPLETED, self::ARCHIVED], true);
     }
 
     /** @throws HttpException 422 when the newsletter is locked (see isLocked()). */
     public static function assertUnlocked(array $campaign): void
     {
+        if ($campaign['status'] === self::PENDING_APPROVAL) {
+            throw new HttpException('This newsletter is pending approval, so it is locked. Withdraw it (or have it rejected) to make changes.', 422);
+        }
         if (self::isLocked($campaign)) {
-            throw new HttpException('This newsletter is scheduled or sent, so it is locked. Stop it first (scheduled only) to make changes.', 422);
+            throw new HttpException('This newsletter is scheduled or sent, so it is locked. Recall it first (scheduled only) to make changes.', 422);
         }
     }
 

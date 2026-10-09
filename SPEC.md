@@ -60,17 +60,20 @@ change goes through the module's MVC layer (see CLAUDE.md "MVC layer").
 
 ## Newsletter status flow
 
-`draft` (1) -> `scheduled` (6) -> `sending` (7) -> `completed` (8), and
-`archived` (9) from draft or completed. The spec's review statuses
-(2 pending_submission, 3 under_bpt_review, 4 content_revision,
-5 audience_validation) are not used; their integer values stay reserved.
+`draft` (1) -> `pending_approval` (2) -> `scheduled` (6) -> `sending` (7) ->
+`completed` (8), and `archived` (9) from draft or completed. The spec's other
+review statuses (3 under_bpt_review, 4 content_revision, 5
+audience_validation) are not used; their integer values stay reserved.
 
-Scheduling (Email creator Send step, `Campaign::schedule()`) runs the
-readiness checks (complete newsletter, verified sender, usable recipients,
-future send date) and locks the newsletter. Recall returns a scheduled
-newsletter to draft. The SES queue starts it at the scheduled datetime (after
-the one-minute recall window); the reporting dashboard reads live delivery
-data.
+Submit for review (Email creator step 5, `Campaign::submit()`) records who
+submitted it and their department, runs the readiness checks (complete
+newsletter, verified sender, usable recipients, future send date) and locks
+the newsletter. Approval (step 6): the BPT team or a superadmin, never the
+submitter, approves (`Campaign::approve()` -> scheduled at the requested
+time) or rejects with a reason (-> draft); the submitter can withdraw.
+Recall returns a scheduled newsletter to draft. The SES queue starts it at
+the scheduled datetime (after the one-minute recall window); the reporting
+dashboard reads live delivery data.
 
 ## Suppression rules (hard, no manual override, applied at QUEUE time)
 
@@ -212,8 +215,9 @@ and a newsletter's audience is all subscribed contacts or a Segment.
    status `draft`.
 2. Design - template picker -> Email creator (drag-drop + HTML) -> desktop /
    mobile preview -> spam score -> dynamic variable insertion -> test send.
-3. Summary - review + readiness checks. Requester clicks **Schedule** (or
-   **Send now**) -> status `scheduled`.
+3. Summary - review + readiness checks, Submitted by + Department. Requester
+   clicks **Submit for review** -> status `pending_approval`; the BPT team
+   approves in the Approval step -> `scheduled`.
 
 ### Intentional divergences from GetResponse
 

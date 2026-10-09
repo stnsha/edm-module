@@ -35,6 +35,7 @@ $page_js = EDM_BASE . 'email-builder/email-builder.js';
     var rowsEl = document.getElementById('edm-eb-picker-rows');
     var badges = {
         1: { cls: 'edm-pill-secondary', label: 'Draft' },
+        2: { cls: 'edm-pill-warning', label: 'Pending approval' },
         6: { cls: 'edm-pill-primary', label: 'Scheduled' },
         7: { cls: 'edm-pill-primary', label: 'Sending' },
         8: { cls: 'edm-pill-success', label: 'Completed' },
@@ -139,8 +140,8 @@ window.EDM_EB_TAGS = <?php echo json_encode($edm_master_tags); ?>;
 </script>
 
 
-<!-- Wizard (SPEC "Newsletter creation flow"): one page, five steps - Setup,
-     Recipients, Design, Tracking, Send. Every field belongs to the same
+<!-- Wizard (SPEC "Newsletter creation flow"): one page, six steps - Setup,
+     Recipients, Design, Tracking, Send, Approval. Every field belongs to the same
      newsletter and the top-bar Save (Ctrl+S) saves all of them from any step. -->
 <nav class="edm-wiz-steps" id="edm-wiz-steps" aria-label="Newsletter steps">
     <button type="button" class="edm-wiz-step" data-step="1"><span class="edm-wiz-dot">1</span><span class="edm-wiz-label">Setup</span></button>
@@ -148,6 +149,7 @@ window.EDM_EB_TAGS = <?php echo json_encode($edm_master_tags); ?>;
     <button type="button" class="edm-wiz-step" data-step="3"><span class="edm-wiz-dot">3</span><span class="edm-wiz-label">Design</span></button>
     <button type="button" class="edm-wiz-step" data-step="4"><span class="edm-wiz-dot">4</span><span class="edm-wiz-label">Tracking</span></button>
     <button type="button" class="edm-wiz-step" data-step="5"><span class="edm-wiz-dot">5</span><span class="edm-wiz-label">Send</span></button>
+    <button type="button" class="edm-wiz-step" data-step="6"><span class="edm-wiz-dot">6</span><span class="edm-wiz-label">Approval</span></button>
 </nav>
 
 <form class="edm-wiz" id="edm-eb-settings" autocomplete="off" onsubmit="return false;">
@@ -191,7 +193,7 @@ window.EDM_EB_TAGS = <?php echo json_encode($edm_master_tags); ?>;
             <div class="form-text">Shown after the subject line in the inbox list. Personalisation variables such as {{first_name}} work here too.</div>
         </div>
         <div class="col-12">
-            <label class="form-label" for="edm-eb-f-tag-input">Tags <span class="text-muted fw-normal">(optional)</span></label>
+            <label class="form-label" for="edm-eb-f-tag-input">Tags <span class="text-muted fw-normal edm-label-hint">(optional)</span></label>
             <!-- Chips + input (email-builder.js): pick existing tags (edm_master_tags)
                  or type a new name and press Enter; new tags are created on Save. -->
             <div class="edm-tag-input" id="edm-eb-tags">
@@ -296,11 +298,21 @@ window.EDM_EB_TAGS = <?php echo json_encode($edm_master_tags); ?>;
 
 <section class="edm-wiz-pane" data-pane="5" aria-label="Send" hidden>
     <h2 class="edm-wiz-title">Send</h2>
-    <p class="edm-wiz-sub">Choose when it goes out, check everything, then schedule it. Sending starts one minute after the send time, so there is time to recall it.</p>
+    <p class="edm-wiz-sub">Choose when it should go out, check everything, then submit it for review. It is sent only after approval (step 6) - with one minute to recall it.</p>
+    <div class="row g-3 mb-3">
+        <div class="col-md-6">
+            <label class="form-label" for="edm-eb-f-submitter">Submitted by</label>
+            <input type="text" class="form-control" id="edm-eb-f-submitter" readonly disabled>
+        </div>
+        <div class="col-md-6">
+            <label class="form-label" for="edm-eb-f-department">Department</label>
+            <input type="text" class="form-control" id="edm-eb-f-department" readonly disabled>
+        </div>
+    </div>
     <div class="edm-wiz-when">
         <label class="edm-wiz-when-opt">
             <input class="form-check-input" type="radio" name="edm-eb-when" id="edm-eb-f-when-now" value="now" autocomplete="off">
-            <span><strong>Send now</strong><span class="edm-wiz-toggle-hint">As soon as you schedule it.</span></span>
+            <span><strong>Send now</strong><span class="edm-wiz-toggle-hint">As soon as it is approved.</span></span>
         </label>
         <label class="edm-wiz-when-opt">
             <input class="form-check-input" type="radio" name="edm-eb-when" id="edm-eb-f-when-later" value="later" autocomplete="off">
@@ -320,9 +332,36 @@ window.EDM_EB_TAGS = <?php echo json_encode($edm_master_tags); ?>;
         <button type="button" class="btn btn-outline-secondary" data-wiz-prev><i class="bi bi-arrow-left me-1"></i>Previous</button>
         <div class="d-flex gap-2">
             <button type="button" class="btn btn-outline-secondary" id="edm-eb-preview"><i class="bi bi-eye me-1"></i>Preview message</button>
-            <button type="button" class="btn btn-success" id="edm-eb-schedule" hidden title="Save, then schedule">
-                <i class="bi bi-send me-1"></i><span id="edm-eb-schedule-label">Schedule</span>
+            <button type="button" class="btn btn-success" id="edm-eb-submit" hidden title="Save, then submit for review">
+                <i class="bi bi-send me-1"></i>Submit for review
             </button>
+            <button type="button" class="btn btn-primary" data-wiz-next id="edm-eb-next-approval" hidden>Next: Approval <i class="bi bi-arrow-right ms-1"></i></button>
+        </div>
+    </div>
+</section>
+
+<!-- Step 6 Approval: filled by email-builder.js from the load answer's
+     `approval` (EmailBuilderController::details()). Submitter / department,
+     requested send time, readiness checks; the BPT team or a superadmin
+     approves (-> Scheduled) or rejects with a reason (-> Draft); the
+     submitter can withdraw while it is pending. -->
+<section class="edm-wiz-pane" data-pane="6" aria-label="Approval" hidden>
+    <h2 class="edm-wiz-title">Approval</h2>
+    <p class="edm-wiz-sub">The BPT team approves the newsletter before it is sent. Approving schedules it for the requested time.</p>
+    <div id="edm-eb-approval-state"></div>
+    <dl class="edm-wiz-summary" id="edm-eb-approval-info"></dl>
+    <h3 class="edm-wiz-subtitle">Checks</h3>
+    <ul class="edm-eb-checks" id="edm-eb-approval-checks"></ul>
+    <div id="edm-eb-approval-decide" hidden>
+        <label class="form-label" for="edm-eb-approval-comment">Comment <span class="text-muted fw-normal edm-label-hint">(required to reject)</span></label>
+        <textarea class="form-control" id="edm-eb-approval-comment" rows="3" maxlength="2000"></textarea>
+    </div>
+    <div class="edm-wiz-nav">
+        <button type="button" class="btn btn-outline-secondary" data-wiz-prev><i class="bi bi-arrow-left me-1"></i>Previous</button>
+        <div class="d-flex gap-2">
+            <button type="button" class="btn btn-outline-secondary" id="edm-eb-withdraw" hidden><i class="bi bi-arrow-counterclockwise me-1"></i>Withdraw</button>
+            <button type="button" class="btn btn-outline-danger" id="edm-eb-reject" hidden><i class="bi bi-x-lg me-1"></i>Reject</button>
+            <button type="button" class="btn btn-success" id="edm-eb-approve" hidden><i class="bi bi-check-lg me-1"></i>Approve</button>
         </div>
     </div>
 </section>

@@ -42,12 +42,14 @@
     var alertEl = document.getElementById('edm-eb-alert');
     var stateEl = document.getElementById('edm-eb-state');
     var saveBtn = document.getElementById('edm-eb-save');
-    var scheduleBtn = document.getElementById('edm-eb-schedule');
+    var submitBtn = document.getElementById('edm-eb-submit');
+    var nextApprovalBtn = document.getElementById('edm-eb-next-approval');
     var templateBtn = document.getElementById('edm-eb-template');
 
     // Same labels / pill colours as the Newsletters list (newsletters/index.php).
     var STATUS = {
         1: { label: 'Draft', cls: 'edm-pill-secondary' },
+        2: { label: 'Pending approval', cls: 'edm-pill-warning' },
         6: { label: 'Scheduled', cls: 'edm-pill-primary' },
         7: { label: 'Sending', cls: 'edm-pill-primary' },
         8: { label: 'Completed', cls: 'edm-pill-success' },
@@ -177,8 +179,9 @@
             dirty:  '<i class="bi bi-circle-fill text-warning"></i> Unsaved changes',
             saving: '<span class="spinner-border spinner-border-sm"></span> Saving...',
             saved:  '<i class="bi bi-check-circle-fill text-success"></i> All changes saved',
-            scheduling: '<span class="spinner-border spinner-border-sm"></span> Scheduling...',
-            scheduled:  '<i class="bi bi-send-check-fill text-success"></i> Scheduled'
+            submitting: '<span class="spinner-border spinner-border-sm"></span> Submitting...',
+            submitted:  '<i class="bi bi-send-check-fill text-success"></i> Submitted for review',
+            deciding:   '<span class="spinner-border spinner-border-sm"></span> Saving decision...'
         }[kind] || '';
         stateEl.innerHTML = html;
     }
@@ -307,12 +310,10 @@
         el.addEventListener('change', syncTracking);
     });
 
-    // Send step: the date only for Schedule; the button says what it does.
+    // Send step: the date only for Schedule.
     var scheduleRow = document.getElementById('edm-eb-schedule-row');
-    var scheduleLabel = document.getElementById('edm-eb-schedule-label');
     function syncWhen() {
         scheduleRow.hidden = !f.whenLater.checked;
-        scheduleLabel.textContent = f.whenNow.checked ? 'Send now' : 'Schedule';
     }
     f.whenNow.addEventListener('change', syncWhen);
     f.whenLater.addEventListener('change', syncWhen);
@@ -394,7 +395,7 @@
 
     function saveFailed(msg) {
         saveBtn.disabled = false;
-        scheduleBtn.disabled = false;
+        submitBtn.disabled = false;
         afterSave = null;
         setState(dirty ? 'dirty' : '');
         showAlert(msg);
@@ -415,7 +416,7 @@
         subject: { el: f.subject, label: 'Subject line' }
     };
     var REQUIRED_SAVE   = [FIELD.name];
-    var REQUIRED_SCHEDULE = [FIELD.name, FIELD.sender, FIELD.subject];
+    var REQUIRED_SUBMIT = [FIELD.name, FIELD.sender, FIELD.subject];
     var REQUIRED_TEST   = [FIELD.name, FIELD.sender, FIELD.subject];
 
     function missingField(list) {
@@ -435,7 +436,7 @@
             // field is empty): drop a pending Schedule so its button does not
             // stay stuck.
             afterSave = null;
-            scheduleBtn.disabled = false;
+            submitBtn.disabled = false;
             if (missing) {
                 missing.el.focus();
                 showAlert(missing.label + ' is required.');
@@ -642,77 +643,213 @@
         });
     }
 
-    // Only a draft (1) can be scheduled. From scheduling on
-    // (scheduled 6, sending 7, completed 8, archived 9 -
+    // Only a draft (1) can be submitted for review. From submission on
+    // (pending approval 2, scheduled 6, sending 7, completed 8, archived 9 -
     // Campaign::isLocked()) the newsletter is locked: the server refuses saves,
-    // so Save and Start from template are hidden and a notice says why.
+    // so Save and Start from template are hidden and a notice says why. A
+    // withdrawn or rejected newsletter is a draft again and unlocks.
     var lockNotice = null;
+    var currentStatus = null;
     function setStatus(status) {
         var st = STATUS[status] || STATUS[1];
-        var locked = [6, 7, 8, 9].indexOf(status) !== -1;
+        var locked = [2, 6, 7, 8, 9].indexOf(status) !== -1;
+        currentStatus = status;
         statusEl.className = 'edm-pill ' + st.cls;
         statusEl.textContent = st.label;
         statusEl.hidden = false;
-        scheduleBtn.hidden = status !== 1;
+        submitBtn.hidden = status !== 1;
+        nextApprovalBtn.hidden = status === 1;
         saveBtn.hidden = locked;
         templateBtn.hidden = locked;
         audiencePicker.disable(locked);
         tagInput.disabled = locked;
         renderTags();
-        if (locked && !lockNotice) {
+        if (!locked) {
+            if (lockNotice) { lockNotice.remove(); lockNotice = null; }
+            return;
+        }
+        if (!lockNotice) {
             lockNotice = document.createElement('div');
             lockNotice.className = 'alert alert-info py-2 px-3 small';
-            lockNotice.innerHTML = '<i class="bi bi-lock-fill me-1"></i>This newsletter is scheduled or sent and is locked - changes are not saved.' +
-                (status === 6 ? ' To change it, use Recall on the Newsletters list (it returns to Draft).' : '');
             alertEl.parentNode.insertBefore(lockNotice, alertEl);
         }
+        lockNotice.innerHTML = '<i class="bi bi-lock-fill me-1"></i>' + (status === 2
+            ? 'This newsletter is pending approval and is locked - changes are not saved. To change it, withdraw it in step 6 (Approval).'
+            : 'This newsletter is scheduled or sent and is locked - changes are not saved.' +
+                (status === 6 ? ' To change it, use Recall on the Newsletters list (it returns to Draft).' : ''));
     }
 
-    // Schedule = save everything first (so the saved version is what goes
-    // out), then schedule it; the server runs the readiness checks.
-    scheduleBtn.addEventListener('click', function () {
-        var missing = missingField(REQUIRED_SCHEDULE);
+    // Steps 5 and 6 from the server's answer (load / submit / approve /
+    // reject / withdraw all return the newsletter plus `approval`).
+    var approval = null;
+    var submitterEl = document.getElementById('edm-eb-f-submitter');
+    var departmentEl = document.getElementById('edm-eb-f-department');
+    var apStateEl = document.getElementById('edm-eb-approval-state');
+    var apInfoEl = document.getElementById('edm-eb-approval-info');
+    var apChecksEl = document.getElementById('edm-eb-approval-checks');
+    var apDecideEl = document.getElementById('edm-eb-approval-decide');
+    var apCommentEl = document.getElementById('edm-eb-approval-comment');
+    var approveBtn = document.getElementById('edm-eb-approve');
+    var rejectBtn = document.getElementById('edm-eb-reject');
+    var withdrawBtn = document.getElementById('edm-eb-withdraw');
+    var lastCampaign = null;
+
+    function applyDetails(c) {
+        lastCampaign = c;
+        approval = c.approval || null;
+        setStatus(c.status);
+        renderApproval();
+        paintSteps();
+    }
+
+    function sendTimeText(c) {
+        if (c.status >= 6 && c.scheduled_at) { return c.scheduled_at; }
+        return c.send_now ? 'Send now - one minute after approval' : (c.scheduled_at || 'Not chosen');
+    }
+
+    function renderApproval() {
+        var c = lastCampaign;
+        if (!c) { return; }
+        var me = (approval && approval.me) || {};
+        // Step 5: the stored submitter once submitted, else whoever is signed in.
+        var submitted = c.status !== 1 && !!c.submitted_by_name;
+        submitterEl.value = submitted ? c.submitted_by_name : (me.name || '');
+        departmentEl.value = (submitted ? c.submitted_department : me.department) || 'Not set';
+
+        var state;
+        if (c.status === 1 && c.review_comment) {
+            state = '<div class="alert alert-danger py-2 px-3 small"><i class="bi bi-x-circle-fill me-1"></i>Rejected by ' +
+                esc(c.reviewed_by_name || 'the reviewer') + (c.reviewed_at ? ' on ' + esc(c.reviewed_at) : '') +
+                ': <strong>' + esc(c.review_comment) + '</strong><br>Make the changes, then submit it for review again in step 5.</div>';
+        } else if (c.status === 1) {
+            state = '<div class="alert alert-info py-2 px-3 small"><i class="bi bi-info-circle-fill me-1"></i>Not submitted yet. Submit it for review in step 5.</div>';
+        } else if (c.status === 2) {
+            state = '<div class="alert alert-warning py-2 px-3 small"><i class="bi bi-hourglass-split me-1"></i>Waiting for approval by the BPT team.' +
+                (approval && approval.can_approve ? ' You can approve or reject it below.' : '') + '</div>';
+        } else if (c.reviewed_by_name) {
+            state = '<div class="alert alert-success py-2 px-3 small"><i class="bi bi-check-circle-fill me-1"></i>Approved by ' +
+                esc(c.reviewed_by_name) + (c.reviewed_at ? ' on ' + esc(c.reviewed_at) : '') + '.</div>';
+        } else {
+            state = '<div class="alert alert-success py-2 px-3 small"><i class="bi bi-check-circle-fill me-1"></i>' + esc((STATUS[c.status] || STATUS[1]).label) + '.</div>';
+        }
+        apStateEl.innerHTML = state;
+
+        function row(label, value) {
+            return '<div class="edm-wiz-row"><dt>' + esc(label) + '</dt><dd>' + esc(value) + '</dd></div>';
+        }
+        apInfoEl.innerHTML = c.submitted_by_name
+            ? row('Submitted by', c.submitted_by_name) +
+              row('Department', c.submitted_department || 'Not set') +
+              row('Submitted on', c.submitted_at || '') +
+              row('Send time', sendTimeText(c)) +
+              (c.status !== 2 && c.reviewed_by_name ? row(c.status === 1 ? 'Rejected by' : 'Approved by', c.reviewed_by_name + (c.reviewed_at ? ' on ' + c.reviewed_at : '')) : '')
+            : row('Send time', sendTimeText(c));
+
+        // The checks matter while it can still be submitted or approved.
+        var checks = (approval && approval.checks) || [];
+        var showChecks = c.status === 1 || c.status === 2;
+        apChecksEl.previousElementSibling.hidden = !showChecks;
+        apChecksEl.hidden = !showChecks;
+        apChecksEl.innerHTML = checks.map(function (k) {
+            return '<li class="' + (k.ok ? 'is-ok' : 'is-fail') + '"><i class="bi ' + (k.ok ? 'bi-check-circle-fill' : 'bi-x-circle-fill') + '"></i>' +
+                '<span><strong>' + esc(k.label) + '</strong> - ' + esc(k.detail) + '</span></li>';
+        }).join('');
+
+        var canApprove = !!(approval && approval.can_approve);
+        apDecideEl.hidden = !canApprove;
+        approveBtn.hidden = !canApprove;
+        rejectBtn.hidden = !canApprove;
+        withdrawBtn.hidden = !(approval && approval.can_withdraw);
+    }
+
+    // One decision call (approve / reject / withdraw) and its result.
+    function decide(action, body, done) {
+        [approveBtn, rejectBtn, withdrawBtn].forEach(function (b) { b.disabled = true; });
+        setState('deciding');
+        call(action, 'POST', body || {}).then(function (res) {
+            [approveBtn, rejectBtn, withdrawBtn].forEach(function (b) { b.disabled = false; });
+            setState('');
+            if (!res.success) { showAlert(firstError(res)); return; }
+            alertEl.hidden = true;
+            apCommentEl.value = '';
+            applyDetails(res.data || {});
+            if (done) { done(); }
+        }).catch(function () {
+            [approveBtn, rejectBtn, withdrawBtn].forEach(function (b) { b.disabled = false; });
+            setState('');
+            showAlert('Could not reach the server.');
+        });
+    }
+
+    approveBtn.addEventListener('click', function () {
+        var c = lastCampaign || {};
+        window.edmConfirm('Approve "' + (c.name || 'this newsletter') + '"? It is scheduled (' + sendTimeText(c) +
+            ') and stays locked. It can still be recalled from the Newsletters list until it starts sending.', function () {
+            decide('approve');
+        }, { title: 'Approve newsletter', variant: 'success', confirmLabel: 'Approve' });
+    });
+    rejectBtn.addEventListener('click', function () {
+        var comment = apCommentEl.value.trim();
+        if (!comment) {
+            apCommentEl.focus();
+            showAlert('State the reason for rejection in the comment box.');
+            return;
+        }
+        window.edmConfirm('Reject this newsletter? It goes back to Draft and the submitter sees your comment.', function () {
+            decide('reject', { comment: comment });
+        }, { title: 'Reject newsletter', variant: 'danger', confirmLabel: 'Reject' });
+    });
+    withdrawBtn.addEventListener('click', function () {
+        window.edmConfirm('Withdraw this newsletter from review? It goes back to Draft so you can change it; submit it again when ready.', function () {
+            decide('withdraw');
+        }, { title: 'Withdraw newsletter', variant: 'warning', confirmLabel: 'Withdraw' });
+    });
+
+    // Submit for review = save everything first (so the approver sees the
+    // current version), then submit; the server runs the readiness checks and
+    // stamps the submitter + department. Step 6 opens afterwards.
+    submitBtn.addEventListener('click', function () {
+        var missing = missingField(REQUIRED_SUBMIT);
         if (missing) {
             goStep(1);
             missing.el.focus();
-            showAlert(missing.label + ' is required before scheduling.');
+            showAlert(missing.label + ' is required before submitting for review.');
             return;
         }
         if (!f.whenNow.checked && !f.scheduled.value) {
             f.scheduled.focus();
-            showAlert('Choose Send now, or a send date and time, before scheduling.');
+            showAlert('Choose Send now, or a send date and time, before submitting for review.');
             return;
         }
         var name = f.name.value.trim() || 'this newsletter';
-        var question = f.whenNow.checked
-            ? 'Save and send "' + name + '" now? It starts in one minute and is locked from then on.'
-            : 'Save and schedule "' + name + '" for ' + f.scheduled.value.replace('T', ' ') + '? It is locked once scheduled.';
-        window.edmConfirm(question, function () {
-            scheduleBtn.disabled = true;
+        window.edmConfirm('Save and submit "' + name + '" for review? It is locked while it waits for approval by the BPT team.', function () {
+            submitBtn.disabled = true;
             afterSave = function () {
-                setState('scheduling');
-                call('schedule', 'POST', {}).then(function (res) {
-                    scheduleBtn.disabled = false;
+                setState('submitting');
+                call('submit', 'POST', {}).then(function (res) {
+                    submitBtn.disabled = false;
                     if (!res.success) { setState(''); showAlert(firstError(res)); return; }
-                    setStatus((res.data && res.data.status) || 6);
-                    setState('scheduled');
+                    applyDetails(res.data || {});
+                    setState('submitted');
+                    goStep(6);
                 }).catch(function () {
-                    scheduleBtn.disabled = false;
+                    submitBtn.disabled = false;
                     setState('');
                     showAlert('Could not reach the server.');
                 });
             };
             save();
-        }, { title: f.whenNow.checked ? 'Send newsletter' : 'Schedule newsletter', variant: 'success',
-            confirmLabel: f.whenNow.checked ? 'Send now' : 'Schedule' });
+        }, { title: 'Submit for review', variant: 'success', confirmLabel: 'Submit' });
     });
 
-    // Wizard: five steps on one page (Setup, Recipients, Design, Tracking,
-    // Send). Steps never block each other - every field is saved by the
-    // top-bar Save from any step; a step shows a green check once it is
-    // complete (Recipients / Tracking once visited - both have defaults).
-    // The current step is kept in the URL hash, so a reload stays on it.
-    var LAST_STEP = 5;
+    // Wizard: six steps on one page (Setup, Recipients, Design, Tracking,
+    // Send, Approval). Steps never block each other - every field is saved by
+    // the top-bar Save from any step; a step shows a green check once it is
+    // complete (Recipients / Tracking once visited - both have defaults; Send
+    // once submitted; Approval once approved). The current step is kept in
+    // the URL hash, so a reload stays on it.
+    var SEND_STEP = 5;
+    var LAST_STEP = 6;
     var wizSteps = [].slice.call(document.querySelectorAll('.edm-wiz-step'));
     var wizPanes = [].slice.call(document.querySelectorAll('.edm-wiz-pane'));
     var summaryEl = document.getElementById('edm-wiz-summary');
@@ -726,17 +863,19 @@
     }
     function stepComplete(n) {
         switch (n) {
-            case 1: return !missingField(REQUIRED_SCHEDULE);
+            case 1: return !missingField(REQUIRED_SUBMIT);
             case 2: return !!visited[2];
             case 3: return designBlocks !== null && designBlocks > 0;
             case 4: return !!visited[4];
+            case 5: return currentStatus !== null && currentStatus !== 1;
+            case 6: return [6, 7, 8, 9].indexOf(currentStatus) !== -1;
             default: return false;
         }
     }
     function paintSteps() {
         wizSteps.forEach(function (b) {
             var n = parseInt(b.getAttribute('data-step'), 10);
-            var done = n !== wizStep && n < LAST_STEP && stepComplete(n);
+            var done = n !== wizStep && stepComplete(n);
             b.classList.toggle('is-active', n === wizStep);
             b.classList.toggle('is-done', done);
             b.querySelector('.edm-wiz-dot').innerHTML = done ? '<i class="bi bi-check-lg"></i>' : String(n);
@@ -752,7 +891,7 @@
         // Full path: the odb layout sets a <base>, so a bare '#step-n' would
         // resolve against it and change the URL.
         try { window.history.replaceState(null, '', window.location.pathname + window.location.search + '#step-' + wizStep); } catch (err) { /* ignore */ }
-        if (wizStep === LAST_STEP) { renderSummary(); }
+        if (wizStep === SEND_STEP) { renderSummary(); }
         paintSteps();
         if (scroll !== false) {
             document.getElementById('edm-wiz-steps').scrollIntoView({ block: 'nearest', behavior: 'smooth' });
@@ -783,7 +922,7 @@
         function draw() {
             var sender = optionText(f.sender);
             var count = audiencePicker.lastCount;
-            var when = f.whenNow.checked ? 'Send now - one minute after scheduling'
+            var when = f.whenNow.checked ? 'Send now - one minute after approval'
                 : (f.scheduled.value ? f.scheduled.value.replace('T', ' ') : '');
             var u = utmValues();
             summaryEl.innerHTML =
@@ -803,14 +942,14 @@
                     ', Google Analytics ' + onOff(f.utmEnabled.checked) +
                     (f.utmEnabled.checked ? '<div class="edm-wiz-row-note">utm_source=' + esc(u.source) + ', utm_medium=' + esc(u.medium) +
                         ', utm_campaign=' + esc(u.campaign) + (u.content ? ', utm_content=' + esc(u.content) : '') + '</div>' : ''), 4, false) +
-                row('When', when ? esc(when) : 'Choose a date and time above', LAST_STEP, !when);
+                row('When', when ? esc(when) : 'Choose a date and time above', SEND_STEP, !when);
         }
         draw();
         refreshDesignState(draw);
     }
     // The When row follows the choice live.
     [f.whenNow, f.whenLater, f.scheduled].forEach(function (el) {
-        el.addEventListener('change', function () { if (wizStep === LAST_STEP) { renderSummary(); } });
+        el.addEventListener('change', function () { if (wizStep === SEND_STEP) { renderSummary(); } });
     });
 
     wizSteps.forEach(function (b) {
@@ -861,7 +1000,7 @@
     });
 
     (function initialStep() {
-        var m = /^#step-([1-5])$/.exec(window.location.hash);
+        var m = /^#step-([1-6])$/.exec(window.location.hash);
         goStep(m ? parseInt(m[1], 10) : 1, false);
     })();
 
@@ -897,8 +1036,8 @@
         var c = res.data || {};
         nameEl.textContent = c.name || ('Newsletter #' + CID);
         nameEl.title = nameEl.textContent;
-        setStatus(c.status);
         fillSettings(c);
+        applyDetails(c);
         content = c.content || { html: '', editor_json: null };
         pushContent();
     }).catch(function () {
