@@ -101,16 +101,9 @@ $edm_nav = array(
         'href'  => 'dashboard/index.php',
     ),
     array(
-        'label' => 'Contacts',
-        'gate'  => 'build',
-        'items' => array(
-            // Import contacts (import.php) is reached from the All contacts button.
-            array('folder' => 'audience',    'file' => 'index.php',    'label' => 'All contacts',
-                'files' => array('import.php')),
-            array('folder' => 'audience',    'file' => 'segments.php', 'label' => 'Segments'),
-            array('folder' => 'audience',    'file' => 'fields.php',   'label' => 'Custom fields'),
-            array('folder' => 'suppression', 'file' => 'index.php',    'label' => 'Exclusion lists'),
-        ),
+        'label' => 'Calendar',
+        'gate'  => 'view',
+        'href'  => 'calendar/index.php',
     ),
     array(
         'label' => 'Newsletters',
@@ -130,17 +123,24 @@ $edm_nav = array(
         ),
     ),
     array(
+        'label' => 'Contacts',
+        'gate'  => 'build',
+        'items' => array(
+            // Import contacts (import.php) is reached from the All contacts button.
+            array('folder' => 'audience',    'file' => 'index.php',    'label' => 'All contacts',
+                'files' => array('import.php')),
+            array('folder' => 'audience',    'file' => 'segments.php', 'label' => 'Segments'),
+            array('folder' => 'audience',    'file' => 'fields.php',   'label' => 'Custom fields'),
+            array('folder' => 'suppression', 'file' => 'index.php',    'label' => 'Exclusion lists'),
+        ),
+    ),
+    array(
         'label' => 'Automation',
         'gate'  => 'build',
         'items' => array(
             array('folder' => 'automation', 'file' => 'index.php',          'label' => 'Workflows'),
             array('folder' => 'automation', 'file' => 'autoresponders.php', 'label' => 'Autoresponders'),
         ),
-    ),
-    array(
-        'label' => 'Calendar',
-        'gate'  => 'view',
-        'href'  => 'calendar/index.php',
     ),
     array(
         'label' => 'Settings',
