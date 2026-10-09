@@ -42,6 +42,15 @@ final class AssetController extends Controller
     /** Uploads from before the NAS, served as static files. */
     private const LEGACY_DIR = 'uploads/assets';
 
+    /**
+     * Department PICs (Auth::isPic()) may upload images from the Email
+     * creator's Image block, but not delete or edit the shared library.
+     */
+    protected static function allowsPic(string $action): bool
+    {
+        return $action === 'assets_upload';
+    }
+
     protected function handle(string $action): mixed
     {
         if ($action === 'assets_upload') {

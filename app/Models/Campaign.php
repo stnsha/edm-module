@@ -19,7 +19,7 @@ use Edm\Services\UtmTagger;
  *
  * status is an integer, never a word - see STATUSES. Draft -> Pending
  * approval (submit(), Email creator step 5) -> Scheduled (approve(), step 6,
- * BPT team / superadmin) -> Sending -> Completed; reject() and withdraw()
+ * the EDM approver, role 1) -> Sending -> Completed; reject() and withdraw()
  * return a pending newsletter to Draft; Archived on the side. Values 3-5
  * belonged to the removed approval chain and are unused.
  * Submission: submitted_by / _name / _department / _at (snapshot of the
@@ -140,10 +140,15 @@ final class Campaign extends Model
      *
      * @return list<array<string, mixed>>
      */
-    public static function listing(?int $status = null, ?bool $archived = null): array
+    public static function listing(?int $status = null, ?bool $archived = null, ?int $ownerId = null): array
     {
         $where = ['c.`deleted_at` IS NULL'];
         $params = [];
+        // $ownerId: only newsletters created by that staff (department PIC).
+        if ($ownerId !== null) {
+            $where[] = 'c.`requested_by` = ?';
+            $params[] = $ownerId;
+        }
         if ($status !== null) {
             $where[] = 'c.`status` = ?';
             $params[] = $status;
@@ -332,20 +337,35 @@ final class Campaign extends Model
     }
 
     /**
-     * Who may approve or reject (step 6): the BPT team (effective role 3,
-     * dev override included) or a superadmin; never the submitter, unless
-     * superadmin.
+     * Who may approve or reject (step 6): EDM role 1 only (Auth::isApprover()
+     * - staff.edm = 1, or the dev override to role 1).
      */
     public static function canApprove(array $campaign, Auth $auth): bool
     {
-        if ($campaign['status'] !== self::PENDING_APPROVAL) {
-            return false;
-        }
-        if ($auth->isSuperadmin) {
-            return true;
-        }
+        return $campaign['status'] === self::PENDING_APPROVAL && $auth->isApprover();
+    }
 
-        return $auth->permission === 3 && $campaign['submitted_by'] !== $auth->staffId;
+    /**
+     * A department PIC (Auth::isPic()) only sees newsletters they created;
+     * anyone else sees all. Answers "not found" so other newsletters are
+     * not revealed.
+     *
+     * @throws HttpException 404
+     */
+    public static function assertVisibleTo(array $campaign, Auth $auth): void
+    {
+        if ($auth->isPic() && $campaign['requested_by'] !== $auth->staffId) {
+            throw new HttpException('Newsletter not found', 404);
+        }
+    }
+
+    /** Names of the staff who approve newsletters (staff.edm = 1), for "Waiting for ...". */
+    public static function approverNames(): array
+    {
+        return array_map(
+            static fn (array $r): string => (string) $r['nama_staff'],
+            self::db()->select('SELECT `nama_staff` FROM `staff` WHERE `edm` = 1 AND `recycle` != 1 ORDER BY `nama_staff`')
+        );
     }
 
     /** The submitter (or a superadmin) may take a pending newsletter back to Draft. */
@@ -422,7 +442,7 @@ final class Campaign extends Model
     {
         return $campaign['status'] !== self::PENDING_APPROVAL
             ? 'This newsletter is not pending approval.'
-            : 'Only the BPT team or a superadmin can approve or reject, and not their own submission.';
+            : 'Only the EDM approver (role 1) can approve or reject newsletters.';
     }
 
     /**
@@ -527,12 +547,13 @@ final class Campaign extends Model
         return self::update($id, ['status' => $next]);
     }
 
-    /** Count per status label, every label present (0 when none). */
-    public static function countsByStatus(): array
+    /** Count per status label, every label present (0 when none); $ownerId as in listing(). */
+    public static function countsByStatus(?int $ownerId = null): array
     {
         $rows = self::db()->select(
             'SELECT `status`, COUNT(*) AS total FROM ' . Database::ident(self::TABLE)
-            . ' WHERE `deleted_at` IS NULL GROUP BY `status`'
+            . ' WHERE `deleted_at` IS NULL' . ($ownerId !== null ? ' AND `requested_by` = ?' : '') . ' GROUP BY `status`',
+            $ownerId !== null ? [$ownerId] : []
         );
         $byInt = [];
         foreach ($rows as $r) {

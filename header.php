@@ -82,6 +82,19 @@ if ((int)$edm_permission === 0 && !$_is_superadmin) {
     }
     exit;
 }
+
+// Department PIC (role 2, Auth::isPic()): only the Newsletters list and the
+// Email creator wizard. Any other page (Dashboard, the default entry,
+// included) goes to the Newsletters list; the APIs refuse other actions too.
+$edm_is_pic = ((int)$edm_permission === 2 && !$_is_superadmin);
+if ($edm_is_pic) {
+    $_pic_page = basename(dirname($_SERVER['SCRIPT_NAME'])) . '/' . basename($_SERVER['SCRIPT_NAME']);
+    if (!in_array($_pic_page, array('newsletters/index.php', 'email-builder/index.php'), true)) {
+        ob_end_clean();
+        header('Location: ' . EDM_BASE . 'newsletters/index.php');
+        exit;
+    }
+}
 ?>
 
 <body>

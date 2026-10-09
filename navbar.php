@@ -33,7 +33,7 @@ if ($_navbar_isLocal && $_navbar_isRealSuperAdmin) {
     // staff.edm role levels (see sql/add_staff_edm_column.sql).
     $_navbar_roleLabels = array(
         1 => 'superadmin',
-        2 => 'admin',
+        2 => 'dept pic',
         3 => 'bpt team',
         4 => 'management',
     );
@@ -90,6 +90,8 @@ $current_script = basename($_self);
  *   gate  - 'build' (edm in 1,2,3), 'view' (edm >= 1), or 'super' (edm == 1)
  *   href    - single-link target relative to EDM_BASE; omit when 'items' is set
  *   folders - optional extra folders that also mark a single link active
+ *   pic     - true: shown to a department PIC (role 2, $edm_is_pic from
+ *             header.php), who sees only these entries / children
  *   items   - dropdown children: array of (folder, file, label), plus optional
  *             files   - other scripts in the same folder that mark it active
  *             folders - other folders (any script) that mark it active
@@ -108,11 +110,12 @@ $edm_nav = array(
     array(
         'label' => 'Newsletters',
         'gate'  => 'build',
+        'pic'   => true,
         'items' => array(
             // Email creator has no menu entry of its own; it is reached from
             // the Newsletters list (Design button) and keeps this highlighted.
             array('folder' => 'newsletters', 'file' => 'index.php', 'label' => 'All newsletters',
-                'folders' => array('email-builder')),
+                'folders' => array('email-builder'), 'pic' => true),
             // Template editor (edit.php) is reached from the Templates list.
             array('folder' => 'templates', 'file' => 'index.php', 'label' => 'Templates',
                 'files' => array('edit.php')),
@@ -171,6 +174,7 @@ $edm_gate_ok = array(
             <ul class="navbar-nav align-items-lg-center w-100">
                 <?php foreach ($edm_nav as $_item): ?>
                 <?php if (empty($edm_gate_ok[$_item['gate']])) { continue; } ?>
+                <?php if (!empty($edm_is_pic) && empty($_item['pic'])) { continue; } ?>
                 <?php if (isset($_item['items'])): ?>
                 <?php
                     $_child_folders = array();
@@ -187,6 +191,7 @@ $edm_gate_ok = array(
                         data-bs-toggle="dropdown" aria-expanded="false"><?php echo htmlspecialchars($_item['label']); ?></a>
                     <ul class="dropdown-menu">
                         <?php foreach ($_item['items'] as $_c): ?>
+                        <?php if (!empty($edm_is_pic) && empty($_c['pic'])) { continue; } ?>
                         <?php
                             $_child_files  = array_merge(array($_c['file']), isset($_c['files']) ? $_c['files'] : array());
                             $_child_active = (($current_dir === $_c['folder'] && in_array($current_script, $_child_files, true))

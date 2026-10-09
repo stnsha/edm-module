@@ -362,9 +362,9 @@ Settings > Users & permissions (superadmin only) - give each user a role
 
 | Role | Value | Can |
 | ---- | ----- | --- |
-| Superadmin | 1 | Everything, including Settings |
-| Admin | 2 | Build newsletters and submit them for review |
-| BPT team | 3 | Build and submit; **approve / reject** newsletters (Email creator step 6), except their own submissions |
+| Superadmin | 1 | Everything, including Settings; **approves / rejects** newsletters (Email creator step 6) |
+| Department PIC | 2 | Only Newsletters: creates their **own** newsletters in the wizard (picks existing senders, tags, segments; may upload images) and submits them for review |
+| BPT team | 3 | Build and submit (all build menus); no approval |
 | Management | 4 | Read only |
 
 `dev-switch-role.php` (the DEV ROLE bar) only works on localhost and is
@@ -385,7 +385,7 @@ inert on production.
 4. Create a newsletter with a segment that matches only test contacts ->
    Email creator step 5 (Send) -> Submit for review with a send time 3-5
    minutes ahead; Submitted by / Department show your name and department.
-   A BPT team user (another person) opens it from Newsletters > Review ->
+   A role 1 user opens it from Newsletters > Review ->
    step 6 -> Approve; the status becomes Scheduled.
 5. At that time `logs\ses-send.log` shows the newsletter starting and
    completing; the newsletter status becomes Completed; the test inbox
@@ -428,7 +428,7 @@ this guide.
 - Approval Centre and Automated QA removed; approval moved into the Email
   creator. Step 5 (Send) shows Submitted by and Department (from odb
   `staff.department`) and has only Submit for review -> Pending approval
-  (locked). Step 6 (Approval): the BPT team or a superadmin approves
+  (locked). Step 6 (Approval): EDM role 1 approves
   (-> Scheduled at the requested time) or rejects with a reason (-> Draft);
   the submitter can withdraw. Readiness checks (complete, verified sender,
   usable recipients, future send date) run on submit and on approval.

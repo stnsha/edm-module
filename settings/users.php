@@ -15,7 +15,7 @@ $page_js = EDM_BASE . 'settings/users.js';
 // staff.edm roles (CLAUDE.md "staff.edm").
 $edm_roles = array(
     1 => array('label' => 'Superadmin', 'cls' => 'edm-pill-danger'),
-    2 => array('label' => 'Admin', 'cls' => 'edm-pill-primary'),
+    2 => array('label' => 'Department PIC', 'cls' => 'edm-pill-primary'),
     3 => array('label' => 'BPT team', 'cls' => 'edm-pill-info'),
     4 => array('label' => 'Management', 'cls' => 'edm-pill-secondary'),
 );

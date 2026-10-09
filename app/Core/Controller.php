@@ -51,10 +51,15 @@ abstract class Controller
         if (!$auth->hasAccess()) {
             Response::json(['success' => false, 'message' => 'You do not have access to the EDM module.'], 403);
         }
+        $request = new Request();
+        $action = (string) $request->action;
+        if ($auth->isPic() && !static::allowsPic($action)) {
+            Response::json(['success' => false, 'message' => 'Department PICs can only create and submit their own newsletters.'], 403);
+        }
 
         try {
-            $controller = new static(new Request(), $auth, $db);
-            $data = $controller->handle((string) $controller->request->action);
+            $controller = new static($request, $auth, $db);
+            $data = $controller->handle($action);
             Response::json($data === null ? ['success' => true] : ['success' => true, 'data' => $data]);
         } catch (ValidationException $e) {
             Response::json(['success' => false, 'message' => $e->getMessage(), 'errors' => $e->errors()], 422);
@@ -66,6 +71,16 @@ abstract class Controller
             error_log('[EDM] ' . static::class . ': ' . $e->getMessage());
             Response::json(['success' => false, 'message' => 'Database error. Please try again.'], 500);
         }
+    }
+
+    /**
+     * Whether a department PIC (Auth::isPic()) may call this action. Nothing
+     * by default; the Newsletters, Email creator and Audience controllers
+     * list the actions the wizard needs (and check ownership themselves).
+     */
+    protected static function allowsPic(string $action): bool
+    {
+        return false;
     }
 
     protected function unknown(): never

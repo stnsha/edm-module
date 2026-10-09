@@ -28,12 +28,14 @@ POS / Membership  ->  Customer Data Warehouse  ->  CRM Segmentation
 | --- | ----------- | ---------------------------------- |
 | 0   | none        | -                                 |
 | 1   | superadmin  | BI / Digital, IT / Developer      |
-| 2   | admin       | (reserved)                        |
+| 2   | dept PIC    | Department PIC / Requester        |
 | 3   | bpt team    | Promotion / BPT                   |
 | 4   | management  | Management (read-only)            |
 
-"Project PIC / Requester" is not a tier. Any staff with `edm` in (1,2,3) can raise
-a newsletter; management (4) is read-only. Ownership is tracked per newsletter in
+Department PICs are tier 2: they see only Newsletters, create their own
+newsletters through the wizard (picking existing senders / tags / segments,
+uploading images) and submit them; tier 1 approves. Tiers 1 and 3 can also
+raise newsletters; management (4) is read-only. Ownership is tracked per newsletter in
 `campaigns.requested_by` / `requested_by_name` (snapshot), same split as the atem
 module's `issuer_staff_id` vs `staff.atem` grade. Owner-only actions (edit own
 draft, view own status) are gated by `requested_by === staff_id`
@@ -68,8 +70,7 @@ audience_validation) are not used; their integer values stay reserved.
 Submit for review (Email creator step 5, `Campaign::submit()`) records who
 submitted it and their department, runs the readiness checks (complete
 newsletter, verified sender, usable recipients, future send date) and locks
-the newsletter. Approval (step 6): the BPT team or a superadmin, never the
-submitter, approves (`Campaign::approve()` -> scheduled at the requested
+the newsletter. Approval (step 6): EDM tier 1 approves (`Campaign::approve()` -> scheduled at the requested
 time) or rejects with a reason (-> draft); the submitter can withdraw.
 Recall returns a scheduled newsletter to draft. The SES queue starts it at
 the scheduled datetime (after the one-minute recall window); the reporting

@@ -24,6 +24,12 @@ use Edm\Services\SegmentQuery;
  */
 final class AudienceController extends Controller
 {
+    /** Department PICs: only the Email creator Recipients picker (search + live count). */
+    protected static function allowsPic(string $action): bool
+    {
+        return in_array($action, ['contacts_search', 'audience_count'], true);
+    }
+
     protected function handle(string $action): mixed
     {
         if ($action === 'segments_fields') {

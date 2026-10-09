@@ -154,6 +154,9 @@ edm_crud_screen(array(
     // Draft (1) is the only state still being worked on; later states are
     // scheduled / sent and stay read-only here.
     function editable(r) { return r.status === 1; }
+    // Department PIC (role 2): own newsletters only (the API filters), no
+    // Reports - so no View report row action.
+    var IS_PIC = <?php echo !empty($edm_is_pic) ? 'true' : 'false'; ?>;
 
     document.getElementById('edm-nl-new').addEventListener('click', function () {
         var btn = this;
@@ -211,7 +214,7 @@ edm_crud_screen(array(
             { label: 'Show recipients', handler: function (r) { openRecipients(r); } },
             // Once anything was sent (rows in the send log, `delivered` on the
             // listing row): figures, opens / clicks per recipient.
-            { label: 'View report', visible: function (r) { return (r.delivered || 0) > 0; },
+            { label: 'View report', visible: function (r) { return !IS_PIC && (r.delivered || 0) > 0; },
                 link: function (r) { return 'newsletters/report.php?newsletter=' + r.id; } },
             { label: 'Reuse', action: 'campaigns_duplicate', confirm: 'Create a copy of this newsletter as a new draft?' },
             { label: 'Recall - don’t send it', action: 'campaigns_recall',

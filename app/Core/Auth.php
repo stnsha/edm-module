@@ -6,7 +6,8 @@ namespace Edm\Core;
 
 /**
  * The logged-in staff member and their EDM role tier (staff.edm):
- * 0 = none, 1 = superadmin, 2 = admin, 3 = bpt team, 4 = management.
+ * 0 = none, 1 = superadmin (approves newsletters), 2 = department PIC
+ * (creates and submits own newsletters only), 3 = bpt team, 4 = management.
  *
  * The dev role override (dev-switch-role.php, localhost only) replaces the
  * tier for UI testing but never grants superadmin.
@@ -71,6 +72,22 @@ final class Auth
         );
 
         return is_string($name) && trim($name) !== '' ? trim($name) : null;
+    }
+
+    /**
+     * Department PIC (effective role 2): may only create their own
+     * newsletters through the Email creator wizard and submit them - every
+     * controller refuses other actions (Controller::allowsPic()).
+     */
+    public function isPic(): bool
+    {
+        return $this->permission === 2 && !$this->isSuperadmin;
+    }
+
+    /** Approves newsletters (Email creator step 6): role 1 (dev override included) or a real superadmin. */
+    public function isApprover(): bool
+    {
+        return $this->isSuperadmin || $this->permission === 1;
     }
 
     /** Any EDM tier (1-4) or a real superadmin. */

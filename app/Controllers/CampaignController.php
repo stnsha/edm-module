@@ -65,11 +65,32 @@ final class CampaignController extends Controller
         'status'     => ['sometimes', 'integer', 'in:1,2,6,7,8,9'],
     ];
 
+    /**
+     * Department PICs (Auth::isPic()): their own newsletters only (handle()
+     * checks the id), no templates-based create, no report.
+     */
+    private const PIC_ACTIONS = [
+        'campaigns_list', 'campaigns_new', 'campaigns_update', 'campaigns_delete', 'campaigns_duplicate',
+        'campaigns_stop', 'campaigns_recall', 'campaigns_archive', 'campaigns_unarchive', 'campaigns_counts',
+        'campaigns_recipients', 'campaigns_preview',
+    ];
+
+    protected static function allowsPic(string $action): bool
+    {
+        return in_array($action, self::PIC_ACTIONS, true);
+    }
+
     protected function handle(string $action): mixed
     {
+        // A PIC may only act on newsletters they created.
+        $owner = $this->auth->isPic() ? $this->auth->staffId : null;
+        if ($owner !== null && $this->request->id() > 0) {
+            Campaign::assertVisibleTo(Campaign::findOrFail($this->request->id()), $this->auth);
+        }
+
         switch ($action) {
             case 'campaigns_list':
-                return Campaign::listing(null, !empty($this->request->query('archived')));
+                return Campaign::listing(null, !empty($this->request->query('archived')), $owner);
             case 'campaigns_new':
                 return Campaign::createBlank($this->stamp('requested_by'));
             case 'campaigns_create':
@@ -100,7 +121,7 @@ final class CampaignController extends Controller
             case 'campaigns_archive':
                 return Campaign::archive($this->requireId('Newsletter'));
             case 'campaigns_counts':
-                $byStatus = Campaign::countsByStatus();
+                $byStatus = Campaign::countsByStatus($owner);
                 return ['archived' => $byStatus['archived'], 'active' => array_sum($byStatus) - $byStatus['archived']];
             case 'campaigns_unarchive':
                 return Campaign::unarchive($this->requireId('Newsletter'));

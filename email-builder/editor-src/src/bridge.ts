@@ -3,7 +3,7 @@ import { renderToStaticMarkup } from '@usewaypoint/email-builder';
 import { EditorConfigurationSchema, TEditorConfiguration } from './documents/editor/core';
 import { getDocument, loadDocument, subscribeDocument } from './documents/editor/EditorContext';
 import EMPTY_EMAIL_MESSAGE from './getConfiguration/sample/empty-email-message';
-import { setAssets, TAsset } from './assets';
+import { setAssets, setAssetsNoDelete, TAsset } from './assets';
 import { setVariables, TVariable } from './variables';
 
 /**
@@ -19,13 +19,15 @@ import { setVariables, TVariable } from './variables';
  *   export  { requestId, document, html }   reply to an export request
  *
  * parent -> editor
- *   load    { document?, html?, variables?, assets? }
+ *   load    { document?, html?, variables?, assets?, assetsNoDelete? }
  *                                 open a saved design; a legacy HTML-only body
  *                                 (no editor JSON) is wrapped in one Html block.
  *                                 variables = [{ token, label }] for the
  *                                 Personalisation box (see variables.tsx);
  *                                 assets = [{ id, name, url }] images from the
- *                                 Files library for the Image block (assets.tsx)
+ *                                 Files library for the Image block (assets.tsx);
+ *                                 assetsNoDelete = true hides the delete
+ *                                 buttons (department PIC: upload, no delete)
  *   export  { requestId }         ask for the current document + rendered HTML
  */
 const SOURCE = 'edm-email-creator';
@@ -38,6 +40,7 @@ type TInbound =
       html?: string | null;
       variables?: TVariable[];
       assets?: TAsset[];
+      assetsNoDelete?: boolean;
     }
   | { source: typeof SOURCE; type: 'export'; requestId: string };
 
@@ -129,6 +132,7 @@ export function startBridge() {
       if (Array.isArray(data.assets)) {
         setAssets(data.assets);
       }
+      setAssetsNoDelete(data.assetsNoDelete === true);
       loading = true;
       loadDocument(toDocument(data.document, data.html));
       loading = false;

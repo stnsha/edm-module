@@ -137,6 +137,9 @@ window.EDM_EB_CUSTOM_VARS = <?php echo json_encode($edm_custom_vars); ?>;
 window.EDM_EB_ASSETS = <?php echo json_encode($edm_assets); ?>;
 window.EDM_EB_SEGMENTS = <?php echo json_encode($edm_segments); ?>;
 window.EDM_EB_TAGS = <?php echo json_encode($edm_master_tags); ?>;
+// Department PIC (role 2): pick only - no new sender, no new tags, no image
+// delete in the editor - uploading images is allowed (the APIs refuse the rest).
+window.EDM_EB_PIC = <?php echo !empty($edm_is_pic) ? 'true' : 'false'; ?>;
 </script>
 
 
@@ -170,7 +173,9 @@ window.EDM_EB_TAGS = <?php echo json_encode($edm_master_tags); ?>;
                 <?php foreach ($edm_senders as $o): ?>
                 <option value="<?php echo $o['id']; ?>"><?php echo htmlspecialchars($o['label']); ?></option>
                 <?php endforeach; ?>
+                <?php if (empty($edm_is_pic)): ?>
                 <option value="__new">+ Create new sender</option>
+                <?php endif; ?>
             </select>
         </div>
         <div class="col-md-6">
@@ -180,7 +185,9 @@ window.EDM_EB_TAGS = <?php echo json_encode($edm_master_tags); ?>;
                 <?php foreach ($edm_senders as $o): ?>
                 <option value="<?php echo $o['id']; ?>"><?php echo htmlspecialchars($o['label']); ?></option>
                 <?php endforeach; ?>
+                <?php if (empty($edm_is_pic)): ?>
                 <option value="__new">+ Create new sender</option>
+                <?php endif; ?>
             </select>
         </div>
         <div class="col-12">
@@ -342,12 +349,12 @@ window.EDM_EB_TAGS = <?php echo json_encode($edm_master_tags); ?>;
 
 <!-- Step 6 Approval: filled by email-builder.js from the load answer's
      `approval` (EmailBuilderController::details()). Submitter / department,
-     requested send time, readiness checks; the BPT team or a superadmin
+     requested send time, readiness checks; the EDM approver (role 1)
      approves (-> Scheduled) or rejects with a reason (-> Draft); the
      submitter can withdraw while it is pending. -->
 <section class="edm-wiz-pane" data-pane="6" aria-label="Approval" hidden>
     <h2 class="edm-wiz-title">Approval</h2>
-    <p class="edm-wiz-sub">The BPT team approves the newsletter before it is sent. Approving schedules it for the requested time.</p>
+    <p class="edm-wiz-sub">The EDM approver checks the newsletter before it is sent. Approving schedules it for the requested time.</p>
     <div id="edm-eb-approval-state"></div>
     <dl class="edm-wiz-summary" id="edm-eb-approval-info"></dl>
     <h3 class="edm-wiz-subtitle">Checks</h3>

@@ -67,7 +67,9 @@
 
     // Tags (Setup step): several per newsletter, as chips. A typed name that
     // matches a tag on the master list (any case) uses it; any other becomes
-    // a new tag, created by the server on Save (settings_save new_tags).
+    // a new tag, created by the server on Save (settings_save new_tags) -
+    // except for a department PIC, who can only pick existing tags.
+    var IS_PIC = !!window.EDM_EB_PIC;
     var MAX_TAGS = 10;
     var tagBox = document.getElementById('edm-eb-tags');
     var tagInput = document.getElementById('edm-eb-f-tag-input');
@@ -85,7 +87,7 @@
                 (tagInput.disabled ? '' : '<button type="button" aria-label="Remove ' + esc(t.name) + '" data-i="' + i + '">&times;</button>');
             tagBox.insertBefore(chip, tagInput);
         });
-        tagInput.placeholder = tags.length ? '' : 'Add a tag...';
+        tagInput.placeholder = tags.length ? '' : (IS_PIC ? 'Pick a tag...' : 'Add a tag...');
     }
     function addTag(raw) {
         var name = String(raw || '').replace(/\s+/g, ' ').trim();
@@ -95,6 +97,7 @@
         if (tags.some(function (t) { return t.name.toLowerCase() === lower; })) { return; }
         if (tags.length >= MAX_TAGS) { showAlert('A newsletter can have at most ' + MAX_TAGS + ' tags.'); return; }
         var known = knownTags.filter(function (t) { return t.name.toLowerCase() === lower; })[0];
+        if (!known && IS_PIC) { showAlert('Choose an existing tag from the list - new tags are added by the EDM team.'); return; }
         tags.push(known ? { id: known.id, name: known.name } : { id: null, name: name.slice(0, 100) });
         renderTags();
         setDirty(true);
@@ -204,7 +207,8 @@
             document: content.editor_json || null,
             html: content.html || '',
             variables: VARIABLES,
-            assets: window.EDM_EB_ASSETS || [] // Files library images for the Image block
+            assets: window.EDM_EB_ASSETS || [], // Files library images for the Image block
+            assetsNoDelete: IS_PIC // PIC: may upload images, not delete them
         });
         setDirty(false);
         saveBtn.disabled = false;
@@ -631,7 +635,8 @@
                     document: res.data.editor_json || null,
                     html: res.data.html || '',
                     variables: VARIABLES,
-                    assets: window.EDM_EB_ASSETS || []
+                    assets: window.EDM_EB_ASSETS || [],
+                    assetsNoDelete: IS_PIC
                 });
                 setDirty(true);
                 tplModal.hide();
@@ -724,7 +729,9 @@
         } else if (c.status === 1) {
             state = '<div class="alert alert-info py-2 px-3 small"><i class="bi bi-info-circle-fill me-1"></i>Not submitted yet. Submit it for review in step 5.</div>';
         } else if (c.status === 2) {
-            state = '<div class="alert alert-warning py-2 px-3 small"><i class="bi bi-hourglass-split me-1"></i>Waiting for approval by the BPT team.' +
+            var approvers = (approval && approval.approvers) || [];
+            state = '<div class="alert alert-warning py-2 px-3 small"><i class="bi bi-hourglass-split me-1"></i>Waiting for approval by ' +
+                esc(approvers.length ? approvers.join(', ') : 'the EDM approver') + '.' +
                 (approval && approval.can_approve ? ' You can approve or reject it below.' : '') + '</div>';
         } else if (c.reviewed_by_name) {
             state = '<div class="alert alert-success py-2 px-3 small"><i class="bi bi-check-circle-fill me-1"></i>Approved by ' +
@@ -822,7 +829,7 @@
             return;
         }
         var name = f.name.value.trim() || 'this newsletter';
-        window.edmConfirm('Save and submit "' + name + '" for review? It is locked while it waits for approval by the BPT team.', function () {
+        window.edmConfirm('Save and submit "' + name + '" for review? It is locked while it waits for approval.', function () {
             submitBtn.disabled = true;
             afterSave = function () {
                 setState('submitting');

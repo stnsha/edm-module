@@ -34,10 +34,15 @@ type TConfirm = (message: string, onConfirm: () => void, options?: { title?: str
 
 export type TAsset = { id: number; name: string; url: string };
 
-const assetsStore = create<{ assets: TAsset[] }>(() => ({ assets: [] }));
+const assetsStore = create<{ assets: TAsset[]; noDelete: boolean }>(() => ({ assets: [], noDelete: false }));
 
 export function setAssets(assets: TAsset[]) {
   assetsStore.setState({ assets });
+}
+
+/** Department PIC: may upload, but the delete buttons are hidden (shared library). */
+export function setAssetsNoDelete(noDelete: boolean) {
+  assetsStore.setState({ noDelete });
 }
 
 function addAssets(added: TAsset[]) {
@@ -101,6 +106,7 @@ type Props = {
 
 export function AssetPicker({ selectedUrl, onPick }: Props) {
   const assets = assetsStore((s) => s.assets);
+  const noDelete = assetsStore((s) => s.noDelete);
   const [query, setQuery] = useState('');
   const [busy, setBusy] = useState<{ done: number; total: number } | null>(null);
   const [errors, setErrors] = useState<string[]>([]);
@@ -109,7 +115,7 @@ export function AssetPicker({ selectedUrl, onPick }: Props) {
   const fileInput = useRef<HTMLInputElement>(null);
 
   // Delete needs the parent page's confirm dialog; without it there is no button.
-  const canDelete = parentConfirm() !== null;
+  const canDelete = !noDelete && parentConfirm() !== null;
   const q = query.trim().toLowerCase();
   const matches = q === '' ? assets : assets.filter((a) => a.name.toLowerCase().includes(q));
   const shown = matches.slice(0, SHOW_LIMIT);
