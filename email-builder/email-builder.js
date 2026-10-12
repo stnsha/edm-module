@@ -865,6 +865,7 @@
     var wizStep = 1;
     var visited = {};
     var designBlocks = null; // top-level blocks in the design; null until known
+    var designHtml = null; // rendered design HTML (editor export); null until known, for the Size row
 
     function optionText(sel) {
         var o = sel.options[sel.selectedIndex];
@@ -915,6 +916,7 @@
         exportDesign(function (out) {
             var root = out.document && out.document.root;
             designBlocks = root && root.data && root.data.childrenIds ? root.data.childrenIds.length : 0;
+            designHtml = out.html || '';
             paintSteps();
             if (done) { done(); }
         });
@@ -934,6 +936,14 @@
             '</div>';
         }
         function onOff(v) { return v ? 'on' : 'off'; }
+        // SES rejects a message over 10 MB (subject + headers + HTML + the
+        // generated text part); the design HTML dominates that total.
+        var SES_SIZE_CAP = 10 * 1024 * 1024;
+        function fmtSize(bytes) {
+            if (bytes < 1024) { return bytes + ' B'; }
+            if (bytes < 1024 * 1024) { return (bytes / 1024).toFixed(1) + ' KB'; }
+            return (bytes / (1024 * 1024)).toFixed(2) + ' MB';
+        }
         function draw() {
             var sender = optionText(f.sender);
             var count = audiencePicker.lastCount;
@@ -957,6 +967,13 @@
                     ', Google Analytics ' + onOff(f.utmEnabled.checked) +
                     (f.utmEnabled.checked ? '<div class="edm-wiz-row-note">utm_source=' + esc(u.source) + ', utm_medium=' + esc(u.medium) +
                         ', utm_campaign=' + esc(u.campaign) + (u.content ? ', utm_content=' + esc(u.content) : '') + '</div>' : ''), 4, false) +
+                (function () {
+                    if (designHtml === null) { return row('Size', 'Checking...', 3, false); }
+                    var bytes = new Blob([designHtml + f.subject.value]).size;
+                    var over = bytes > SES_SIZE_CAP;
+                    return row('Size', fmtSize(bytes) + ' of the 10 MB SES limit' +
+                        (over ? '<div class="edm-wiz-row-note">Over the SES limit - the send will fail.</div>' : ''), 3, over);
+                })() +
                 (forApproval ? '' : row('When', when ? esc(when) : 'Choose a date and time above', SEND_STEP, !when));
         }
         draw();
