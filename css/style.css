@@ -2411,8 +2411,13 @@ button {
 }
 .edm-wiz-row dd {
     margin: 0;
-    font-size: 14px;
+    font-size: 13px;
     overflow-wrap: anywhere;
+}
+/* Inline parts of a value ("None" placeholders) keep the value's size -
+   a legacy odb stylesheet otherwise resizes them. */
+.edm-wiz-row dd span {
+    font-size: inherit;
 }
 .edm-wiz-row.is-missing dd:not(.edm-wiz-row-edit) {
     color: #b02a37;

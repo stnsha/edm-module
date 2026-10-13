@@ -25,44 +25,6 @@ $page_js = EDM_BASE . 'calendar/calendar.js';
     </table>
 </div>
 
-<div class="modal fade" id="edm-cal-modal" tabindex="-1" aria-hidden="true">
-    <div class="modal-dialog">
-        <div class="modal-content">
-            <form id="edm-cal-form">
-                <div class="modal-header">
-                    <h5 class="modal-title">Calendar slot</h5>
-                    <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
-                </div>
-                <div class="modal-body">
-                    <input type="hidden" id="edm-cal-id">
-                    <div class="mb-3">
-                        <label class="form-label" for="edm-cal-date">Date <span class="text-danger" aria-hidden="true">*</span></label>
-                        <input type="date" class="form-control" id="edm-cal-date" required>
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label" for="edm-cal-label">Label</label>
-                        <input type="text" class="form-control" id="edm-cal-label" maxlength="100">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label" for="edm-cal-category">Category</label>
-                        <input type="text" class="form-control" id="edm-cal-category" maxlength="50" placeholder="promo, newsletter, ...">
-                    </div>
-                    <div class="mb-3">
-                        <label class="form-label" for="edm-cal-note">Note</label>
-                        <input type="text" class="form-control" id="edm-cal-note" maxlength="255">
-                    </div>
-                    <div id="edm-cal-form-error" class="text-danger small" hidden></div>
-                </div>
-                <div class="modal-footer">
-                    <button type="button" class="btn btn-outline-danger btn-sm me-auto" id="edm-cal-del" hidden>Delete</button>
-                    <button type="button" class="btn btn-light btn-sm" data-bs-dismiss="modal">Cancel</button>
-                    <button type="submit" class="btn btn-primary btn-sm">Save</button>
-                </div>
-            </form>
-        </div>
-    </div>
-</div>
-<script src="<?php echo EDM_BASE; ?>js/edm-confirm.js?v=<?php echo filemtime(__DIR__ . '/../js/edm-confirm.js'); ?>"></script>
 <?php
 include __DIR__ . '/../footer.php';
 ?>

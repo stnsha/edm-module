@@ -901,6 +901,7 @@
         // Full path: the odb layout sets a <base>, so a bare '#step-n' would
         // resolve against it and change the URL.
         try { window.history.replaceState(null, '', window.location.pathname + window.location.search + '#step-' + wizStep); } catch (err) { /* ignore */ }
+        redrawSummary = null; // set again by renderSummary on steps 5 / 6
         if (wizStep === SEND_STEP) { renderSummary(); }
         if (wizStep === LAST_STEP) { renderSummary(approvalSummaryEl, true); }
         paintSteps();
@@ -919,7 +920,36 @@
             designHtml = out.html || '';
             paintSteps();
             if (done) { done(); }
+            if (redrawSummary) { redrawSummary(); }
         });
+    }
+
+    // While the design is unknown (editor iframe still loading, or its export
+    // not answered yet) the Design and Size rows show a spinner, the stage
+    // and the seconds waited; redrawSummary repaints the visible summary once
+    // the design state arrives, and the tick keeps the counter moving.
+    var redrawSummary = null;
+    var checkStarted = 0;
+    var checkTimer = null;
+    var CHECK_SLOW_SECONDS = 20;
+    function checkingHtml() {
+        if (!checkStarted) { checkStarted = Date.now(); }
+        var secs = Math.floor((Date.now() - checkStarted) / 1000);
+        var stage = editorReady ? 'Reading the design' : 'Loading the design editor';
+        return '<span class="spinner-border spinner-border-sm text-primary me-2" role="status" aria-hidden="true"></span>' +
+            stage + '... <span class="text-muted">(' + secs + ' s)</span>' +
+            (secs >= CHECK_SLOW_SECONDS ? '<div class="edm-wiz-row-note">Taking longer than usual - open Design to load the editor, or reload the page.</div>' : '');
+    }
+    function tickChecking() {
+        if (checkTimer || designBlocks !== null) { return; }
+        checkTimer = window.setInterval(function () {
+            if (designBlocks !== null || !redrawSummary) {
+                window.clearInterval(checkTimer);
+                checkTimer = null;
+                return;
+            }
+            redrawSummary();
+        }, 1000);
     }
 
     // Summary of steps 1-5: in step 5 (Edit links, When row) and in step 6
@@ -960,7 +990,7 @@
                 row('Recipients', esc(audiencePicker.describe()) +
                     (count ? '<div class="edm-wiz-row-note">' + Number(count.matched).toLocaleString('en-US') + ' of ' +
                         Number(count.total).toLocaleString('en-US') + ' subscribed contacts</div>' : ''), 2, !!count && count.matched === 0) +
-                row('Design', designBlocks === null ? 'Checking...'
+                row('Design', designBlocks === null ? checkingHtml()
                     : designBlocks > 0 ? designBlocks + ' block' + (designBlocks === 1 ? '' : 's') : 'Empty - add content in Design',
                     3, designBlocks === 0) +
                 row('Tracking', 'Opens ' + onOff(f.trackOpens.checked) + ', clicks ' + onOff(f.trackClicks.checked) +
@@ -968,7 +998,7 @@
                     (f.utmEnabled.checked ? '<div class="edm-wiz-row-note">utm_source=' + esc(u.source) + ', utm_medium=' + esc(u.medium) +
                         ', utm_campaign=' + esc(u.campaign) + (u.content ? ', utm_content=' + esc(u.content) : '') + '</div>' : ''), 4, false) +
                 (function () {
-                    if (designHtml === null) { return row('Size', 'Checking...', 3, false); }
+                    if (designHtml === null) { return row('Size', checkingHtml(), 3, false); }
                     var bytes = new Blob([designHtml + f.subject.value]).size;
                     var over = bytes > SES_SIZE_CAP;
                     return row('Size', fmtSize(bytes) + ' of the 10 MB SES limit' +
@@ -976,8 +1006,10 @@
                 })() +
                 (forApproval ? '' : row('When', when ? esc(when) : 'Choose a date and time above', SEND_STEP, !when));
         }
+        redrawSummary = draw;
         draw();
-        refreshDesignState(draw);
+        tickChecking();
+        refreshDesignState();
     }
     // The When row follows the choice live.
     [f.whenNow, f.whenLater, f.scheduled].forEach(function (el) {
