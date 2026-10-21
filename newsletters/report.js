@@ -189,4 +189,110 @@
             applyFilter();
         })
         .catch(function () { showAlert('Could not load the report.'); });
+
+    // ---- Website figures (Google Analytics 4, campaigns_analytics) ----
+
+    var gaBody = document.getElementById('edm-rp-ga-body');
+    var gaMeta = document.getElementById('edm-rp-ga-meta');
+    var gaRefresh = document.getElementById('edm-rp-ga-refresh');
+
+    function num(v) { return Number(v || 0).toLocaleString(); }
+
+    function duration(seconds) {
+        var s = Math.round(seconds || 0);
+        return Math.floor(s / 60) + 'm ' + (s % 60 < 10 ? '0' : '') + (s % 60) + 's';
+    }
+
+    function money(v, currency) {
+        return (currency ? currency + ' ' : '') + Number(v || 0).toLocaleString(undefined, { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+    }
+
+    function gaNotice(icon, html, danger) {
+        gaBody.innerHTML = '<div class="edm-rp-notice' + (danger ? ' edm-rp-ga-error' : '') + '"><i class="bi ' + icon + '"></i><span>' + html + '</span></div>';
+    }
+
+    function gaStat(title, value, sub) {
+        return '<div class="edm-rp-stat"><div class="edm-rp-stat-title">' + esc(title) + '</div>' +
+            '<div class="edm-rp-stat-value">' + esc(value) + '</div>' +
+            '<div class="edm-rp-stat-sub">' + esc(sub) + '</div></div>';
+    }
+
+    // A small top-10 table; cols = [[heading, row => cell text]].
+    function gaTable(title, rows, cols) {
+        if (!rows.length) { return ''; }
+        return '<div class="edm-rp-ga-col"><h4 class="edm-rp-ga-sub">' + esc(title) + '</h4>' +
+            '<table class="table align-middle edm-view-tbl edm-rp-table"><thead><tr><th style="width:3rem;">#</th>' +
+            cols.map(function (c, i) { return '<th' + (i ? ' class="text-end"' : '') + '>' + esc(c[0]) + '</th>'; }).join('') +
+            '</tr></thead><tbody>' +
+            rows.map(function (r, n) {
+                return '<tr><td class="text-muted">' + (n + 1) + '</td>' +
+                    cols.map(function (c, i) { return '<td' + (i ? ' class="text-end"' : '') + '>' + esc(c[1](r)) + '</td>'; }).join('') + '</tr>';
+            }).join('') + '</tbody></table></div>';
+    }
+
+    function paintAnalytics(d) {
+        gaRefresh.hidden = !(d.connected && d.utm_enabled);
+        if (!d.connected) {
+            gaMeta.textContent = '';
+            gaNotice('bi-plug', 'Google Analytics is not connected yet. Missing in edm/.env: ' + esc((d.missing || []).join(', ')) + '.');
+            return;
+        }
+        var meta = ['utm_campaign: ' + esc(d.utm.campaign)];
+        if (d.start_date) { meta.push('since ' + esc(d.start_date)); }
+        if (d.fetched_at) { meta.push('updated ' + esc(d.fetched_at)); }
+        gaMeta.innerHTML = meta.join('<span class="edm-rp-dot">&middot;</span>');
+
+        if (!d.utm_enabled) {
+            gaNotice('bi-info-circle', 'UTM tags are off for this newsletter, so Google Analytics cannot tell its visits apart. Turn them on in the Email creator, step 4 Tracking.');
+            return;
+        }
+        var t = d.totals;
+        if (!t.sessions) {
+            gaNotice('bi-info-circle', 'No website visits from this newsletter yet (source ' + esc(d.utm.source) + ' / medium ' + esc(d.utm.medium) +
+                ' / campaign ' + esc(d.utm.campaign) + '). Standard Google Analytics reports can take 24-48 hours to fill.');
+            return;
+        }
+
+        var html = '<div class="edm-rp-stats">' +
+            gaStat('Sessions', num(t.sessions), num(t.users) + ' users') +
+            gaStat('Engagement', t.engagement_rate + '%', num(t.engaged_sessions) + ' engaged sessions') +
+            gaStat('Key events', num(t.key_events), 'conversions') +
+            gaStat('Revenue', money(t.revenue, d.currency), num(t.purchases) + ' purchases') +
+            '</div>' +
+            '<div class="edm-rp-more">' + [num(t.page_views) + ' page views', 'average session ' + duration(t.avg_duration)].join('<span class="edm-rp-dot">&middot;</span>') + '</div>';
+        if (d.thresholded) {
+            html += '<div class="edm-rp-notice" title="Google Analytics withholds rows with very few users to protect privacy."><i class="bi bi-eye-slash"></i>' +
+                '<span>Google Analytics hides very small numbers, so some figures may be missing.</span></div>';
+        }
+        var tables = gaTable('Top landing pages', d.pages || [], [
+            ['Page', function (r) { return r.label; }],
+            ['Sessions', function (r) { return num(r.sessions); }],
+            ['Key events', function (r) { return num(r.key_events); }]
+        ]) + gaTable('By link (utm_content)', d.content || [], [
+            ['Content', function (r) { return r.label === '(not set)' ? '(no utm_content)' : r.label; }],
+            ['Sessions', function (r) { return num(r.sessions); }],
+            ['Revenue', function (r) { return money(r.revenue, ''); }]
+        ]);
+        if (tables) { html += '<div class="edm-rp-ga-tables">' + tables + '</div>'; }
+        gaBody.innerHTML = html;
+    }
+
+    function loadAnalytics(refresh) {
+        gaRefresh.disabled = true;
+        fetch(BASE + 'newsletters/api.php?action=campaigns_analytics&id=' + ID + (refresh ? '&refresh=1' : ''), { headers: { 'Accept': 'application/json' } })
+            .then(function (r) { return r.json(); })
+            .then(function (res) {
+                if (!res.success) {
+                    gaRefresh.hidden = false;
+                    gaNotice('bi-exclamation-triangle', esc(res.message || 'Could not load Google Analytics figures.'), true);
+                    return;
+                }
+                paintAnalytics(res.data);
+            })
+            .catch(function () { gaNotice('bi-exclamation-triangle', 'Could not load Google Analytics figures.', true); })
+            .then(function () { gaRefresh.disabled = false; });
+    }
+
+    gaRefresh.addEventListener('click', function () { loadAnalytics(true); });
+    loadAnalytics(false);
 })();

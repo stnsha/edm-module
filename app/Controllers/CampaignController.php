@@ -9,6 +9,7 @@ use Edm\Models\Campaign;
 use Edm\Models\CampaignContent;
 use Edm\Models\SendLog;
 use Edm\Services\CampaignRecipients;
+use Edm\Services\Analytics\CampaignAnalytics;
 use Edm\Services\CampaignReport;
 use Edm\Services\Ses\CampaignMessage;
 
@@ -36,6 +37,10 @@ use Edm\Services\Ses\CampaignMessage;
  *                       resolves to now (source "audience", suppressed flag)
  *   campaigns_report    ?id= Newsletter report (newsletters/report.php):
  *                       figures + every send log row (CampaignReport)
+ *   campaigns_analytics ?id= (&refresh=1 skips the cache) website figures from
+ *                       Google Analytics 4 by the newsletter's UTM tags
+ *                       (Services/Analytics/CampaignAnalytics); 502 when GA
+ *                       answers with an error
  *   campaigns_preview   raw email HTML for an <iframe> (not JSON)
  *   campaigns_new    POST -> empty draft (default sender preset), opened in the
  *                    Email creator by the New newsletter button
@@ -129,6 +134,11 @@ final class CampaignController extends Controller
                 return $this->recipients($this->requireId('Newsletter'));
             case 'campaigns_report':
                 return (new CampaignReport($this->db))->build($this->requireId('Newsletter'));
+            case 'campaigns_analytics':
+                return CampaignAnalytics::fromEnv()->build(
+                    Campaign::findOrFail($this->requireId('Newsletter')),
+                    (string) $this->request->get('refresh', '') === '1'
+                );
             case 'campaigns_preview':
                 $this->preview();
         }

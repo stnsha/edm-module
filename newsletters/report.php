@@ -78,6 +78,22 @@ endif;
 </div>
 <div class="edm-rp-more" id="edm-rp-more"></div>
 
+<!-- Website figures from Google Analytics 4 by the newsletter's UTM tags
+     (campaigns_analytics), loaded separately so a slow or failing GA call
+     never holds up the SES figures. -->
+<section class="edm-rp-ga">
+    <div class="edm-rp-toolbar">
+        <h3 class="edm-rp-heading">Website <span class="edm-rp-ga-src">Google Analytics</span></h3>
+        <div class="d-flex align-items-center gap-2">
+            <span class="edm-rp-ga-meta" id="edm-rp-ga-meta"></span>
+            <button type="button" class="btn btn-light btn-sm" id="edm-rp-ga-refresh" title="Fetch the latest figures from Google Analytics" aria-label="Refresh" hidden><i class="bi bi-arrow-clockwise"></i></button>
+        </div>
+    </div>
+    <div id="edm-rp-ga-body">
+        <div class="edm-rp-notice"><i class="bi bi-hourglass-split"></i><span>Loading website figures...</span></div>
+    </div>
+</section>
+
 <div class="edm-rp-toolbar">
     <h3 class="edm-rp-heading">Recipients</h3>
     <div class="d-flex align-items-center gap-2">

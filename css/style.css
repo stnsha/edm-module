@@ -3935,8 +3935,30 @@ button {
     padding: 3rem 1rem;
 }
 .edm-rp-empty .bi { font-size: 32px; display: block; margin-bottom: .5rem; color: #c3c8cf; }
+/* Website figures (Google Analytics): same stat grid, two small tables. */
+.edm-rp-ga { margin-bottom: 2rem; }
+.edm-rp-ga-src {
+    font-size: 12px;
+    font-weight: 400;
+    color: #8a929b;
+    margin-left: .35rem;
+}
+.edm-rp-ga-meta,
+.edm-rp-ga-meta span { font-size: 12px; color: #6c757d; }
+.edm-rp-ga .edm-rp-notice { margin-bottom: .75rem; }
+.edm-rp-ga .edm-rp-more { margin-bottom: 1rem; }
+.edm-rp-ga-error,
+.edm-rp-ga-error .bi { color: #b02a37; }
+.edm-rp-ga-tables {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 1.5rem;
+}
+.edm-rp-ga-sub { font-size: 13px; font-weight: 600; margin: 0 0 .5rem; }
+.edm-rp-ga-tables .edm-rp-table td:nth-child(2) { word-break: break-all; }
 @media (max-width: 767.98px) {
     .edm-rp-stats { grid-template-columns: repeat(2, minmax(0, 1fr)); }
     .edm-rp-stat:nth-child(3) { border-left: 0; }
     .edm-rp-stat:nth-child(n+3) { border-top: 1px solid #edf0f3; }
+    .edm-rp-ga-tables { grid-template-columns: minmax(0, 1fr); }
 }
