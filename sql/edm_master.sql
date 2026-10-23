@@ -29,14 +29,22 @@ DROP TABLE IF EXISTS `edm_contacts`;
 -- Replaced by edm_contacts (one masterlist); dropped so an older database is cleaned up.
 DROP TABLE IF EXISTS `edm_list_members`;
 DROP TABLE IF EXISTS `edm_lists`;
+-- Removed with the old Approval Centre / Automated QA (migrate_remove_approval.sql);
+-- dropped so an older database is cleaned up.
+DROP TABLE IF EXISTS `edm_approval_decisions`;
+DROP TABLE IF EXISTS `edm_approval_logs`;
+DROP TABLE IF EXISTS `edm_approval_files`;
+DROP TABLE IF EXISTS `edm_approvals`;
+DROP TABLE IF EXISTS `edm_campaign_qa`;
+DROP TABLE IF EXISTS `edm_revisions`;
 DROP TABLE IF EXISTS `edm_tags`;
 DROP TABLE IF EXISTS `edm_custom_fields`;
 DROP TABLE IF EXISTS `edm_senders`;
-SET FOREIGN_KEY_CHECKS = 1;
 
 -- ----------------------------------------------------------------------
 -- edm_senders: From-addresses. status: 1=pending, 2=verified, 3=failed.
 -- ----------------------------------------------------------------------
+DROP TABLE IF EXISTS `edm_senders`;
 CREATE TABLE `edm_senders` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -57,6 +65,7 @@ CREATE TABLE `edm_senders` (
 -- edm_custom_fields: Contact field definitions; each key is a {{key}} personalisation variable.
 -- category: spec section 6 filter category grouping the field in the segment builder; NULL = Custom fields.
 -- ----------------------------------------------------------------------
+DROP TABLE IF EXISTS `edm_custom_fields`;
 CREATE TABLE `edm_custom_fields` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `key` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -75,6 +84,7 @@ CREATE TABLE `edm_custom_fields` (
 -- ----------------------------------------------------------------------
 -- edm_tags: Contact tags.
 -- ----------------------------------------------------------------------
+DROP TABLE IF EXISTS `edm_tags`;
 CREATE TABLE `edm_tags` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -91,6 +101,7 @@ CREATE TABLE `edm_tags` (
 -- edm_contacts: The contact masterlist: one row per email address. status: 1=subscribed, 2=unsubscribed, 3=bounced.
 -- fields: Contacts > Custom fields values keyed by field key (JSON).
 -- ----------------------------------------------------------------------
+DROP TABLE IF EXISTS `edm_contacts`;
 CREATE TABLE `edm_contacts` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -110,6 +121,7 @@ CREATE TABLE `edm_contacts` (
 -- ----------------------------------------------------------------------
 -- edm_segments: Saved AND/OR segment definitions (definition = {match, groups}); applied to the contact masterlist.
 -- ----------------------------------------------------------------------
+DROP TABLE IF EXISTS `edm_segments`;
 CREATE TABLE `edm_segments` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -126,6 +138,7 @@ CREATE TABLE `edm_segments` (
 -- ----------------------------------------------------------------------
 -- edm_member_tags: Tag assignments per contact email address.
 -- ----------------------------------------------------------------------
+DROP TABLE IF EXISTS `edm_member_tags`;
 CREATE TABLE `edm_member_tags` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -142,6 +155,7 @@ CREATE TABLE `edm_member_tags` (
 -- ----------------------------------------------------------------------
 -- edm_sending_domains: Sending domains. dkim/spf/dmarc_status: 1=pending, 2=verified, 3=failed.
 -- ----------------------------------------------------------------------
+DROP TABLE IF EXISTS `edm_sending_domains`;
 CREATE TABLE `edm_sending_domains` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `domain` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -159,6 +173,7 @@ CREATE TABLE `edm_sending_domains` (
 -- ----------------------------------------------------------------------
 -- edm_settings: Grouped key/value settings (general, integrations).
 -- ----------------------------------------------------------------------
+DROP TABLE IF EXISTS `edm_settings`;
 CREATE TABLE `edm_settings` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `group` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL DEFAULT 'general',
@@ -175,6 +190,7 @@ CREATE TABLE `edm_settings` (
 -- ----------------------------------------------------------------------
 -- edm_suppressions: Suppression list (never email these addresses).
 -- ----------------------------------------------------------------------
+DROP TABLE IF EXISTS `edm_suppressions`;
 CREATE TABLE `edm_suppressions` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `email` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -195,6 +211,7 @@ CREATE TABLE `edm_suppressions` (
 -- send pipeline (app/Services/Ses/CampaignSender), updated by SES events.
 -- status: 1=sent, 2=delivered, 3=bounced, 4=complained, 5=failed, 6=skipped (error says why).
 -- ----------------------------------------------------------------------
+DROP TABLE IF EXISTS `edm_send_log`;
 CREATE TABLE `edm_send_log` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `campaign_id` bigint unsigned DEFAULT NULL,
@@ -221,6 +238,7 @@ CREATE TABLE `edm_send_log` (
 -- ----------------------------------------------------------------------
 -- edm_ses_events: Raw Amazon SES events received through SNS (public/ses-webhook.php).
 -- ----------------------------------------------------------------------
+DROP TABLE IF EXISTS `edm_ses_events`;
 CREATE TABLE `edm_ses_events` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `ses_message_id` varchar(100) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
@@ -239,6 +257,7 @@ CREATE TABLE `edm_ses_events` (
 -- ----------------------------------------------------------------------
 -- edm_master_tags: Master list of newsletter tags (edm_campaigns.tag_ids).
 -- ----------------------------------------------------------------------
+DROP TABLE IF EXISTS `edm_master_tags`;
 CREATE TABLE `edm_master_tags` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `name` varchar(100) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -266,6 +285,7 @@ CREATE TABLE `edm_master_tags` (
 --   decision (BPT team / superadmin) - review_comment holds the rejection reason.
 -- sender_id: From address; reply_to_id: Reply-to address (NULL = replies go to the sender). Both edm_senders.
 -- ----------------------------------------------------------------------
+DROP TABLE IF EXISTS `edm_campaigns`;
 CREATE TABLE `edm_campaigns` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -305,6 +325,7 @@ CREATE TABLE `edm_campaigns` (
 -- ----------------------------------------------------------------------
 -- edm_campaign_content: Newsletter body: html (sent) + editor_json (EmailBuilder.js block tree).
 -- ----------------------------------------------------------------------
+DROP TABLE IF EXISTS `edm_campaign_content`;
 CREATE TABLE `edm_campaign_content` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `campaign_id` bigint unsigned NOT NULL,
@@ -322,6 +343,7 @@ CREATE TABLE `edm_campaign_content` (
 -- ----------------------------------------------------------------------
 -- edm_templates: Template library: html (rendered email) + editor_json (EmailBuilder.js block tree).
 -- ----------------------------------------------------------------------
+DROP TABLE IF EXISTS `edm_templates`;
 CREATE TABLE `edm_templates` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -340,6 +362,7 @@ CREATE TABLE `edm_templates` (
 -- ----------------------------------------------------------------------
 -- edm_assets: Files library (uploaded images and external URLs).
 -- ----------------------------------------------------------------------
+DROP TABLE IF EXISTS `edm_assets`;
 CREATE TABLE `edm_assets` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -358,6 +381,7 @@ CREATE TABLE `edm_assets` (
 -- edm_triggers: Custom workflow triggers (built-ins live in code,
 -- Workflow::BUILT_IN_TRIGGERS); key is what edm_workflows.trigger stores.
 -- ----------------------------------------------------------------------
+DROP TABLE IF EXISTS `edm_triggers`;
 CREATE TABLE `edm_triggers` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `key` varchar(50) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -375,6 +399,7 @@ CREATE TABLE `edm_triggers` (
 -- ----------------------------------------------------------------------
 -- edm_workflows: Automation workflows. status: 1=draft, 2=active, 3=paused.
 -- ----------------------------------------------------------------------
+DROP TABLE IF EXISTS `edm_workflows`;
 CREATE TABLE `edm_workflows` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -398,6 +423,7 @@ CREATE TABLE `edm_workflows` (
 -- edm_autoresponders: Autoresponders. status: 1=draft, 2=active, 3=paused.
 -- workflow_id: the journey (edm_workflows) this timed email is a step of; offset_days from its trigger.
 -- ----------------------------------------------------------------------
+DROP TABLE IF EXISTS `edm_autoresponders`;
 CREATE TABLE `edm_autoresponders` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `name` varchar(255) COLLATE utf8mb4_unicode_ci NOT NULL,
@@ -416,6 +442,7 @@ CREATE TABLE `edm_autoresponders` (
 -- ----------------------------------------------------------------------
 -- edm_calendar_slots: Newsletter calendar slots.
 -- ----------------------------------------------------------------------
+DROP TABLE IF EXISTS `edm_calendar_slots`;
 CREATE TABLE `edm_calendar_slots` (
   `id` bigint unsigned NOT NULL AUTO_INCREMENT,
   `slot_date` date NOT NULL,
@@ -431,3 +458,5 @@ CREATE TABLE `edm_calendar_slots` (
   KEY `edm_calendar_slots_campaign_id_foreign` (`campaign_id`),
   CONSTRAINT `edm_calendar_slots_campaign_id_foreign` FOREIGN KEY (`campaign_id`) REFERENCES `edm_campaigns` (`id`) ON DELETE SET NULL
 ) ENGINE=InnoDB DEFAULT CHARSET=utf8mb4 COLLATE=utf8mb4_unicode_ci;
+
+SET FOREIGN_KEY_CHECKS = 1;

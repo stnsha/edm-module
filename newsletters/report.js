@@ -21,6 +21,29 @@
         skipped:      { cls: 'edm-pill-dark',      label: 'Skipped' }
     };
 
+    // Recipients-by-result split: furthest result -> bar colour, in the order
+    // the segments are stacked (best outcome first). Same hues as the pills.
+    var SPLIT = [
+        ['clicked',      '#0d6efd'],
+        ['opened',       '#0aa2c0'],
+        ['delivered',    '#198754'],
+        ['sent',         '#adb5bd'],
+        ['unsubscribed', '#ffc107'],
+        ['bounced',      '#dc3545'],
+        ['complained',   '#a52834'],
+        ['failed',       '#6f1a22'],
+        ['skipped',      '#343a40']
+    ];
+
+    // Health tag per headline rate: good from / fair from; bounces are better
+    // lower. Common email-marketing benchmarks, a guide only.
+    var HEALTH = {
+        delivered: { good: 98, fair: 95 },
+        opened:    { good: 20, fair: 10 },
+        clicked:   { good: 2.5, fair: 1 },
+        bounced:   { good: 2, fair: 5, lowIsGood: true }
+    };
+
     // Filter value -> test. Delivered / opened / clicked include recipients
     // who went further (a click is also an open and a delivery).
     var FILTERS = {
@@ -107,38 +130,120 @@
         campaignName = c.name;
         document.title = c.name + ' - Report';
 
-        // One quiet line: subject, sender and send time only.
-        var meta = [];
-        if (c.subject) { meta.push(esc(c.subject)); }
-        if (c.sender) { meta.push(esc(c.sender)); }
-        if (c.first_sent) { meta.push('Sent ' + esc(c.first_sent)); }
-        document.getElementById('edm-rp-meta').innerHTML = meta.join('<span class="edm-rp-dot">&middot;</span>');
-
-        function stat(key, value, sub) {
+        // rate = null when tracking is off: empty bar, no health tag. No tag
+        // either before SES has reported anything (every rate would be 0).
+        function stat(key, value, sub, rate) {
             setText('edm-rp-' + key, value);
             setText('edm-rp-' + key + '-sub', sub);
+            document.getElementById('edm-rp-' + key + '-bar').style.width = (rate == null ? 0 : Math.min(rate, 100)) + '%';
+            var tag = document.getElementById('edm-rp-' + key + '-health');
+            var h = HEALTH[key];
+            if (rate == null || !s.sent || !data.events) {
+                tag.hidden = true;
+                return;
+            }
+            var level = h.lowIsGood
+                ? (rate <= h.good ? 'good' : (rate <= h.fair ? 'fair' : 'poor'))
+                : (rate >= h.good ? 'good' : (rate >= h.fair ? 'fair' : 'poor'));
+            var icon = { good: 'bi-check-circle-fill', fair: 'bi-dash-circle-fill', poor: 'bi-exclamation-circle-fill' }[level];
+            var label = { good: 'Good', fair: 'Fair', poor: h.lowIsGood ? 'High' : 'Low' }[level];
+            tag.className = 'edm-rp-health edm-rp-health-' + level;
+            tag.innerHTML = '<i class="bi ' + icon + '"></i>' + label;
+            tag.title = h.lowIsGood
+                ? 'Good at ' + h.good + '% or less, fair up to ' + h.fair + '% (common benchmark, a guide only)'
+                : 'Good from ' + h.good + '%, fair from ' + h.fair + '% (common benchmark, a guide only)';
+            tag.hidden = false;
         }
-        stat('delivered', s.delivery_rate + '%', s.delivered + ' of ' + s.sent);
-        stat('opened', c.track_opens ? s.open_rate + '%' : 'Off', c.track_opens ? s.opened + ' opened' : 'tracking off');
-        stat('clicked', c.track_clicks ? s.click_rate + '%' : 'Off', c.track_clicks ? s.clicked + ' clicked' : 'tracking off');
-        stat('bounced', s.bounce_rate + '%', s.bounced + ' bounced');
+        stat('delivered', s.delivery_rate + '%', num(s.delivered) + ' of ' + num(s.sent), s.delivery_rate);
+        stat('opened', c.track_opens ? s.open_rate + '%' : 'Off', c.track_opens ? num(s.opened) + ' opened' : 'tracking off', c.track_opens ? s.open_rate : null);
+        stat('clicked', c.track_clicks ? s.click_rate + '%' : 'Off', c.track_clicks ? num(s.clicked) + ' clicked' : 'tracking off', c.track_clicks ? s.click_rate : null);
+        stat('bounced', s.bounce_rate + '%', num(s.bounced) + ' bounced', s.bounce_rate);
 
-        var more = [s.sent + ' sent', s.complained + ' complaints', s.unsubscribed + ' unsubscribed'];
-        if (s.failed + s.skipped > 0) { more.push((s.failed + s.skipped) + ' not sent'); }
-        if (c.audience_label) { more.push('Audience: ' + esc(c.audience_label)); }
-        document.getElementById('edm-rp-more').innerHTML = more.join('<span class="edm-rp-dot">&middot;</span>');
+        // Secondary counts as chips; a non-zero complaint / unsubscribe /
+        // not-sent count is tinted to draw the eye.
+        function chip(tone, icon, text, warn) {
+            return '<span class="edm-rp-chip edm-rp-chip-' + tone + (warn ? ' is-warn' : '') + '"><i class="bi ' + icon + '"></i>' + text + '</span>';
+        }
+        var more = [
+            chip('neutral', 'bi-send', num(s.sent) + ' sent'),
+            chip('danger', 'bi-flag', num(s.complained) + ' complaints', s.complained > 0),
+            chip('warning', 'bi-person-dash', num(s.unsubscribed) + ' unsubscribed', s.unsubscribed > 0)
+        ];
+        if (s.failed + s.skipped > 0) { more.push(chip('danger', 'bi-x-octagon', num(s.failed + s.skipped) + ' not sent', true)); }
+        if (c.audience_label) { more.push(chip('neutral', 'bi-people', 'Audience: ' + esc(c.audience_label))); }
+        document.getElementById('edm-rp-more').innerHTML = more.join('');
+
+        paintFunnel(s, c);
 
         // Sent, but SES has reported nothing back: the event destination /
         // webhook is not connected, so the rates stay at 0.
         var notice = document.getElementById('edm-rp-notice');
         if (s.sent > 0 && data.events === 0) {
-            setText('edm-rp-notice-text', 'Waiting for Amazon SES events - delivery, opens and clicks show once event tracking is connected.');
+            setText('edm-rp-notice-text', 'No SES events yet - figures stay at 0 until tracking is connected.');
             notice.title = 'The SES configuration set must publish events to the SNS topic that calls public/ses-webhook.php on a public server (DEPLOY.md, Amazon SES).';
             notice.hidden = false;
         } else {
             notice.hidden = true;
         }
     }
+
+    // Sent -> delivered -> opened -> clicked, each bar as a share of sent.
+    function paintFunnel(s, c) {
+        var steps = [
+            ['Sent', s.sent, '#6c757d', true],
+            ['Delivered', s.delivered, '#198754', true],
+            ['Opened', s.opened, '#0aa2c0', !!c.track_opens],
+            ['Clicked', s.clicked, '#0d6efd', !!c.track_clicks]
+        ];
+        document.getElementById('edm-rp-funnel').innerHTML = steps.map(function (st) {
+            var pct = s.sent ? Math.round(st[1] * 1000 / s.sent) / 10 : 0;
+            return '<div class="edm-rp-funnel-row" title="' + esc(st[0] + ': ' + num(st[1]) + ' (' + pct + '% of sent)') + '">' +
+                '<div class="edm-rp-funnel-label">' + esc(st[0]) + '</div>' +
+                '<div class="edm-rp-funnel-track">' + (st[3]
+                    ? '<span style="width:' + (st[1] ? Math.max(pct, 1) : 0) + '%;background:' + st[2] + '"></span>'
+                    : '<em>tracking off</em>') + '</div>' +
+                '<div class="edm-rp-funnel-value">' + (st[3] ? num(st[1]) + ' <small>' + pct + '%</small>' : '-') + '</div>' +
+                '</div>';
+        }).join('');
+    }
+
+    // Every recipient once, by the furthest result: one stacked bar plus a
+    // legend whose items filter the table below.
+    function paintSplit() {
+        var el = document.getElementById('edm-rp-split');
+        if (!all.length) {
+            el.innerHTML = '<div class="edm-rp-sub">Nobody has been sent this newsletter yet.</div>';
+            return;
+        }
+        var counts = {};
+        all.forEach(function (r) { counts[r.result] = (counts[r.result] || 0) + 1; });
+        var parts = SPLIT.filter(function (x) { return counts[x[0]]; });
+        function pct(n) { return Math.round(n * 1000 / all.length) / 10; }
+        el.innerHTML = '<div class="edm-rp-stack">' + parts.map(function (x) {
+            return '<span style="flex-grow:' + counts[x[0]] + ';background:' + x[1] + '" title="' +
+                esc(RESULT_PILLS[x[0]].label + ': ' + num(counts[x[0]]) + ' (' + pct(counts[x[0]]) + '%)') + '"></span>';
+        }).join('') + '</div>' +
+            '<ul class="edm-rp-legend">' + parts.map(function (x) {
+                return '<li><button type="button" data-result="' + x[0] + '" title="Show these recipients">' +
+                    '<i style="background:' + x[1] + '"></i><span>' + esc(RESULT_PILLS[x[0]].label) + '</span>' +
+                    '<b>' + num(counts[x[0]]) + '</b><small>' + pct(counts[x[0]]) + '%</small></button></li>';
+            }).join('') + '</ul>';
+    }
+
+    // Legend click: filter the table. A split segment is the furthest result,
+    // so "Delivered" there means delivered and not opened.
+    document.getElementById('edm-rp-split').addEventListener('click', function (e) {
+        var btn = e.target.closest('button[data-result]');
+        if (!btn) { return; }
+        var result = btn.getAttribute('data-result');
+        var value = result === 'delivered' ? 'not_opened' : result;
+        if (filterEl.querySelector('option[value="' + value + '"]')) {
+            filterEl.value = value;
+            searchEl.value = '';
+            applyFilter();
+            filterEl.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        }
+    });
 
     function csvCell(v) {
         var s = String(v == null ? '' : v);
@@ -162,14 +267,6 @@
         setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 0);
     });
 
-    // Newsletter picker: open another newsletter's report.
-    var pickEl = document.getElementById('edm-rp-pick');
-    if (pickEl) {
-        pickEl.addEventListener('change', function () {
-            if (pickEl.value) { pickEl.form.submit(); }
-        });
-    }
-
     filterEl.addEventListener('change', applyFilter);
     searchEl.addEventListener('input', applyFilter);
 
@@ -184,8 +281,9 @@
                 rowsEl.innerHTML = '';
                 return;
             }
-            paintStats(res.data);
             all = res.data.rows || [];
+            paintStats(res.data);
+            paintSplit();
             applyFilter();
         })
         .catch(function () { showAlert('Could not load the report.'); });
@@ -211,22 +309,32 @@
         gaBody.innerHTML = '<div class="edm-rp-notice' + (danger ? ' edm-rp-ga-error' : '') + '"><i class="bi ' + icon + '"></i><span>' + html + '</span></div>';
     }
 
-    function gaStat(title, value, sub) {
-        return '<div class="edm-rp-stat"><div class="edm-rp-stat-title">' + esc(title) + '</div>' +
+    function gaStat(tone, icon, title, value, sub) {
+        return '<div class="edm-rp-kpi edm-rp-tone-' + tone + '"><div class="edm-rp-kpi-head">' +
+            '<span class="edm-rp-kpi-icon"><i class="bi ' + icon + '"></i></span>' +
+            '<span class="edm-rp-stat-title">' + esc(title) + '</span></div>' +
             '<div class="edm-rp-stat-value">' + esc(value) + '</div>' +
             '<div class="edm-rp-stat-sub">' + esc(sub) + '</div></div>';
     }
 
-    // A small top-10 table; cols = [[heading, row => cell text]].
+    // A small top-10 table; cols = [[heading, row => cell text]]. The first
+    // number column (sessions) gets an inline bar against the busiest row.
     function gaTable(title, rows, cols) {
         if (!rows.length) { return ''; }
+        var top = Math.max.apply(null, rows.map(function (r) { return Number(r.sessions || 0); })) || 1;
         return '<div class="edm-rp-ga-col"><h4 class="edm-rp-ga-sub">' + esc(title) + '</h4>' +
             '<table class="table align-middle edm-view-tbl edm-rp-table"><thead><tr><th style="width:3rem;">#</th>' +
             cols.map(function (c, i) { return '<th' + (i ? ' class="text-end"' : '') + '>' + esc(c[0]) + '</th>'; }).join('') +
             '</tr></thead><tbody>' +
             rows.map(function (r, n) {
                 return '<tr><td class="text-muted">' + (n + 1) + '</td>' +
-                    cols.map(function (c, i) { return '<td' + (i ? ' class="text-end"' : '') + '>' + esc(c[1](r)) + '</td>'; }).join('') + '</tr>';
+                    cols.map(function (c, i) {
+                        if (i === 1) {
+                            return '<td class="text-end edm-rp-cellbar"><span class="edm-rp-cellbar-fill" style="width:' +
+                                Math.round(Number(r.sessions || 0) * 100 / top) + '%"></span><span class="edm-rp-cellbar-val">' + esc(c[1](r)) + '</span></td>';
+                        }
+                        return '<td' + (i ? ' class="text-end"' : '') + '>' + esc(c[1](r)) + '</td>';
+                    }).join('') + '</tr>';
             }).join('') + '</tbody></table></div>';
     }
 
@@ -253,13 +361,15 @@
             return;
         }
 
-        var html = '<div class="edm-rp-stats">' +
-            gaStat('Sessions', num(t.sessions), num(t.users) + ' users') +
-            gaStat('Engagement', t.engagement_rate + '%', num(t.engaged_sessions) + ' engaged sessions') +
-            gaStat('Key events', num(t.key_events), 'conversions') +
-            gaStat('Revenue', money(t.revenue, d.currency), num(t.purchases) + ' purchases') +
+        var html = '<div class="edm-rp-kpis">' +
+            gaStat('sessions', 'bi-globe2', 'Sessions', num(t.sessions), num(t.users) + ' users') +
+            gaStat('engagement', 'bi-activity', 'Engagement', t.engagement_rate + '%', num(t.engaged_sessions) + ' engaged sessions') +
+            gaStat('events', 'bi-bullseye', 'Key events', num(t.key_events), 'conversions') +
+            gaStat('revenue', 'bi-cash-coin', 'Revenue', money(t.revenue, d.currency), num(t.purchases) + ' purchases') +
             '</div>' +
-            '<div class="edm-rp-more">' + [num(t.page_views) + ' page views', 'average session ' + duration(t.avg_duration)].join('<span class="edm-rp-dot">&middot;</span>') + '</div>';
+            '<div class="edm-rp-chips">' +
+            '<span class="edm-rp-chip edm-rp-chip-neutral"><i class="bi bi-file-earmark-text"></i>' + num(t.page_views) + ' page views</span>' +
+            '<span class="edm-rp-chip edm-rp-chip-neutral"><i class="bi bi-clock"></i>average session ' + duration(t.avg_duration) + '</span></div>';
         if (d.thresholded) {
             html += '<div class="edm-rp-notice" title="Google Analytics withholds rows with very few users to protect privacy."><i class="bi bi-eye-slash"></i>' +
                 '<span>Google Analytics hides very small numbers, so some figures may be missing.</span></div>';

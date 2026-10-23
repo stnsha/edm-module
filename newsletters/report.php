@@ -19,31 +19,100 @@ $report_results = \Edm\Services\CampaignReport::RESULTS;
 $report_choices = array_values(array_filter(\Edm\Models\Campaign::listing(), function ($c) {
     return (int)$c['delivered'] > 0;
 }));
+$report_current = null;
+foreach ($report_choices as $c) {
+    if ((int)$c['id'] === $report_id) {
+        $report_current = $c;
+    }
+}
+// Picker row status pill: status => pill class (others fall back to secondary).
+$report_status_pills = array(7 => 'edm-pill-info', 8 => 'edm-pill-success', 9 => 'edm-pill-dark');
+$report_statuses = \Edm\Models\Campaign::STATUSES;
 
-// The four headline rates; id suffix => title. The rest (sent, complaints,
-// unsubscribes, not sent) is one quiet line under them.
+// The four headline rates; id suffix => [title, icon]. Each card carries its
+// colour (edm-rp-tone-<key>), a rate bar and a health tag set by report.js.
+// The rest (sent, complaints, unsubscribes, not sent) is a chip row under them.
 $report_kpis = array(
-    'delivered' => 'Delivered',
-    'opened'    => 'Opened',
-    'clicked'   => 'Clicked',
-    'bounced'   => 'Bounced',
+    'delivered' => array('Delivered', 'bi-envelope-check'),
+    'opened'    => array('Opened', 'bi-envelope-open'),
+    'clicked'   => array('Clicked', 'bi-hand-index'),
+    'bounced'   => array('Bounced', 'bi-envelope-x'),
 );
 ?>
-<form class="edm-rp-pick" method="get" action="<?php echo EDM_BASE; ?>newsletters/report.php">
-    <select class="form-select" name="newsletter" id="edm-rp-pick" aria-label="Newsletter" autocomplete="off"<?php echo $report_choices ? '' : ' disabled'; ?>>
-        <?php if (!$report_choices): ?>
-        <option value="">No newsletter has been sent yet</option>
-        <?php else: ?>
-        <option value=""<?php echo $report_id ? '' : ' selected'; ?>>Choose a sent newsletter...</option>
-        <?php foreach ($report_choices as $c): ?>
-        <option value="<?php echo (int)$c['id']; ?>"<?php echo (int)$c['id'] === $report_id ? ' selected' : ''; ?>>
-            <?php echo edm_h($c['name'] . ((int)$c['status'] === 9 ? ' (archived)' : '')); ?>
-        </option>
-        <?php endforeach; ?>
+<!-- Newsletter picker: a dropdown with a search box; each row is a link to
+     that newsletter's report (name, subject, send time, recipients, status). -->
+<div class="edm-rp-pick">
+    <div class="dropdown">
+        <button type="button" class="edm-rp-pick-btn" id="edm-rp-pick" data-bs-toggle="dropdown" data-bs-auto-close="outside" aria-expanded="false"<?php echo $report_choices ? '' : ' disabled'; ?>>
+            <span class="edm-rp-pick-icon"><i class="bi bi-envelope-paper"></i></span>
+            <span class="edm-rp-pick-text">
+                <?php if ($report_current): ?>
+                <span class="edm-rp-pick-name"><?php echo edm_h($report_current['name']); ?></span>
+                <?php elseif ($report_choices): ?>
+                <span class="edm-rp-pick-name">Choose a sent newsletter</span>
+                <?php else: ?>
+                <span class="edm-rp-pick-name">No newsletter has been sent yet</span>
+                <?php endif; ?>
+            </span>
+            <i class="bi bi-chevron-down edm-rp-pick-caret"></i>
+        </button>
+        <?php if ($report_choices): ?>
+        <div class="dropdown-menu edm-rp-pick-menu" aria-labelledby="edm-rp-pick">
+            <div class="edm-rp-pick-search">
+                <i class="bi bi-search"></i>
+                <input type="search" class="form-control form-control-sm" id="edm-rp-pick-q" placeholder="Search newsletters" aria-label="Search newsletters" autocomplete="off">
+            </div>
+            <div class="edm-rp-pick-list" id="edm-rp-pick-list">
+                <?php foreach ($report_choices as $c):
+                    $status = (int)$c['status'];
+                    $when = $c['scheduled_at'] ?: $c['created_at'];
+                ?>
+                <a class="edm-rp-pick-item<?php echo (int)$c['id'] === $report_id ? ' is-current' : ''; ?>"
+                   href="<?php echo EDM_BASE; ?>newsletters/report.php?newsletter=<?php echo (int)$c['id']; ?>"
+                   data-search="<?php echo edm_h(strtolower($c['name'] . ' ' . $c['subject'])); ?>">
+                    <span class="edm-rp-pick-item-main">
+                        <span class="edm-rp-pick-item-name"><?php echo edm_h($c['name']); ?></span>
+                        <?php if ($c['subject']): ?>
+                        <span class="edm-rp-pick-item-sub"><?php echo edm_h($c['subject']); ?></span>
+                        <?php endif; ?>
+                        <span class="edm-rp-pick-item-sub"><i class="bi bi-calendar3"></i><?php echo edm_h($when); ?><span class="edm-rp-dot">&middot;</span><i class="bi bi-people"></i><?php echo (int)$c['delivered']; ?></span>
+                    </span>
+                    <span class="edm-pill <?php echo $report_status_pills[$status] ?? 'edm-pill-secondary'; ?>"><?php echo edm_h(ucfirst($report_statuses[$status] ?? '')); ?></span>
+                    <?php if ((int)$c['id'] === $report_id): ?><i class="bi bi-check2 edm-rp-pick-check"></i><?php endif; ?>
+                </a>
+                <?php endforeach; ?>
+                <div class="edm-rp-pick-none" id="edm-rp-pick-none" hidden>No newsletter matches.</div>
+            </div>
+        </div>
         <?php endif; ?>
-    </select>
-    <div class="edm-rp-meta" id="edm-rp-meta"></div>
-</form>
+    </div>
+</div>
+<script>
+// Picker search: filter the rows as you type, focus the box on open.
+(function () {
+    var btn = document.getElementById('edm-rp-pick');
+    var q = document.getElementById('edm-rp-pick-q');
+    if (!q) { return; }
+    var items = document.querySelectorAll('#edm-rp-pick-list .edm-rp-pick-item');
+    q.addEventListener('input', function () {
+        var term = q.value.trim().toLowerCase();
+        var shown = 0;
+        items.forEach(function (a) {
+            var hit = !term || a.getAttribute('data-search').indexOf(term) !== -1;
+            a.hidden = !hit;
+            if (hit) { shown++; }
+        });
+        document.getElementById('edm-rp-pick-none').hidden = shown > 0;
+    });
+    q.addEventListener('keydown', function (e) {
+        if (e.key !== 'Enter') { return; }
+        e.preventDefault();
+        var first = document.querySelector('#edm-rp-pick-list .edm-rp-pick-item:not([hidden])');
+        if (first) { window.location.href = first.href; }
+    });
+    btn.addEventListener('shown.bs.dropdown', function () { q.focus(); });
+})();
+</script>
 
 <?php if (!$report_id): ?>
 <div class="edm-rp-empty">
@@ -52,11 +121,6 @@ $report_kpis = array(
         ? 'Choose a newsletter to see its delivery, opens, clicks and recipients.'
         : 'Reports appear here once a newsletter has been sent.'; ?></p>
 </div>
-<script>
-document.getElementById('edm-rp-pick').addEventListener('change', function () {
-    if (this.value) { this.form.submit(); }
-});
-</script>
 <?php
 include __DIR__ . '/../footer.php';
 return;
@@ -67,16 +131,34 @@ endif;
     <i class="bi bi-info-circle"></i><span id="edm-rp-notice-text"></span>
 </div>
 
-<div class="edm-rp-stats" id="edm-rp-kpis" data-newsletter="<?php echo (int)$report_id; ?>">
-    <?php foreach ($report_kpis as $key => $title): ?>
-    <div class="edm-rp-stat">
-        <div class="edm-rp-stat-title"><?php echo edm_h($title); ?></div>
+<div class="edm-rp-kpis" id="edm-rp-kpis" data-newsletter="<?php echo (int)$report_id; ?>">
+    <?php foreach ($report_kpis as $key => $kpi): ?>
+    <div class="edm-rp-kpi edm-rp-tone-<?php echo $key; ?>">
+        <div class="edm-rp-kpi-head">
+            <span class="edm-rp-kpi-icon"><i class="bi <?php echo $kpi[1]; ?>"></i></span>
+            <span class="edm-rp-stat-title"><?php echo edm_h($kpi[0]); ?></span>
+            <span class="edm-rp-health" id="edm-rp-<?php echo $key; ?>-health" hidden></span>
+        </div>
         <div class="edm-rp-stat-value" id="edm-rp-<?php echo $key; ?>">-</div>
+        <div class="edm-rp-bar"><span id="edm-rp-<?php echo $key; ?>-bar"></span></div>
         <div class="edm-rp-stat-sub" id="edm-rp-<?php echo $key; ?>-sub">&nbsp;</div>
     </div>
     <?php endforeach; ?>
 </div>
-<div class="edm-rp-more" id="edm-rp-more"></div>
+<div class="edm-rp-chips" id="edm-rp-more"></div>
+
+<!-- Funnel (sent -> delivered -> opened -> clicked, against sent) and the
+     recipients split by their furthest result; both painted by report.js. -->
+<div class="edm-rp-charts">
+    <section class="edm-rp-panel">
+        <h3 class="edm-rp-heading">Engagement funnel <span class="edm-rp-ga-src">% of sent</span></h3>
+        <div id="edm-rp-funnel" class="edm-rp-funnel"></div>
+    </section>
+    <section class="edm-rp-panel">
+        <h3 class="edm-rp-heading">Recipients by result</h3>
+        <div id="edm-rp-split"></div>
+    </section>
+</div>
 
 <!-- Website figures from Google Analytics 4 by the newsletter's UTM tags
      (campaigns_analytics), loaded separately so a slow or failing GA call
