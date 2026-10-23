@@ -7,11 +7,15 @@ namespace Edm\Controllers;
 use Edm\Core\Controller;
 use Edm\Models\Campaign;
 use Edm\Models\CampaignContent;
+use Edm\Models\Contact;
 use Edm\Models\SendLog;
 use Edm\Services\CampaignRecipients;
 use Edm\Services\Analytics\CampaignAnalytics;
 use Edm\Services\CampaignReport;
 use Edm\Services\Ses\CampaignMessage;
+use Edm\Services\Ses\MessageRenderer;
+use Edm\Services\Ses\SesConfig;
+use Edm\Services\Ses\Unsubscribe;
 
 /**
  * Newsletters (newsletters/). Actions:
@@ -41,7 +45,12 @@ use Edm\Services\Ses\CampaignMessage;
  *                       Google Analytics 4 by the newsletter's UTM tags
  *                       (Services/Analytics/CampaignAnalytics); 502 when GA
  *                       answers with an error
- *   campaigns_preview   raw email HTML for an <iframe> (not JSON)
+ *   campaigns_preview   raw email HTML for an <iframe> (not JSON), exactly as
+ *                       it is sent to the first recipient the audience
+ *                       resolves to: variables filled from that contact, a
+ *                       real signed unsubscribe link (marked preview=1 so
+ *                       it cannot unsubscribe anyone), the automatic footer
+ *                       when the design has no unsubscribe link
  *   campaigns_new    POST -> empty draft (default sender preset), opened in the
  *                    Email creator by the New newsletter button
  */
@@ -200,9 +209,43 @@ final class CampaignController extends Controller
         header('Content-Type: text/html; charset=utf-8');
         header('Content-Security-Policy: sandbox');
         $id = $this->request->id();
-        // As it will be sent: preview text, UTM tags, click tracking off.
         $campaign = $id > 0 ? Campaign::find($id) : null;
-        echo $campaign !== null ? CampaignMessage::html($campaign, (string) (CampaignContent::forCampaign($id)['html'] ?? '')) : '';
+        if ($campaign === null) {
+            exit;
+        }
+        // As it will be sent: preview text, UTM tags, click tracking off, then
+        // the recipient's variables and unsubscribe link (MessageRenderer).
+        $html = CampaignMessage::html($campaign, (string) (CampaignContent::forCampaign($id)['html'] ?? ''));
+        echo MessageRenderer::html($html, $this->previewRecipient($campaign));
         exit;
+    }
+
+    /**
+     * Variables of the person the preview is shown as: the first recipient the
+     * audience resolves to now (with their custom fields), or a placeholder
+     * address when nobody matches. The unsubscribe link is the real signed
+     * one plus preview=1, which public/unsubscribe.php shows but never acts on.
+     *
+     * @return array{email: string, name: ?string, fields: ?array<string, mixed>, unsubscribe_url: string}
+     */
+    private function previewRecipient(array $campaign): array
+    {
+        // Suppressed addresses are listed by rows() but never sent to.
+        $rows = (new CampaignRecipients($this->db))->rows(CampaignRecipients::of($campaign), 50);
+        $first = array_values(array_filter($rows, static fn (array $r): bool => !$r['suppressed']))[0] ?? null;
+        $email = $first['email'] ?? 'preview@example.com';
+        $contact = $first !== null ? (Contact::where('LOWER(`email`) = ?', [strtolower($email)])[0] ?? null) : null;
+
+        $config = SesConfig::fromEnv();
+        $unsubscribe = $config->missingForSending() === []
+            ? (new Unsubscribe($config))->url((int) $campaign['id'], $email) . '&preview=1'
+            : '#';
+
+        return [
+            'email'           => $email,
+            'name'            => $contact['name'] ?? ($first['name'] ?? null),
+            'fields'          => is_array($contact['fields'] ?? null) ? $contact['fields'] : null,
+            'unsubscribe_url' => $unsubscribe,
+        ];
     }
 }

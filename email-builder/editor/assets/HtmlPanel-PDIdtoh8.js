@@ -1,0 +1,1 @@
+import{u as e,r,a,j as s}from"./index-D5P9DHAC.js";import{H as n}from"./HighlightedCodePanel-B5KerC_A.js";function c(){const t=e(),o=r.useMemo(()=>a(t,{rootBlockId:"root"}),[t]);return s.jsx(n,{type:"html",value:o})}export{c as default};

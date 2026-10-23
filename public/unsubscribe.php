@@ -11,6 +11,7 @@ declare(strict_types=1);
  *         leaving?" choice (Unsubscribe::REASONS + a comment) and an
  *         Unsubscribe button (link scanners and prefetchers must not
  *         unsubscribe anyone)
+ *   preview=1 (the link in a newsletter Preview): same page, POST changes nothing
  *   POST  signed link -> suppress the address (reason: unsubscribed), mark the
  *         contact unsubscribed and stamp the send log, with the reason and
  *         comment when the form sent them. A one-click POST from the mail
@@ -33,8 +34,14 @@ $link = (new Unsubscribe(SesConfig::fromEnv()))->verify(
     (string) ($_GET['t'] ?? '')
 );
 
+// preview=1: the link from the newsletter Preview. The page looks the same,
+// but submitting it changes nothing (it is a real recipient's link).
+$preview = ($_GET['preview'] ?? '') === '1';
+
 $done = false;
-if ($link !== null && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+if ($link !== null && $preview && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
+    $done = true;
+} elseif ($link !== null && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $email = strtolower($link['email']);
     $reason = (string) ($_POST['reason'] ?? '');
     $reason = isset(Unsubscribe::REASONS[$reason]) ? $reason : null;
@@ -79,10 +86,15 @@ $h = static fn (string $v): string => htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
         textarea { width: 100%; box-sizing: border-box; margin-top: 8px; padding: 8px; font: 14px Arial, sans-serif;
                    border: 1px solid #ced4da; border-radius: 6px; resize: vertical; }
         .hint { font-size: 12px; color: #868e96; margin: 4px 0 0; }
+        .preview { font-size: 13px; color: #8a6100; background: #fff6dd; border: 2px solid #ffe69c; border-radius: 6px;
+                   padding: 8px 12px; margin: 0 0 20px; }
     </style>
 </head>
 <body>
 <div class="box">
+<?php if ($link !== null && $preview): ?>
+    <p class="preview">Preview - this is the page recipients see. Nobody is unsubscribed from here.</p>
+<?php endif; ?>
 <?php if ($link === null): ?>
     <h1>Link not valid</h1>
     <p>This unsubscribe link is incomplete or has been changed. Please use the link from the email.</p>

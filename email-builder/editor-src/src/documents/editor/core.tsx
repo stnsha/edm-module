@@ -37,7 +37,8 @@ const EDITOR_DICTIONARY = buildBlockConfigurationDictionary({
     schema: ButtonPropsSchema,
     Component: (props) => (
       <EditorBlockWrapper>
-        <InlineTextEditor selector=":scope > div > a > span" multiline={false}>
+        {/* The 2nd span holds the text; the 1st and 3rd are Outlook spacers. */}
+        <InlineTextEditor selector=":scope > div > a > span:nth-of-type(2)" multiline={false}>
           <Button {...props} />
         </InlineTextEditor>
       </EditorBlockWrapper>
