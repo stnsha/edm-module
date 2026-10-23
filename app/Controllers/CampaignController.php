@@ -207,7 +207,9 @@ final class CampaignController extends Controller
     private function preview(): never
     {
         header('Content-Type: text/html; charset=utf-8');
-        header('Content-Security-Policy: sandbox');
+        // No scripts; popups allowed so a link opens in a new tab (the iframe
+        // carries the same sandbox flags).
+        header('Content-Security-Policy: sandbox allow-popups allow-popups-to-escape-sandbox');
         $id = $this->request->id();
         $campaign = $id > 0 ? Campaign::find($id) : null;
         if ($campaign === null) {
@@ -216,8 +218,24 @@ final class CampaignController extends Controller
         // As it will be sent: preview text, UTM tags, click tracking off, then
         // the recipient's variables and unsubscribe link (MessageRenderer).
         $html = CampaignMessage::html($campaign, (string) (CampaignContent::forCampaign($id)['html'] ?? ''));
-        echo MessageRenderer::html($html, $this->previewRecipient($campaign));
+        echo self::linksInNewTab(MessageRenderer::html($html, $this->previewRecipient($campaign)));
         exit;
+    }
+
+    /**
+     * Preview only: every link opens in a new tab (a <base target> in <head>,
+     * or before the email when it has none), as it would from an inbox.
+     */
+    private static function linksInNewTab(string $html): string
+    {
+        $base = '<base target="_blank">';
+        if (preg_match('/<head\b[^>]*>/i', $html, $m, PREG_OFFSET_CAPTURE) === 1) {
+            $at = $m[0][1] + strlen($m[0][0]);
+
+            return substr($html, 0, $at) . $base . substr($html, $at);
+        }
+
+        return $base . $html;
     }
 
     /**

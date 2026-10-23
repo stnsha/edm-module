@@ -31,7 +31,8 @@ edm_crud_screen(array(
 ));
 ?>
 <!-- Preview (email HTML is served by newsletters/api.php?action=campaigns_preview
-     with a CSP sandbox header; the iframe is sandboxed as well). -->
+     with a CSP sandbox header; the iframe is sandboxed as well - no scripts,
+     only popups, so a link in the email opens in a new tab). -->
 <div class="modal fade" id="edm-nl-preview-modal" tabindex="-1" aria-hidden="true">
     <div class="modal-dialog modal-xl modal-dialog-scrollable">
         <div class="modal-content">
@@ -40,7 +41,7 @@ edm_crud_screen(array(
                 <button type="button" class="btn-close" data-bs-dismiss="modal" aria-label="Close"></button>
             </div>
             <div class="modal-body p-0">
-                <iframe class="edm-nl-preview-frame" id="edm-nl-preview-frame" sandbox="" title="Newsletter preview"></iframe>
+                <iframe class="edm-nl-preview-frame" id="edm-nl-preview-frame" sandbox="allow-popups allow-popups-to-escape-sandbox" title="Newsletter preview"></iframe>
             </div>
         </div>
     </div>

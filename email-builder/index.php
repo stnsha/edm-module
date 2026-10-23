@@ -389,7 +389,7 @@ window.EDM_EB_PIC = <?php echo !empty($edm_is_pic) ? 'true' : 'false'; ?>;
             </div>
             <div class="modal-body p-0">
                 <div class="edm-wiz-inbox" id="edm-eb-preview-inbox"></div>
-                <iframe class="edm-nl-preview-frame" id="edm-eb-preview-frame" sandbox="" title="Email preview"></iframe>
+                <iframe class="edm-nl-preview-frame" id="edm-eb-preview-frame" sandbox="allow-popups allow-popups-to-escape-sandbox" title="Email preview"></iframe>
             </div>
         </div>
     </div>
