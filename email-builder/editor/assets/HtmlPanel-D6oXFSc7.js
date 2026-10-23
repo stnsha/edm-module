@@ -1,1 +1,0 @@
-import{u as e,r,a,j as s}from"./index-taOdr04P.js";import{H as n}from"./HighlightedCodePanel-2rz_sJgx.js";function c(){const t=e(),o=r.useMemo(()=>a(t,{rootBlockId:"root"}),[t]);return s.jsx(n,{type:"html",value:o})}export{c as default};

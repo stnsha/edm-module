@@ -15,6 +15,8 @@ import {
   ViewColumnOutlined,
 } from '@mui/icons-material';
 
+import { buildSocialHtml, defaultSocialConfig } from '../../social';
+
 import { TEditorBlock } from './core';
 import { newBlockId } from './tree';
 
@@ -74,8 +76,8 @@ export const BLOCKS: TLibraryItem[] = [
         type: 'Html',
         data: {
           props: {
-            contents:
-              '<a href="https://www.facebook.com/">Facebook</a> &nbsp;|&nbsp; <a href="https://www.instagram.com/">Instagram</a> &nbsp;|&nbsp; <a href="https://www.tiktok.com/">TikTok</a>',
+            // Linked platform icons; edited in the Social settings panel (social.ts).
+            contents: buildSocialHtml(defaultSocialConfig()),
           },
           style: { fontSize: 14, textAlign: 'center', padding: PAD },
         },

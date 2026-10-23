@@ -4,6 +4,7 @@ import { Box, Typography } from '@mui/material';
 
 import { TEditorBlock } from '../../../documents/editor/core';
 import { setDocument, useDocument, useSelectedBlockId } from '../../../documents/editor/EditorContext';
+import { isSocialHtml } from '../../../social';
 
 import AvatarSidebarPanel from './input-panels/AvatarSidebarPanel';
 import ButtonSidebarPanel from './input-panels/ButtonSidebarPanel';
@@ -14,6 +15,7 @@ import EmailLayoutSidebarPanel from './input-panels/EmailLayoutSidebarPanel';
 import HeadingSidebarPanel from './input-panels/HeadingSidebarPanel';
 import HtmlSidebarPanel from './input-panels/HtmlSidebarPanel';
 import ImageSidebarPanel from './input-panels/ImageSidebarPanel';
+import SocialSidebarPanel from './input-panels/SocialSidebarPanel';
 import SpacerSidebarPanel from './input-panels/SpacerSidebarPanel';
 import TextSidebarPanel from './input-panels/TextSidebarPanel';
 
@@ -55,6 +57,10 @@ export default function ConfigurationPanel() {
     case 'Heading':
       return <HeadingSidebarPanel key={selectedBlockId} data={data} setData={(data) => setBlock({ type, data })} />;
     case 'Html':
+      // EDM: a Social block is an Html block with its own settings (social.ts).
+      if (isSocialHtml(data.props?.contents)) {
+        return <SocialSidebarPanel key={selectedBlockId} data={data} setData={(data) => setBlock({ type, data })} />;
+      }
       return <HtmlSidebarPanel key={selectedBlockId} data={data} setData={(data) => setBlock({ type, data })} />;
     case 'Image':
       return <ImageSidebarPanel key={selectedBlockId} data={data} setData={(data) => setBlock({ type, data })} />;

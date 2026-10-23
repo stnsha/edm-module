@@ -11,6 +11,7 @@ import {
   useSelectedBlockId,
 } from '../../documents/editor/EditorContext';
 import { BLOCKS, LAYOUTS } from '../../documents/editor/library';
+import { isSocialHtml } from '../../social';
 import { VariablesBox } from '../../variables';
 import ConfigurationPanel from '../InspectorDrawer/ConfigurationPanel';
 import StylesPanel from '../InspectorDrawer/StylesPanel';
@@ -60,6 +61,9 @@ export default function SidebarPanel() {
   const document = useDocument();
   const selectedBlockId = useSelectedBlockId();
   const selected = selectedBlockId && selectedBlockId !== 'root' ? document[selectedBlockId] : undefined;
+  // EDM: the Social block is an Html block (social.ts) with its own panel.
+  const isSocial =
+    selected?.type === 'Html' && isSocialHtml((selected.data as { props?: { contents?: string | null } }).props?.contents);
 
   const tileSx = {
     display: 'flex',
@@ -88,11 +92,11 @@ export default function SidebarPanel() {
           Done
         </Button>
         <Typography variant="subtitle2" sx={{ ml: 'auto', color: 'text.secondary' }}>
-          {TYPE_LABELS[selected?.type ?? ''] ?? selected?.type} settings
+          {isSocial ? 'Social' : TYPE_LABELS[selected?.type ?? ''] ?? selected?.type} settings
         </Typography>
       </Box>
       <Box sx={{ height: 'calc(100% - 49px)', overflow: 'auto' }}>
-        {VARIABLE_BLOCKS.includes(selected?.type ?? '') && <VariablesBox canInsert />}
+        {VARIABLE_BLOCKS.includes(selected?.type ?? '') && !isSocial && <VariablesBox canInsert />}
         <ConfigurationPanel />
       </Box>
     </>
