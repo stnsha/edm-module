@@ -29,6 +29,7 @@ final class SendLog extends Model
     protected const FILLABLE = [
         'campaign_id', 'email', 'sent_at', 'status', 'ses_message_id', 'error',
         'delivered_at', 'opened_at', 'clicked_at', 'bounced_at', 'complained_at', 'unsubscribed_at',
+        'unsubscribe_reason', 'unsubscribe_comment',
     ];
 
     protected const CASTS = [

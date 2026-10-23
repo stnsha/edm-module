@@ -215,7 +215,7 @@ edm_crud_screen(array(
             // Once anything was sent (rows in the send log, `delivered` on the
             // listing row): figures, opens / clicks per recipient.
             { label: 'View report', visible: function (r) { return !IS_PIC && (r.delivered || 0) > 0; },
-                link: function (r) { return 'newsletters/report.php?newsletter=' + r.id; } },
+                link: function (r) { return 'dashboard/index.php?newsletter=' + r.id; } },
             { label: 'Reuse', action: 'campaigns_duplicate', confirm: 'Create a copy of this newsletter as a new draft?' },
             { label: 'Recall - don’t send it', action: 'campaigns_recall',
                 confirm: 'Recall this newsletter? Nothing is sent; it returns to Draft and needs approval again.',

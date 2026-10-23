@@ -35,7 +35,7 @@ use Edm\Services\Ses\CampaignMessage;
  *                       addresses in edm_send_log with their send status
  *                       (source "sent"); before that, who the audience
  *                       resolves to now (source "audience", suppressed flag)
- *   campaigns_report    ?id= Newsletter report (newsletters/report.php):
+ *   campaigns_report    ?id= Newsletter report (dashboard/index.php?newsletter=):
  *                       figures + every send log row (CampaignReport)
  *   campaigns_analytics ?id= (&refresh=1 skips the cache) website figures from
  *                       Google Analytics 4 by the newsletter's UTM tags

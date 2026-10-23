@@ -119,10 +119,9 @@ $edm_nav = array(
             // Template editor (edit.php) is reached from the Templates list.
             array('folder' => 'templates', 'file' => 'index.php', 'label' => 'Templates',
                 'files' => array('edit.php')),
-            // Newsletter report: pick a sent newsletter, or opened from
-            // "View report" on the list. The Files library (assets/) has no
-            // menu entry; images are uploaded / picked in the Email creator.
-            array('folder' => 'newsletters', 'file' => 'report.php', 'label' => 'Reports'),
+            // Reports live on the Dashboard (newsletter picker, or "View
+            // report" on the list). The Files library (assets/) has no menu
+            // entry; images are uploaded / picked in the Email creator.
         ),
     ),
     array(

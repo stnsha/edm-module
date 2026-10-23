@@ -46,17 +46,23 @@ final class ReportingOverview
      * Platform delivery figures from edm_send_log (sent by the queue, updated
      * by SES events). Delivery and bounce rates are over emails sent; open,
      * click, complaint and unsubscribe rates over emails delivered. With
-     * $campaignId, the figures of that one newsletter (Newsletter report).
+     * $campaignId, the figures of that one newsletter (Newsletter report);
+     * with $from / $to (Y-m-d H:i:s, inclusive), only emails sent in that
+     * period (Dashboard performance).
      *
      * @return array<string, int|float>
      */
-    public function delivery(?int $campaignId = null): array
+    public function delivery(?int $campaignId = null, ?string $from = null, ?string $to = null): array
     {
         $params = [SendLog::SENT, SendLog::DELIVERED, SendLog::BOUNCED, SendLog::COMPLAINED];
         $scope = '';
         if ($campaignId !== null) {
             $scope = ' AND `campaign_id` = ?';
             $params[] = $campaignId;
+        }
+        if ($from !== null && $to !== null) {
+            $scope .= ' AND `sent_at` BETWEEN ? AND ?';
+            array_push($params, $from, $to);
         }
         $r = $this->db->first(
             'SELECT COUNT(*) AS sent,
@@ -82,6 +88,7 @@ final class ReportingOverview
             'bounce_rate'      => $pct($n('bounced'), $n('sent')),
             'open_rate'        => $pct($n('opened'), $n('delivered')),
             'click_rate'       => $pct($n('clicked'), $n('delivered')),
+            'ctor'             => $pct($n('clicked'), $n('opened')),
             'complaint_rate'   => $pct($n('complained'), $n('delivered'), 2),
             'unsubscribe_rate' => $pct($n('unsubscribed'), $n('delivered'), 2),
         ];

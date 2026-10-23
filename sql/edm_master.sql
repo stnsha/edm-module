@@ -226,6 +226,8 @@ CREATE TABLE `edm_send_log` (
   `bounced_at` datetime NULL DEFAULT NULL,
   `complained_at` datetime NULL DEFAULT NULL,
   `unsubscribed_at` datetime NULL DEFAULT NULL,
+  `unsubscribe_reason` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `unsubscribe_comment` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `created_at` datetime NULL DEFAULT NULL,
   `updated_at` datetime NULL DEFAULT NULL,
   `deleted_at` datetime NULL DEFAULT NULL,

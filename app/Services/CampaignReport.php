@@ -8,9 +8,10 @@ use Edm\Core\Database;
 use Edm\Models\Campaign;
 use Edm\Models\Sender;
 use Edm\Models\SendLog;
+use Edm\Services\Ses\Unsubscribe;
 
 /**
- * Newsletter report (newsletters/report.php): the figures of one newsletter
+ * Newsletter report (dashboard/index.php?newsletter=<id>): the figures of one newsletter
  * and every recipient in its send log, with the times SES reported for it
  * (public/ses-webhook.php keeps edm_send_log current).
  *
@@ -39,7 +40,7 @@ final class CampaignReport
     }
 
     /**
-     * @return array{campaign: array<string, mixed>, stats: array<string, int|float>, events: int, rows: list<array<string, mixed>>}
+     * @return array{campaign: array<string, mixed>, stats: array<string, int|float>, events: int, performance: array<string, mixed>, rows: list<array<string, mixed>>}
      */
     public function build(int $id): array
     {
@@ -66,7 +67,7 @@ final class CampaignReport
 
         $rows = $this->db->select(
             'SELECT s.`email`, s.`status`, s.`error`, s.`sent_at`, s.`delivered_at`, s.`opened_at`, s.`clicked_at`,
-                    s.`bounced_at`, s.`complained_at`, s.`unsubscribed_at`,
+                    s.`bounced_at`, s.`complained_at`, s.`unsubscribed_at`, s.`unsubscribe_reason`, s.`unsubscribe_comment`,
                     (SELECT c.`name` FROM `edm_contacts` c
                       WHERE c.`deleted_at` IS NULL AND LOWER(c.`email`) = LOWER(s.`email`) ORDER BY c.`id` DESC LIMIT 1) AS `name`
                FROM `edm_send_log` s
@@ -90,6 +91,7 @@ final class CampaignReport
             ],
             'stats'  => $stats,
             'events' => $events,
+            'performance' => (new PerformanceReport($this->db))->forCampaign($id),
             'rows'   => array_map(static fn (array $r): array => [
                 'email'           => (string) $r['email'],
                 'name'            => $r['name'] !== null ? (string) $r['name'] : null,
@@ -102,6 +104,10 @@ final class CampaignReport
                 'bounced_at'      => self::time($r['bounced_at']),
                 'complained_at'   => self::time($r['complained_at']),
                 'unsubscribed_at' => self::time($r['unsubscribed_at']),
+                // Label of the reason picked on the unsubscribe page, and the comment.
+                'unsubscribe_reason'  => $r['unsubscribed_at'] === null ? null
+                    : ($r['unsubscribe_reason'] === null ? 'No reason given' : (Unsubscribe::REASONS[$r['unsubscribe_reason']] ?? (string) $r['unsubscribe_reason'])),
+                'unsubscribe_comment' => $r['unsubscribe_comment'],
             ], $rows),
         ];
     }

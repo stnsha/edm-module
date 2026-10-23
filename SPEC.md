@@ -181,7 +181,7 @@ decoupled via the `$edm_nav` map in `navbar.php`.
 | Calendar                | `calendar/index.php`             | Newsletter Calendar    | view  |
 | Newsletters > Templates | `templates/index.php`           | Template Library     | build |
 | (no menu entry; via Templates > Edit / Design template) | `templates/edit.php` | Template Library | build |
-| Newsletters > Reports   | `newsletters/report.php`        | Reporting            | build |
+| (no menu entry; Dashboard newsletter picker) | `dashboard/index.php?newsletter=<id>` | Reporting | view |
 | Settings > Senders      | `settings/senders.php`         | Settings             | super |
 | Settings > Sending domains | `settings/domains.php`       | Settings             | super |
 | Settings > Users & permissions | `settings/users.php`     | Settings             | super |

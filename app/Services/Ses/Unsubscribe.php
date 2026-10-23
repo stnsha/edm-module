@@ -11,6 +11,24 @@ namespace Edm\Services\Ses;
  */
 final class Unsubscribe
 {
+    /**
+     * Why a recipient left: key => label, in the order the unsubscribe page
+     * lists them. The key is stored in edm_send_log.unsubscribe_reason (NULL
+     * = no reason given - one-click unsubscribe from the mail client, or
+     * nothing picked); reports add up these keys.
+     */
+    public const REASONS = [
+        'too_many_from_you' => 'I get too many emails from you',
+        'too_many_general'  => 'I get too many emails in general',
+        'not_relevant'      => "Content isn't relevant",
+        'did_not_sign_up'   => "I didn't sign up",
+        'no_longer_client'  => "I'm no longer your client",
+        'other'             => 'Other reason',
+    ];
+
+    /** Longest comment kept (edm_send_log.unsubscribe_comment). */
+    public const COMMENT_MAX = 255;
+
     public function __construct(private SesConfig $config)
     {
     }

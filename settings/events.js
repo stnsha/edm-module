@@ -49,7 +49,7 @@
                 '<i class="bi bi-three-dots-vertical"></i></button>' +
             '<ul class="dropdown-menu dropdown-menu-end edm-row-menu">' +
                 '<li><button type="button" class="dropdown-item" data-act="raw" data-id="' + e.id + '">View raw event</button></li>' +
-                (e.campaign_id ? '<li><a class="dropdown-item" href="' + BASE + 'newsletters/report.php?newsletter=' + e.campaign_id + '">Newsletter report</a></li>' : '') +
+                (e.campaign_id ? '<li><a class="dropdown-item" href="' + BASE + 'dashboard/index.php?newsletter=' + e.campaign_id + '">Newsletter report</a></li>' : '') +
             '</ul>' +
         '</div>';
     }
@@ -67,7 +67,7 @@
                 '<td><span class="edm-pill ' + (EVENT_PILLS[e.event_type] || 'edm-pill-secondary') + '">' + esc(e.event_type) + '</span></td>' +
                 '<td>' + esc(e.email || '-') + '</td>' +
                 '<td>' + (e.campaign_id
-                    ? '<a href="' + BASE + 'newsletters/report.php?newsletter=' + e.campaign_id + '">' + esc(e.campaign_name || ('#' + e.campaign_id)) + '</a>'
+                    ? '<a href="' + BASE + 'dashboard/index.php?newsletter=' + e.campaign_id + '">' + esc(e.campaign_name || ('#' + e.campaign_id)) + '</a>'
                     : '<span class="text-muted">-</span>') + '</td>' +
                 '<td class="small text-break">' + esc(e.detail || '') + '</td>' +
                 '<td class="text-end">' + actionMenu(e) + '</td>' +

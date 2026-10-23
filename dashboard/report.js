@@ -1,13 +1,15 @@
 /**
- * Newsletter report (newsletters/report.php): figures and recipients of one
- * newsletter from campaigns_report. The recipient list is filtered, searched,
- * paged (js/edm-pager.js) and exported to CSV in the browser.
+ * Newsletter report (dashboard/index.php?newsletter=<id>): figures and
+ * recipients of one newsletter from newsletters/api.php campaigns_report. The performance sections (tiles, charts,
+ * domains) are painted by js/edm-performance.js from `performance`; the
+ * recipient list is filtered, searched, paged (js/edm-pager.js) and exported
+ * to CSV in the browser. Export: PDF (print), performance CSV, recipients CSV.
  */
 (function () {
     'use strict';
 
     var BASE = window.EDM_MODULE_BASE || '/odb/edm/';
-    var ID = parseInt(document.getElementById('edm-rp-kpis').getAttribute('data-newsletter'), 10) || 0;
+    var ID = parseInt(document.getElementById('edm-perf').getAttribute('data-newsletter'), 10) || 0;
 
     var RESULT_PILLS = {
         sent:         { cls: 'edm-pill-secondary', label: 'Sent' },
@@ -35,15 +37,6 @@
         ['skipped',      '#343a40']
     ];
 
-    // Health tag per headline rate: good from / fair from; bounces are better
-    // lower. Common email-marketing benchmarks, a guide only.
-    var HEALTH = {
-        delivered: { good: 98, fair: 95 },
-        opened:    { good: 20, fair: 10 },
-        clicked:   { good: 2.5, fair: 1 },
-        bounced:   { good: 2, fair: 5, lowIsGood: true }
-    };
-
     // Filter value -> test. Delivered / opened / clicked include recipients
     // who went further (a click is also an open and a delivery).
     var FILTERS = {
@@ -65,6 +58,7 @@
     var all = [];
     var shown = [];
     var campaignName = '';
+    var report = null;
 
     function esc(v) {
         return String(v == null ? '' : v).replace(/[&<>"']/g, function (c) {
@@ -75,7 +69,7 @@
     function setText(id, v) { document.getElementById(id).textContent = v; }
 
     function showAlert(msg) {
-        var el = document.getElementById('edm-rp-alert');
+        var el = document.getElementById('edm-dash-alert');
         el.textContent = msg;
         el.hidden = false;
     }
@@ -93,7 +87,8 @@
     // Every time SES reported, as the row tooltip (the CSV has them as columns).
     function timeline(r) {
         return [['Sent', r.sent_at], ['Delivered', r.delivered_at], ['Opened', r.opened_at], ['Clicked', r.clicked_at],
-            ['Bounced', r.bounced_at], ['Complained', r.complained_at], ['Unsubscribed', r.unsubscribed_at]]
+            ['Bounced', r.bounced_at], ['Complained', r.complained_at], ['Unsubscribed', r.unsubscribed_at],
+            ['Reason', r.unsubscribe_reason], ['Comment', r.unsubscribe_comment]]
             .filter(function (x) { return x[1]; })
             .map(function (x) { return x[0] + ': ' + x[1]; }).join('\n');
     }
@@ -129,51 +124,12 @@
         var c = data.campaign;
         campaignName = c.name;
         document.title = c.name + ' - Report';
+        setText('edm-rp-print-title', c.name + (c.subject ? ' - ' + c.subject : ''));
 
-        // rate = null when tracking is off: empty bar, no health tag. No tag
-        // either before SES has reported anything (every rate would be 0).
-        function stat(key, value, sub, rate) {
-            setText('edm-rp-' + key, value);
-            setText('edm-rp-' + key + '-sub', sub);
-            document.getElementById('edm-rp-' + key + '-bar').style.width = (rate == null ? 0 : Math.min(rate, 100)) + '%';
-            var tag = document.getElementById('edm-rp-' + key + '-health');
-            var h = HEALTH[key];
-            if (rate == null || !s.sent || !data.events) {
-                tag.hidden = true;
-                return;
-            }
-            var level = h.lowIsGood
-                ? (rate <= h.good ? 'good' : (rate <= h.fair ? 'fair' : 'poor'))
-                : (rate >= h.good ? 'good' : (rate >= h.fair ? 'fair' : 'poor'));
-            var icon = { good: 'bi-check-circle-fill', fair: 'bi-dash-circle-fill', poor: 'bi-exclamation-circle-fill' }[level];
-            var label = { good: 'Good', fair: 'Fair', poor: h.lowIsGood ? 'High' : 'Low' }[level];
-            tag.className = 'edm-rp-health edm-rp-health-' + level;
-            tag.innerHTML = '<i class="bi ' + icon + '"></i>' + label;
-            tag.title = h.lowIsGood
-                ? 'Good at ' + h.good + '% or less, fair up to ' + h.fair + '% (common benchmark, a guide only)'
-                : 'Good from ' + h.good + '%, fair from ' + h.fair + '% (common benchmark, a guide only)';
-            tag.hidden = false;
-        }
-        stat('delivered', s.delivery_rate + '%', num(s.delivered) + ' of ' + num(s.sent), s.delivery_rate);
-        stat('opened', c.track_opens ? s.open_rate + '%' : 'Off', c.track_opens ? num(s.opened) + ' opened' : 'tracking off', c.track_opens ? s.open_rate : null);
-        stat('clicked', c.track_clicks ? s.click_rate + '%' : 'Off', c.track_clicks ? num(s.clicked) + ' clicked' : 'tracking off', c.track_clicks ? s.click_rate : null);
-        stat('bounced', s.bounce_rate + '%', num(s.bounced) + ' bounced', s.bounce_rate);
-
-        // Secondary counts as chips; a non-zero complaint / unsubscribe /
-        // not-sent count is tinted to draw the eye.
-        function chip(tone, icon, text, warn) {
-            return '<span class="edm-rp-chip edm-rp-chip-' + tone + (warn ? ' is-warn' : '') + '"><i class="bi ' + icon + '"></i>' + text + '</span>';
-        }
-        var more = [
-            chip('neutral', 'bi-send', num(s.sent) + ' sent'),
-            chip('danger', 'bi-flag', num(s.complained) + ' complaints', s.complained > 0),
-            chip('warning', 'bi-person-dash', num(s.unsubscribed) + ' unsubscribed', s.unsubscribed > 0)
-        ];
-        if (s.failed + s.skipped > 0) { more.push(chip('danger', 'bi-x-octagon', num(s.failed + s.skipped) + ' not sent', true)); }
-        if (c.audience_label) { more.push(chip('neutral', 'bi-people', 'Audience: ' + esc(c.audience_label))); }
-        document.getElementById('edm-rp-more').innerHTML = more.join('');
-
-        paintFunnel(s, c);
+        window.edmPerformance.render(document.getElementById('edm-perf'), data.performance, {
+            trackOpens: !!c.track_opens,
+            trackClicks: !!c.track_clicks
+        });
 
         // Sent, but SES has reported nothing back: the event destination /
         // webhook is not connected, so the rates stay at 0.
@@ -185,26 +141,6 @@
         } else {
             notice.hidden = true;
         }
-    }
-
-    // Sent -> delivered -> opened -> clicked, each bar as a share of sent.
-    function paintFunnel(s, c) {
-        var steps = [
-            ['Sent', s.sent, '#6c757d', true],
-            ['Delivered', s.delivered, '#198754', true],
-            ['Opened', s.opened, '#0aa2c0', !!c.track_opens],
-            ['Clicked', s.clicked, '#0d6efd', !!c.track_clicks]
-        ];
-        document.getElementById('edm-rp-funnel').innerHTML = steps.map(function (st) {
-            var pct = s.sent ? Math.round(st[1] * 1000 / s.sent) / 10 : 0;
-            return '<div class="edm-rp-funnel-row" title="' + esc(st[0] + ': ' + num(st[1]) + ' (' + pct + '% of sent)') + '">' +
-                '<div class="edm-rp-funnel-label">' + esc(st[0]) + '</div>' +
-                '<div class="edm-rp-funnel-track">' + (st[3]
-                    ? '<span style="width:' + (st[1] ? Math.max(pct, 1) : 0) + '%;background:' + st[2] + '"></span>'
-                    : '<em>tracking off</em>') + '</div>' +
-                '<div class="edm-rp-funnel-value">' + (st[3] ? num(st[1]) + ' <small>' + pct + '%</small>' : '-') + '</div>' +
-                '</div>';
-        }).join('');
     }
 
     // Every recipient once, by the furthest result: one stacked bar plus a
@@ -252,19 +188,38 @@
         return '"' + s.replace(/"/g, '""') + '"';
     }
 
-    document.getElementById('edm-rp-export').addEventListener('click', function () {
-        var head = ['Email', 'Name', 'Result', 'Sent', 'Delivered', 'Opened', 'Clicked', 'Bounced', 'Complained', 'Unsubscribed', 'Error'];
+    function fileName(suffix) {
+        return (campaignName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'newsletter') + suffix;
+    }
+
+    function exportRecipients() {
+        var head = ['Email', 'Name', 'Result', 'Sent', 'Delivered', 'Opened', 'Clicked', 'Bounced', 'Complained', 'Unsubscribed', 'Unsubscribe reason', 'Unsubscribe comment', 'Error'];
         var lines = [head.map(csvCell).join(',')].concat(shown.map(function (r) {
             return [r.email, r.name, (RESULT_PILLS[r.result] || RESULT_PILLS.sent).label, r.sent_at, r.delivered_at, r.opened_at,
-                r.clicked_at, r.bounced_at, r.complained_at, r.unsubscribed_at, r.error].map(csvCell).join(',');
+                r.clicked_at, r.bounced_at, r.complained_at, r.unsubscribed_at, r.unsubscribe_reason, r.unsubscribe_comment, r.error].map(csvCell).join(',');
         }));
         var blob = new Blob(['﻿' + lines.join('\r\n')], { type: 'text/csv;charset=utf-8' });
         var a = document.createElement('a');
         a.href = URL.createObjectURL(blob);
-        a.download = (campaignName.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/^-+|-+$/g, '') || 'newsletter') + '-report.csv';
+        a.download = fileName('-recipients.csv');
         document.body.appendChild(a);
         a.click();
         setTimeout(function () { URL.revokeObjectURL(a.href); a.remove(); }, 0);
+    }
+
+    document.getElementById('edm-rp-export').addEventListener('click', exportRecipients);
+    document.querySelectorAll('[data-export]').forEach(function (btn) {
+        btn.addEventListener('click', function () {
+            if (!report) { return; }
+            var kind = btn.getAttribute('data-export');
+            if (kind === 'pdf') {
+                window.edmPerformance.print();
+            } else if (kind === 'csv') {
+                window.edmPerformance.csv(report.performance, fileName('-performance.csv'));
+            } else {
+                exportRecipients();
+            }
+        });
     });
 
     filterEl.addEventListener('change', applyFilter);
@@ -279,10 +234,13 @@
             if (!res.success) {
                 showAlert(res.message || 'Could not load the report.');
                 rowsEl.innerHTML = '';
+                document.getElementById('edm-perf').innerHTML = '';
                 return;
             }
+            report = res.data;
             all = res.data.rows || [];
             paintStats(res.data);
+            document.getElementById('edm-perf-export').disabled = false;
             paintSplit();
             applyFilter();
         })

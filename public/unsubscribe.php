@@ -7,10 +7,14 @@ declare(strict_types=1);
  * from the email footer, and mail clients POST to it for one-click
  * unsubscribe (List-Unsubscribe-Post, RFC 8058).
  *
- *   GET   signed link -> confirmation page with an Unsubscribe button (link
- *         scanners and prefetchers must not unsubscribe anyone)
+ *   GET   signed link -> confirmation page with an optional "Why are you
+ *         leaving?" choice (Unsubscribe::REASONS + a comment) and an
+ *         Unsubscribe button (link scanners and prefetchers must not
+ *         unsubscribe anyone)
  *   POST  signed link -> suppress the address (reason: unsubscribed), mark the
- *         contact unsubscribed and stamp the send log
+ *         contact unsubscribed and stamp the send log, with the reason and
+ *         comment when the form sent them. A one-click POST from the mail
+ *         client carries no reason (stored NULL = no reason given).
  *
  * Links are signed per newsletter + address by Edm\Services\Ses\Unsubscribe.
  */
@@ -32,14 +36,20 @@ $link = (new Unsubscribe(SesConfig::fromEnv()))->verify(
 $done = false;
 if ($link !== null && ($_SERVER['REQUEST_METHOD'] ?? '') === 'POST') {
     $email = strtolower($link['email']);
+    $reason = (string) ($_POST['reason'] ?? '');
+    $reason = isset(Unsubscribe::REASONS[$reason]) ? $reason : null;
+    $comment = trim((string) ($_POST['comment'] ?? ''));
+    $comment = $comment !== '' ? mb_substr($comment, 0, Unsubscribe::COMMENT_MAX) : null;
     Suppression::suppress($email, 'unsubscribed', 'Unsubscribe link', 'Newsletter #' . $link['campaign_id']);
     foreach (Contact::where('LOWER(`email`) = ?', [$email]) as $m) {
         Contact::update((int) $m['id'], ['status' => Contact::UNSUBSCRIBED]);
     }
     Database::get()->execute(
-        'UPDATE `edm_send_log` SET `unsubscribed_at` = COALESCE(`unsubscribed_at`, ?), `updated_at` = ?
+        'UPDATE `edm_send_log` SET `unsubscribed_at` = COALESCE(`unsubscribed_at`, ?),
+                `unsubscribe_reason` = COALESCE(`unsubscribe_reason`, ?),
+                `unsubscribe_comment` = COALESCE(`unsubscribe_comment`, ?), `updated_at` = ?
           WHERE `campaign_id` = ? AND `email` = ? AND `deleted_at` IS NULL',
-        [date('Y-m-d H:i:s'), date('Y-m-d H:i:s'), $link['campaign_id'], $email]
+        [date('Y-m-d H:i:s'), $reason, $comment, date('Y-m-d H:i:s'), $link['campaign_id'], $email]
     );
     $done = true;
 }
@@ -62,6 +72,13 @@ $h = static fn (string $v): string => htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
         h1 { font-size: 20px; margin: 0 0 12px; }
         p { margin: 0 0 20px; color: #495057; }
         button { padding: 10px 22px; font-size: 15px; border: 0; border-radius: 6px; background: #dc3545; color: #fff; cursor: pointer; }
+        fieldset { border: 0; margin: 0 0 20px; padding: 0; text-align: left; }
+        legend { font-size: 14px; font-weight: bold; margin-bottom: 8px; }
+        label { display: block; font-size: 14px; padding: 4px 0; cursor: pointer; }
+        label input { margin-right: 8px; }
+        textarea { width: 100%; box-sizing: border-box; margin-top: 8px; padding: 8px; font: 14px Arial, sans-serif;
+                   border: 1px solid #ced4da; border-radius: 6px; resize: vertical; }
+        .hint { font-size: 12px; color: #868e96; margin: 4px 0 0; }
     </style>
 </head>
 <body>
@@ -76,6 +93,14 @@ $h = static fn (string $v): string => htmlspecialchars($v, ENT_QUOTES, 'UTF-8');
     <h1>Unsubscribe</h1>
     <p>Stop sending marketing emails to <strong><?php echo $h($link['email']); ?></strong>?</p>
     <form method="post">
+        <fieldset>
+            <legend>Why are you leaving? <span style="font-weight:normal;color:#868e96;">(optional)</span></legend>
+            <?php foreach (Unsubscribe::REASONS as $key => $label): ?>
+            <label><input type="radio" name="reason" value="<?php echo $h($key); ?>"><?php echo $h($label); ?></label>
+            <?php endforeach; ?>
+            <textarea name="comment" rows="2" maxlength="<?php echo Unsubscribe::COMMENT_MAX; ?>" placeholder="Anything else you would like to tell us?"></textarea>
+            <p class="hint">Your answer helps us send better emails. It does not affect unsubscribing.</p>
+        </fieldset>
         <button type="submit">Unsubscribe</button>
     </form>
 <?php endif; ?>

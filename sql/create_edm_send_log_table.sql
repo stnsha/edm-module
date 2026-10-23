@@ -2,6 +2,8 @@
 -- Per-recipient send history (frequency caps + SES delivery state). Written by the
 -- send pipeline (app/Services/Ses/CampaignSender), updated by SES events.
 -- status: 1=sent, 2=delivered, 3=bounced, 4=complained, 5=failed, 6=skipped (error says why).
+-- unsubscribe_reason: key of Unsubscribe::REASONS picked on the unsubscribe page (NULL =
+-- no reason given, e.g. one-click unsubscribe); unsubscribe_comment: the optional text.
 -- Drops and recreates the table (development: existing rows are lost).
 -- Datetime columns hold Asia/Kuala_Lumpur local time. deleted_at = soft delete (NULL = active).
 
@@ -23,6 +25,8 @@ CREATE TABLE `edm_send_log` (
   `bounced_at` datetime NULL DEFAULT NULL,
   `complained_at` datetime NULL DEFAULT NULL,
   `unsubscribed_at` datetime NULL DEFAULT NULL,
+  `unsubscribe_reason` varchar(30) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
+  `unsubscribe_comment` varchar(255) COLLATE utf8mb4_unicode_ci DEFAULT NULL,
   `created_at` datetime NULL DEFAULT NULL,
   `updated_at` datetime NULL DEFAULT NULL,
   `deleted_at` datetime NULL DEFAULT NULL,
