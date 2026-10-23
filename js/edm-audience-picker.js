@@ -60,7 +60,7 @@
         }
 
         o.root.innerHTML =
-            side('include', 'Send to', 'Leave empty to send to every subscribed contact.') +
+            side('include', 'Send to', 'Optional - add segments or contacts to send to only them.') +
             side('exclude', 'Don’t send to', 'Optional - removed from the recipients above.') +
             '<div class="edm-aud-count" aria-live="polite"></div>';
 
@@ -76,7 +76,12 @@
                 }));
                 var box = sideEl(key).querySelector('.edm-aud-chips');
                 box.innerHTML = chips.length ? chips.join('')
-                    : '<span class="edm-aud-empty">' + (key === 'include' ? 'All subscribed contacts' : 'Nobody excluded') + '</span>';
+                    : (key === 'include'
+                        // Nothing included = every subscribed contact (CampaignRecipients).
+                        ? '<span class="edm-aud-default"><i class="bi bi-people-fill"></i>' +
+                          '<span><b>By default, this newsletter is sent to all subscribed contacts.</b> ' +
+                          'Add a segment or contact below to send to only them.</span></span>'
+                        : '<span class="edm-aud-empty">Nobody excluded</span>');
                 // A segment already chosen on either side is not offered again.
                 [].forEach.call(sideEl(key).querySelectorAll('.edm-aud-seg option'), function (opt) {
                     if (!opt.value) { return; }
