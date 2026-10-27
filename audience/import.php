@@ -87,6 +87,8 @@ $edm_import_modes = \Edm\Services\Import\ContactImport::MODES;
                             <li>Put only one email address per contact in the email column.</li>
                             <li>Email addresses must be complete. Incomplete or badly formatted addresses such as <code>john@aol</code>, <code>johnaol.com</code> or <code>@aol.com</code> (instead of <code>john@aol.com</code>) are skipped.</li>
                             <li>An empty email, special characters that are not allowed in an address (e.g. <code>! # $ % ^ &amp; ( ) | \ ,</code>) or an email longer than 128 characters make the row invalid, and it is skipped. Blank lines are ignored.</li>
+                            <li>Every email is also checked against the cleansing rules, and a row that fails is skipped with the reason in the log: placeholder or filler addresses (<code>nil</code>, <code>test</code>, <code>keyinemail</code>, an IC number as the username), internal, disposable or misspelt domains, domains that do not exist or cannot receive mail, test or closed accounts and gibberish (by the Name column), and an address shared by 5 or more different names in the file.</li>
+                            <li>A small domain typo or local variant is corrected and imported, e.g. <code>gmail.com.my</code> becomes <code>gmail.com</code>; the log lists each change.</li>
                         </ul>
                     </details>
                     <details class="edm-imp-guide-item">

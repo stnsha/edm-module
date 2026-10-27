@@ -8,6 +8,8 @@
  *   $page_title_actions   - optional HTML rendered on the right of the page heading
  *   $page_hide_title      - true to skip the heading row (page renders its own bar;
  *                           $page_title still sets <title>)
+ *   $page_hide_nav        - true to skip the EDM navbar (a standalone tool page
+ *                           such as email-cleaner/, unrelated to the EDM menus)
  *   $extra_css            - optional extra <link>/<style> markup for <head>
  *   $page_js              - optional page-specific script path, emitted by footer.php
  *
@@ -83,13 +85,13 @@ if ((int)$edm_permission === 0 && !$_is_superadmin) {
     exit;
 }
 
-// Department PIC (role 2, Auth::isPic()): only the Newsletters list and the
-// Email creator wizard. Any other page (Dashboard, the default entry,
+// Department PIC (role 2, Auth::isPic()): only the Newsletters list, the
+// Email creator wizard and the Email cleaner. Any other page (Dashboard, the default entry,
 // included) goes to the Newsletters list; the APIs refuse other actions too.
 $edm_is_pic = ((int)$edm_permission === 2 && !$_is_superadmin);
 if ($edm_is_pic) {
     $_pic_page = basename(dirname($_SERVER['SCRIPT_NAME'])) . '/' . basename($_SERVER['SCRIPT_NAME']);
-    if (!in_array($_pic_page, array('newsletters/index.php', 'email-builder/index.php'), true)) {
+    if (!in_array($_pic_page, array('newsletters/index.php', 'email-builder/index.php', 'email-cleaner/index.php'), true)) {
         ob_end_clean();
         header('Location: ' . EDM_BASE . 'newsletters/index.php');
         exit;
@@ -98,7 +100,7 @@ if ($edm_is_pic) {
 ?>
 
 <body>
-    <?php include(dirname(__FILE__) . '/navbar.php'); ?>
+    <?php if (empty($page_hide_nav)) include(dirname(__FILE__) . '/navbar.php'); ?>
     <div class="header" style="position: relative;">
         <b class="rtop"><b class="r1"></b><b class="r2"></b><b class="r3"></b><b class="r4"></b></b>
         <h1 class="headerH1"><img src='<?php echo EDM_BASE; ?>css/logo.svg?v=<?php echo filemtime(__DIR__ . '/css/logo.svg'); ?>' width='20px'>EDM</h1>

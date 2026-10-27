@@ -596,7 +596,7 @@
             : '<i class="bi bi-clipboard-check me-1"></i>Check for errors';
     }
 
-    var ISSUE_LEVEL = { invalid: 'error', duplicate: 'warn', value: 'warn', suppressed: 'info' };
+    var ISSUE_LEVEL = { invalid: 'error', duplicate: 'warn', value: 'warn', suppressed: 'info', note: 'info' };
 
     // Runs import_run batch after batch; dry = check only (nothing written).
     function runBatches(dry) {
@@ -606,7 +606,7 @@
         if (mapping.indexOf('email') === -1) { showAlert('Choose which column holds the email address.'); return; }
 
         var verb = dry ? 'Checking' : 'Importing';
-        var tot = { added: 0, updated: 0, ignored: 0, invalid: 0, duplicates: 0, suppressed: 0, values_dropped: 0 };
+        var tot = { added: 0, updated: 0, ignored: 0, invalid: 0, duplicates: 0, suppressed: 0, values_dropped: 0, corrected: 0 };
         var problems = 0;
         var start = Date.now();
         stopRequested = false;
@@ -628,7 +628,8 @@
                 fmt(tot.invalid) + ' invalid, ' + fmt(tot.duplicates) + ' duplicate(s)' +
                 (tot.ignored ? ', ' + fmt(tot.ignored) + ' not changed' : '') +
                 (tot.values_dropped ? ', ' + fmt(tot.values_dropped) + ' value(s) left out' : '') +
-                (tot.suppressed ? ', ' + fmt(tot.suppressed) + ' suppressed' : '') + '.';
+                (tot.suppressed ? ', ' + fmt(tot.suppressed) + ' suppressed' : '') +
+                (tot.corrected ? ', ' + fmt(tot.corrected) + ' email(s) corrected' : '') + '.';
             if (state === 'stopped') {
                 log('warn', label + ' after ' + fmt(done) + ' of ' + fmt(total) + ' rows: ' + counts +
                     (dry ? '' : ' Contacts in the finished batches are saved; importing again updates them.'));
@@ -680,7 +681,7 @@
                         fmt(d.sum.added) + (dry ? ' to add, ' : ' added, ') + fmt(d.sum.updated) + (dry ? ' to update' : ' updated') +
                         (bad ? ', ' + fmt(bad) + ' problem(s)' : '') + '.');
                     d.issues.forEach(function (is) {
-                        if (is.type !== 'suppressed') { problems++; }
+                        if (is.type !== 'suppressed' && is.type !== 'note') { problems++; }
                         log(ISSUE_LEVEL[is.type] || 'warn', is.message, is);
                     });
                     total = d.total;
@@ -724,6 +725,9 @@
             card('Suppressed', s.suppressed, 'edm-stat-value--red', 'imported, never emailed') +
             (s.values_dropped
                 ? card('Values left out', s.values_dropped, 'edm-stat-value--orange', 'did not fit the custom field')
+                : '') +
+            (s.corrected
+                ? card('Corrected', s.corrected, 'edm-stat-value--blue', 'email domain typo fixed')
                 : '');
         document.getElementById('edm-imp-again').href = BASE + 'audience/import.php';
     }

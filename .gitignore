@@ -34,5 +34,8 @@ CLAUDE.md
 /uploads/*
 !/uploads/.htaccess
 
-# NAS image cache (public/file.php)
+# NAS image cache (public/file.php), cleansing DNS cache
 /cache/
+
+# Python bytecode (cleanse/)
+__pycache__/

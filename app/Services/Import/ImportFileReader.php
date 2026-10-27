@@ -30,19 +30,7 @@ final class ImportFileReader
      */
     public static function fromUpload(array $file): array
     {
-        if (($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
-            throw ValidationException::single('file', 'Choose a file to upload.');
-        }
-        $ext = strtolower(pathinfo((string) $file['name'], PATHINFO_EXTENSION));
-        if (!isset(self::LIMITS[$ext])) {
-            throw ValidationException::single('file', 'Use a .CSV, .TXT, .VCF, .XLS, .XLSX or .ODS file.');
-        }
-        if (in_array($file['error'], [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true) || $file['size'] > self::LIMITS[$ext] * self::MB) {
-            throw ValidationException::single('file', 'A .' . strtoupper($ext) . ' file can be up to ' . self::LIMITS[$ext] . ' MB.');
-        }
-        if ($file['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'])) {
-            throw ValidationException::single('file', 'The upload failed. Please try again.');
-        }
+        $ext = self::checkUpload($file, self::LIMITS);
 
         $rows = match ($ext) {
             'csv', 'txt' => self::fromText((string) file_get_contents($file['tmp_name'])),
@@ -51,6 +39,105 @@ final class ImportFileReader
         };
 
         return self::finish($rows);
+    }
+
+    /**
+     * Large-file path (Email cleaner): writes the rows of an upload to $out,
+     * one JSON list of strings per line, without holding the sheet in PHP
+     * memory - .xlsx streamed by Python, .csv / .txt line by line. .xls /
+     * .ods / .vcf are small enough (size caps) to go through the in-memory
+     * readers. Empty rows are skipped and trailing empty cells dropped.
+     *
+     * @param array{name: string, tmp_name: string, size: int, error: int} $file a $_FILES entry
+     * @param array<string, int> $limitsMb size cap per extension, in MB
+     * @return int rows written
+     * @throws ValidationException when the file is missing, too big, unreadable, empty or over $maxRows
+     */
+    public static function toFile(array $file, string $out, int $maxRows, array $limitsMb = self::LIMITS): int
+    {
+        $ext = self::checkUpload($file, $limitsMb);
+        $path = (string) $file['tmp_name'];
+
+        if ($ext === 'xlsx') {
+            $written = EmailCleanser::fromEnv()->workbookToFile($path, $out, $maxRows + 1);
+        } elseif ($ext === 'csv' || $ext === 'txt') {
+            $written = self::textToFile($path, $out, $maxRows + 1);
+        } else {
+            $rows = self::finish($ext === 'vcf' ? self::fromVcard((string) file_get_contents($path)) : self::fromSpreadsheet($path, $ext));
+            $fh = fopen($out, 'wb');
+            foreach ($rows as $row) {
+                fwrite($fh, json_encode($row, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE) . "\n");
+            }
+            fclose($fh);
+            $written = count($rows);
+        }
+
+        if ($written === 0) {
+            throw ValidationException::single('file', 'No rows were found in the file.');
+        }
+        if ($written > $maxRows) {
+            throw ValidationException::single('file', 'Up to ' . number_format($maxRows) . ' rows at a time - split the file.');
+        }
+
+        return $written;
+    }
+
+    /**
+     * Extension of a valid upload, checked against the size caps.
+     *
+     * @param array<string, mixed> $file a $_FILES entry
+     * @param array<string, int> $limitsMb
+     */
+    private static function checkUpload(array $file, array $limitsMb): string
+    {
+        if (($file['error'] ?? UPLOAD_ERR_NO_FILE) === UPLOAD_ERR_NO_FILE) {
+            throw ValidationException::single('file', 'Choose a file to upload.');
+        }
+        $ext = strtolower(pathinfo((string) $file['name'], PATHINFO_EXTENSION));
+        if (!isset($limitsMb[$ext])) {
+            throw ValidationException::single('file', 'Use a .' . implode(', .', array_map('strtoupper', array_keys($limitsMb))) . ' file.');
+        }
+        if (in_array($file['error'], [UPLOAD_ERR_INI_SIZE, UPLOAD_ERR_FORM_SIZE], true) || $file['size'] > $limitsMb[$ext] * self::MB) {
+            throw ValidationException::single('file', 'A .' . strtoupper($ext) . ' file can be up to ' . $limitsMb[$ext] . ' MB.');
+        }
+        if ($file['error'] !== UPLOAD_ERR_OK || !is_uploaded_file($file['tmp_name'])) {
+            throw ValidationException::single('file', 'The upload failed. Please try again.');
+        }
+
+        return $ext;
+    }
+
+    /**
+     * CSV / TXT to a JSON-lines file, line by line (delimiter from the first
+     * non-empty line, encoding per line). A quoted cell spanning lines is
+     * not supported, as in fromText().
+     */
+    private static function textToFile(string $path, string $out, int $maxRows): int
+    {
+        $in = fopen($path, 'rb');
+        $fh = fopen($out, 'wb');
+        $delimiter = null;
+        $written = 0;
+        while ($written < $maxRows && ($line = fgets($in)) !== false) {
+            $line = rtrim(self::utf8($line), "\r\n");
+            if (trim($line) === '') {
+                continue;
+            }
+            $delimiter ??= self::delimiter($line);
+            $cells = array_map(static fn ($v): string => trim((string) $v), str_getcsv($line, $delimiter, '"', ''));
+            while ($cells !== [] && end($cells) === '') {
+                array_pop($cells);
+            }
+            if ($cells === []) {
+                continue;
+            }
+            fwrite($fh, json_encode($cells, JSON_UNESCAPED_UNICODE | JSON_INVALID_UTF8_SUBSTITUTE) . "\n");
+            $written++;
+        }
+        fclose($in);
+        fclose($fh);
+
+        return $written;
     }
 
     /** @return list<list<string>> */
@@ -109,9 +196,19 @@ final class ImportFileReader
         return $rows;
     }
 
-    /** @return list<list<string>> */
+    /**
+     * .xlsx goes through Python (EmailCleanser::readWorkbook, streamed -
+     * PhpSpreadsheet holds ~1 KB per cell and a 6 MB workbook exhausts PHP's
+     * memory); .xls / .ods (openpyxl cannot read them, and .xls is capped at
+     * 10 MB) through PhpSpreadsheet.
+     *
+     * @return list<list<string>>
+     */
     private static function fromSpreadsheet(string $path, string $ext): array
     {
+        if ($ext === 'xlsx') {
+            return EmailCleanser::fromEnv()->readWorkbook($path, self::MAX_ROWS + 2);
+        }
         $reader = match ($ext) {
             'xls'  => new Xls(),
             'ods'  => new Ods(),
@@ -136,14 +233,17 @@ final class ImportFileReader
      */
     private static function finish(array $rows): array
     {
+        // Built in place, row by row, so a large file is never held twice.
         $out = [];
-        foreach ($rows as $row) {
+        foreach ($rows as $k => $row) {
+            unset($rows[$k]);
             $cells = array_map(static fn ($v): string => trim(self::utf8((string) $v)), array_values($row));
             if (implode('', $cells) === '') {
                 continue;
             }
             $out[] = $cells;
         }
+        unset($rows);
         if ($out === []) {
             throw ValidationException::single('file', 'No contacts were found in the file.');
         }
@@ -160,7 +260,14 @@ final class ImportFileReader
             }
         }
 
-        return array_map(static fn (array $c): array => array_pad(array_slice($c, 0, $width), $width, ''), $out);
+        foreach ($out as &$cells) {
+            if (count($cells) !== $width) {
+                $cells = array_pad(array_slice($cells, 0, $width), $width, '');
+            }
+        }
+        unset($cells);
+
+        return $out;
     }
 
     private static function delimiter(string $line): string

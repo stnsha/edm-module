@@ -6,7 +6,8 @@
 </FilesMatch>
 
 # vendor/ (Composer packages), cron/ (CLI send job), logs/, sql/, cache/
-# (NAS image cache - served only through public/file.php) and the
-# email-builder editor source are not web content.
-RedirectMatch 404 /(vendor|cron|logs|sql|cache)(/|$)
+# (NAS image cache - served only through public/file.php), cleanse/ (Python
+# email cleansing run by the contact import) and the email-builder editor
+# source are not web content.
+RedirectMatch 404 /(vendor|cron|logs|sql|cache|cleanse)(/|$)
 RedirectMatch 404 /email-builder/editor-src(/|$)

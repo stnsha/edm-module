@@ -36,6 +36,14 @@ use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
  * 1/0 (true/false, yes/no accepted), a select field one of its options. A
  * value that does not fit is dropped (the contact is still imported) and
  * counted in the summary.
+ *
+ * Every email also goes through the cleansing rules of
+ * cleanse/clean_email_list.py (EmailCleanser): placeholder / filler / IC-number
+ * usernames, internal / disposable / corrupted / non-existent or mail-less
+ * domains, test / closed accounts and gibberish by client name, and
+ * addresses shared by 5 or more client names in the file. A failing row is
+ * skipped with the rule as its reason; a domain typo or alias is corrected
+ * (gmail.com.my -> gmail.com) and the change is logged.
  */
 final class ContactImport
 {
@@ -140,18 +148,30 @@ final class ContactImport
         }
         $mapping = $this->checkMapping($mapping, count($first));
         $emailCol = (int) array_search(self::TARGET_EMAIL, $mapping, true);
+        $nameCol = array_search(self::TARGET_NAME, $mapping, true);
+        $cleanser = EmailCleanser::fromEnv();
+        $cleanserRow = static fn (array $row): array => [
+            'email' => (string) ($row[$emailCol] ?? ''),
+            'name'  => $nameCol === false ? '' : (string) ($row[$nameCol] ?? ''),
+        ];
 
-        // Batch state: read position, total data rows, emails seen so far.
+        // Batch state: read position, total data rows, emails seen so far,
+        // addresses shared by several client names across the whole file.
         if ($offset === 0) {
             if (!$hasHeader) {
                 rewind($fh);
             }
             $pos = ftell($fh);
             $total = 0;
-            while (fgets($fh) !== false) {
+            $all = [];
+            while (($line = fgets($fh)) !== false) {
                 $total++;
+                if ($nameCol !== false) {
+                    $all[] = $cleanserRow(json_decode($line, true) ?: []);
+                }
             }
-            $state = ['offset' => 0, 'pos' => $pos, 'total' => $total, 'seen' => []];
+            $state = ['offset' => 0, 'pos' => $pos, 'total' => $total, 'seen' => [], 'shared' => $cleanser->shared($all)];
+            unset($all);
         } else {
             $state = json_decode((string) @file_get_contents($this->statePath($token)), true);
             if (!is_array($state) || ($state['offset'] ?? -1) !== $offset) {
@@ -169,16 +189,17 @@ final class ContactImport
         fclose($fh);
 
         $firstRowNumber = $offset + 1 + ($hasHeader ? 1 : 0);
-        $sum = ['added' => 0, 'updated' => 0, 'ignored' => 0, 'invalid' => 0, 'duplicates' => 0, 'suppressed' => 0, 'values_dropped' => 0];
+        $sum = ['added' => 0, 'updated' => 0, 'ignored' => 0, 'invalid' => 0, 'duplicates' => 0, 'suppressed' => 0, 'values_dropped' => 0, 'corrected' => 0];
         $issues = [];
         $seen = array_fill_keys($state['seen'], true);
+        $shared = $state['shared'] ?? [];
+        $checks = $cleanser->check(array_map($cleanserRow, $rows));
 
         // Existing members / suppressions, only for this batch's addresses.
         $emails = [];
-        foreach ($rows as $row) {
-            $e = strtolower(trim((string) ($row[$emailCol] ?? '')));
-            if ($e !== '') {
-                $emails[$e] = true;
+        foreach ($checks as $check) {
+            if ($check['ok'] && $check['email'] !== '') {
+                $emails[$check['email']] = true;
             }
         }
         $existing = [];
@@ -206,15 +227,18 @@ final class ContactImport
         }
         $now = date('Y-m-d H:i:s');
 
-        $work = function () use ($rows, $mapping, $emailCol, $now, $mode, $customFields, $existing, $suppressed, $firstRowNumber, $dryRun, &$seen, &$sum, &$issues): void {
+        $work = function () use ($rows, $checks, $shared, $mapping, $emailCol, $now, $mode, $customFields, $existing, $suppressed, $firstRowNumber, $dryRun, &$seen, &$sum, &$issues): void {
             foreach ($rows as $i => $row) {
                 $rowNumber = $firstRowNumber + $i;
                 $raw = trim((string) ($row[$emailCol] ?? ''));
-                $email = strtolower($raw);
+                $check = $checks[$i];
+                $email = $check['email'];
                 $problem = match (true) {
-                    $email === ''                                        => 'Email is empty.',
+                    $raw === ''                                          => 'Email is empty.',
+                    !$check['ok']                                        => rtrim($check['message'], '.') . '.',
                     strlen($email) > self::MAX_EMAIL                     => 'Email is longer than ' . self::MAX_EMAIL . ' characters.',
                     filter_var($email, FILTER_VALIDATE_EMAIL) === false  => 'Email address is not valid.',
+                    isset($shared[$email])                               => 'Shared by ' . $shared[$email] . ' distinct customers (counter/staff email).',
                     default                                              => null,
                 };
                 if ($problem !== null) {
@@ -232,6 +256,16 @@ final class ContactImport
                 if (($isExisting && $mode === self::MODE_ADD) || (!$isExisting && $mode === self::MODE_UPDATE)) {
                     $sum['ignored']++;
                     continue;
+                }
+                if ($check['message'] !== '') {
+                    $changed = $email !== strtolower($raw);
+                    if ($changed) {
+                        $sum['corrected']++;
+                    }
+                    $issues[] = [
+                        'row' => $rowNumber, 'email' => $email, 'type' => 'note',
+                        'message' => ($changed ? 'Email corrected to ' . $email . ' (file: ' . mb_substr($raw, 0, 140) . '). ' : '') . $check['message'] . '.',
+                    ];
                 }
                 if (isset($suppressed[$email])) {
                     $sum['suppressed']++;
