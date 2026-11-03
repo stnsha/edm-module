@@ -8,6 +8,7 @@ import {
   ImageOutlined,
   LibraryAddOutlined,
   NotesOutlined,
+  UnsubscribeOutlined,
   ShareOutlined,
   SmartButtonOutlined,
   StarOutlineOutlined,
@@ -16,6 +17,7 @@ import {
 } from '@mui/icons-material';
 
 import { buildSocialHtml, defaultSocialConfig } from '../../social';
+import { unsubscribeBlock } from '../../unsubscribe';
 
 import { TEditorBlock } from './core';
 import { newBlockId } from './tree';
@@ -66,6 +68,8 @@ export const BLOCKS: TLibraryItem[] = [
   { key: 'text', label: 'Text', icon: <NotesOutlined />, build: () => one(text('Write your message here.')) },
   { key: 'image', label: 'Image', icon: <ImageOutlined />, build: () => one(image('Image')) },
   { key: 'button', label: 'Button', icon: <SmartButtonOutlined />, build: () => one(button('Shop now')) },
+  // Footer line with the {{unsubscribe_url}} link (unsubscribe.ts).
+  { key: 'unsubscribe', label: 'Unsubscribe', icon: <UnsubscribeOutlined />, build: () => one(unsubscribeBlock()) },
   { key: 'logo', label: 'Logo', icon: <StarOutlineOutlined />, build: () => one(image('Logo', 140)) },
   {
     key: 'social',

@@ -99,6 +99,18 @@ function uploadOne(file: File): Promise<TAsset> {
     });
 }
 
+/**
+ * Uploads one image to the Files library (same checks as the Image block)
+ * and adds it to the picker grid; resolves with the new asset or rejects
+ * with a message. Used by the Social block for an Other link's own icon.
+ */
+export function uploadImage(file: File): Promise<TAsset> {
+  return uploadOne(file).then((asset) => {
+    addAssets([asset]);
+    return asset;
+  });
+}
+
 type Props = {
   selectedUrl: string | null | undefined;
   onPick: (asset: TAsset) => void;

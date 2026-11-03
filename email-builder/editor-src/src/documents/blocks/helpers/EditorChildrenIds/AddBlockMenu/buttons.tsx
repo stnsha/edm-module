@@ -9,10 +9,14 @@ import {
   ImageOutlined,
   LibraryAddOutlined,
   NotesOutlined,
+  UnsubscribeOutlined,
+  ShareOutlined,
   SmartButtonOutlined,
   ViewColumnOutlined,
 } from '@mui/icons-material';
 
+import { buildSocialHtml, defaultSocialConfig } from '../../../../../social';
+import { unsubscribeBlock } from '../../../../../unsubscribe';
 import { TEditorBlock } from '../../../../editor/core';
 
 type TButtonProps = {
@@ -60,6 +64,20 @@ export const BUTTONS: TButtonProps[] = [
           url: 'https://www.usewaypoint.com',
         },
         style: { padding: { top: 16, bottom: 16, left: 24, right: 24 } },
+      },
+    }),
+  },
+  // EDM: footer line with the {{unsubscribe_url}} link (unsubscribe.ts).
+  { label: 'Unsubscribe', icon: <UnsubscribeOutlined />, block: unsubscribeBlock },
+  {
+    // EDM: the Social block (social.ts) - an Html block edited in the Social settings panel.
+    label: 'Social',
+    icon: <ShareOutlined />,
+    block: () => ({
+      type: 'Html',
+      data: {
+        props: { contents: buildSocialHtml(defaultSocialConfig()) },
+        style: { fontSize: 14, textAlign: 'center', padding: { top: 16, bottom: 16, left: 24, right: 24 } },
       },
     }),
   },

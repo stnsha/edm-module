@@ -3,7 +3,9 @@
  * renderer sends it), whose contents carry data attributes the editor reads
  * back: the wrapper `data-edm-social="<icon size>"` + `data-edm-social-mode`
  * (logo | text) + `data-edm-social-sep` (bar | none), and one link per item `data-edm-social-key="<key>"` (an
- * Other link also `data-edm-social-label`). The Social settings panel
+ * Other link also `data-edm-social-label`, and `data-edm-social-icon` when
+ * it has its own uploaded icon - drawn at the block's icon size like every
+ * other logo). The Social settings panel
  * (SocialSidebarPanel) edits the list - which platforms, their links, the
  * order, logo or text, the icon size - and rebuilds the HTML.
  *
@@ -13,7 +15,7 @@
  * use a plain link icon.
  */
 export type TSocialPlatform = { key: string; label: string; icon: string; placeholder: string; multiple?: boolean };
-export type TSocialItem = { key: string; url: string; label?: string };
+export type TSocialItem = { key: string; url: string; label?: string; icon?: string };
 export type TSocialMode = 'logo' | 'text';
 export type TSocialSeparator = 'bar' | 'none';
 export type TSocialConfig = { size: number; mode: TSocialMode; separator: TSocialSeparator; items: TSocialItem[] };
@@ -25,6 +27,7 @@ export const SOCIAL_PLATFORMS: TSocialPlatform[] = [
   { key: 'instagram', label: 'Instagram', icon: ICONS8 + 'color/100/instagram-new.png', placeholder: 'https://www.instagram.com/yourprofile' },
   { key: 'tiktok', label: 'TikTok', icon: ICONS8 + 'color/100/tiktok--v1.png', placeholder: 'https://www.tiktok.com/@yourprofile' },
   { key: 'youtube', label: 'YouTube', icon: ICONS8 + 'color/100/youtube-play.png', placeholder: 'https://www.youtube.com/@yourchannel' },
+  { key: 'linkedin', label: 'LinkedIn', icon: ICONS8 + 'color/100/linkedin.png', placeholder: 'https://www.linkedin.com/company/yourcompany' },
   { key: 'rednote', label: 'RedNote', icon: ICONS8 + 'ios-filled/100/FF2442/xiao-hong-shu.png', placeholder: 'https://www.xiaohongshu.com/user/profile/...' },
   { key: 'shopee', label: 'Shopee', icon: ICONS8 + 'color/100/shopee.png', placeholder: 'https://shopee.com.my/yourshop' },
   { key: 'lazada', label: 'Lazada', icon: ICONS8 + 'plasticine/100/lazada.png', placeholder: 'https://www.lazada.com.my/shop/yourshop' },
@@ -43,6 +46,19 @@ export function socialPlatform(key: string): TSocialPlatform | undefined {
 }
 
 /** What an item is called: the name typed for an Other link, else the platform. */
+/** The logo an item shows: an Other link's uploaded icon, else the platform's. */
+export function socialItemIcon(item: TSocialItem): string {
+  const p = socialPlatform(item.key);
+  const custom = p?.multiple ? safeIconUrl(item.icon) : '';
+  return custom || p?.icon || '';
+}
+
+/** An uploaded icon URL when it is http(s), else ''. */
+function safeIconUrl(url: string | null | undefined): string {
+  const v = (url ?? '').trim();
+  return /^https?:\/\//i.test(v) ? v : '';
+}
+
 export function socialItemLabel(item: TSocialItem): string {
   const p = socialPlatform(item.key);
   if (p?.multiple) {
@@ -81,16 +97,18 @@ export function buildSocialHtml(config: TSocialConfig): string {
         return '';
       }
       const label = socialItemLabel(item);
+      const custom = p.multiple ? safeIconUrl(item.icon) : '';
       const attrs =
         'data-edm-social-key="' + p.key + '"' +
         (p.multiple ? ' data-edm-social-label="' + escAttr((item.label ?? '').trim()) + '"' : '') +
+        (custom ? ' data-edm-social-icon="' + escAttr(custom) + '"' : '') +
         ' href="' + escAttr(item.url.trim() || '#') + '" target="_blank"';
       if (mode === 'text') {
         return '<a ' + attrs + ' style="color:inherit;text-decoration:underline;">' + escAttr(label) + '</a>';
       }
       return (
         '<a ' + attrs + ' style="display:inline-block;margin:0 6px;vertical-align:middle;text-decoration:none;">' +
-        '<img src="' + p.icon + '" alt="' + escAttr(label) + '" width="' + size + '" height="' + size + '" ' +
+        '<img src="' + escAttr(socialItemIcon(item)) + '" alt="' + escAttr(label) + '" width="' + size + '" height="' + size + '" ' +
         'style="display:block;width:' + size + 'px;height:' + size + 'px;border:0;outline:none;" /></a>'
       );
     })
@@ -128,6 +146,10 @@ export function parseSocialHtml(contents: string): TSocialConfig {
     const item: TSocialItem = { key, url: href === '#' ? '' : href };
     if (p.multiple) {
       item.label = a.getAttribute('data-edm-social-label') ?? '';
+      const icon = safeIconUrl(a.getAttribute('data-edm-social-icon'));
+      if (icon) {
+        item.icon = icon;
+      }
     }
     items.push(item);
   });
