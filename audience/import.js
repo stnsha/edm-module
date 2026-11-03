@@ -26,6 +26,8 @@
 
     var BASE = window.EDM_MODULE_BASE || '/odb/edm/';
     var API  = BASE + 'audience/api.php';
+    // Custom fields are a superadmin screen: others map to existing fields only.
+    var CAN_CREATE_FIELD = !window.EDM_IMPORT_SCOPED;
 
     var alertEl  = document.getElementById('edm-imp-alert');
     var step1    = document.getElementById('edm-imp-step1');
@@ -389,9 +391,11 @@
                             staged.targets.map(function (t) {
                                 return '<option value="' + esc(t.value) + '"' + (t.value === chosen ? ' selected' : '') + '>' + esc(t.label) + '</option>';
                             }).join('') +
-                            '<option value="' + NEW_FIELD + '">+ Create new custom field...</option>' +
+                            (CAN_CREATE_FIELD ? '<option value="' + NEW_FIELD + '">+ Create new custom field...</option>' : '') +
                         '</select>' +
-                        '<button type="button" class="edm-imp-map-new" data-col="' + i + '"><i class="bi bi-plus-circle me-1"></i>Create custom field for "' + esc(h || 'Column ' + (i + 1)) + '"</button>' +
+                        (CAN_CREATE_FIELD
+                            ? '<button type="button" class="edm-imp-map-new" data-col="' + i + '"><i class="bi bi-plus-circle me-1"></i>Create custom field for "' + esc(h || 'Column ' + (i + 1)) + '"</button>'
+                            : '') +
                     '</div>' +
                     '<span class="edm-imp-map-state"></span>' +
                 '</div>';

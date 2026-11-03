@@ -11,16 +11,23 @@ use Edm\Models\SendLog;
 /**
  * Dashboard KPI snapshot. Delivery / open / click / bounce figures come from
  * edm_send_log, kept current by Amazon SES events (public/ses-webhook.php).
+ *
+ * $scope (AccessScope::forUser()) limits newsletters, contacts and send
+ * figures to what the user may see: own, department, or all (null).
  */
 final class ReportingOverview
 {
-    public function __construct(private Database $db)
+    private AccessScope $scope;
+
+    public function __construct(private Database $db, ?AccessScope $scope = null)
     {
+        $this->scope = $scope ?? AccessScope::all();
     }
 
     public function build(): array
     {
-        $statusCounts = Campaign::countsByStatus();
+        $statusCounts = Campaign::countsByStatus($this->scope);
+        [$own, $ownParams] = $this->scope->contactWhere('');
 
         return [
             'campaigns' => [
@@ -30,9 +37,9 @@ final class ReportingOverview
                 'completed' => $statusCounts['completed'],
             ],
             'audience' => [
-                'contacts'     => $this->count('edm_contacts'),
-                'subscribed'   => $this->count('edm_contacts', '`status` = 1'), // 1 = subscribed
-                'suppressed'   => $this->count('edm_suppressions'),
+                'contacts'     => $this->count('edm_contacts', $own, $ownParams),
+                'subscribed'   => $this->count('edm_contacts', '`status` = 1 AND ' . $own, $ownParams), // 1 = subscribed
+                'suppressed'   => $this->suppressed(),
             ],
             'senders' => [
                 'total'    => $this->count('edm_senders'),
@@ -64,6 +71,9 @@ final class ReportingOverview
             $scope .= ' AND `sent_at` BETWEEN ? AND ?';
             array_push($params, $from, $to);
         }
+        [$own, $ownParams] = $this->scope->sendLogAnd();
+        $scope .= $own;
+        array_push($params, ...$ownParams);
         $r = $this->db->first(
             'SELECT COUNT(*) AS sent,
                     COUNT(`delivered_at`) AS delivered, COUNT(`opened_at`) AS opened,
@@ -94,11 +104,32 @@ final class ReportingOverview
         ];
     }
 
-    /** Active-row count; $where is a code-defined condition. */
-    private function count(string $table, string $where = '1 = 1'): int
+    /** Active-row count; $where is a code-defined condition with bound $params. */
+    private function count(string $table, string $where = '1 = 1', array $params = []): int
     {
         return (int) $this->db->scalar(
-            'SELECT COUNT(*) FROM ' . Database::ident($table) . ' WHERE `deleted_at` IS NULL AND (' . $where . ')'
+            'SELECT COUNT(*) FROM ' . Database::ident($table) . ' WHERE `deleted_at` IS NULL AND (' . $where . ')',
+            $params
+        );
+    }
+
+    /**
+     * Excluded addresses: the whole exclusion list for a superadmin;
+     * otherwise how many of the user's contacts are on it.
+     */
+    private function suppressed(): int
+    {
+        if ($this->scope->isAll()) {
+            return $this->count('edm_suppressions');
+        }
+        [$own, $ownParams] = $this->scope->contactWhere('m');
+
+        return (int) $this->db->scalar(
+            'SELECT COUNT(DISTINCT LOWER(TRIM(m.`email`))) FROM `edm_contacts` m
+              WHERE m.`deleted_at` IS NULL AND ' . $own . '
+                AND EXISTS (SELECT 1 FROM `edm_suppressions` s
+                             WHERE s.`deleted_at` IS NULL AND LOWER(s.`email`) = LOWER(TRIM(m.`email`)))',
+            $ownParams
         );
     }
 }

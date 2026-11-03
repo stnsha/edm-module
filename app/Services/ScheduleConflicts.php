@@ -29,18 +29,20 @@ final class ScheduleConflicts
     /**
      * @return list<array{type: string, id: int, name: string}>
      */
-    public function forDate(DateTimeImmutable $date, ?int $campaignId = null): array
+    public function forDate(DateTimeImmutable $date, ?int $campaignId = null, ?AccessScope $scope = null): array
     {
         $day = $date->format('Y-m-d');
         $exclude = $campaignId ?? 0;
         $out = [];
+        // Only newsletters the user may see (own / department / all).
+        [$cond, $condParams] = ($scope ?? AccessScope::all())->campaignWhere('c');
 
         $campaigns = $this->db->select(
-            'SELECT `id`, `name` FROM `edm_campaigns`
-              WHERE `deleted_at` IS NULL AND `status` <> ? AND `scheduled_at` IS NOT NULL
-                AND DATE(`scheduled_at`) = ? AND `id` <> ?
-              ORDER BY `scheduled_at`',
-            [Campaign::ARCHIVED, $day, $exclude]
+            'SELECT c.`id`, c.`name` FROM `edm_campaigns` c
+              WHERE c.`deleted_at` IS NULL AND c.`status` <> ? AND c.`scheduled_at` IS NOT NULL
+                AND DATE(c.`scheduled_at`) = ? AND c.`id` <> ? AND ' . $cond . '
+              ORDER BY c.`scheduled_at`',
+            [Campaign::ARCHIVED, $day, $exclude, ...$condParams]
         );
         foreach ($campaigns as $r) {
             $out[] = ['type' => 'campaign', 'id' => (int) $r['id'], 'name' => (string) $r['name']];

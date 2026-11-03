@@ -5,21 +5,40 @@ declare(strict_types=1);
 namespace Edm\Core;
 
 /**
- * The logged-in staff member and their EDM role tier (staff.edm):
- * 0 = none, 1 = superadmin (approves newsletters), 2 = department PIC
- * (creates and submits own newsletters only), 3 = bpt team, 4 = management.
+ * The logged-in staff member and their EDM role (staff.edm):
+ *   0 = normal user        - own newsletters, contacts, calendar, dashboard
+ *   1 = superadmin         - everything
+ *   2 = business unit head - everything of their department
+ *                            (staff.department); approves its newsletters
+ * Every logged-in odb staff has EDM access (0 included). Any other stored
+ * value (the removed 3 bpt team / 4 management) counts as 0.
  *
  * The dev role override (dev-switch-role.php, localhost only) replaces the
- * tier for UI testing but never grants superadmin.
+ * role for UI testing but never grants the real-superadmin flag
+ * ($isSuperadmin, used for Settings > Users & permissions).
  */
 final class Auth
 {
+    public const NORMAL = 0;
+
+    public const SUPERADMIN = 1;
+
+    public const BU_HEAD = 2;
+
+    /** Role => label (Settings > Users & permissions, dev toolbar). */
+    public const ROLES = [
+        self::NORMAL     => 'Normal user',
+        self::SUPERADMIN => 'Super Admin',
+        self::BU_HEAD    => 'Head of Business Unit',
+    ];
+
     public function __construct(
         public readonly ?int $staffId,
         public readonly ?string $staffName,
         public readonly int $edmFlag,
         public readonly int $permission,
         public readonly bool $isSuperadmin,
+        public readonly ?int $departmentId = null,
     ) {
     }
 
@@ -28,17 +47,19 @@ final class Auth
         $staffId = null;
         $name = null;
         $flag = 0;
+        $departmentId = null;
 
         $username = $_SESSION['myusername'] ?? null;
         if (is_string($username) && $username !== '') {
             $row = $db->first(
-                'SELECT id, nama_staff, edm FROM staff WHERE username = ? AND recycle != 1 LIMIT 1',
+                'SELECT id, nama_staff, edm, department FROM staff WHERE username = ? AND recycle != 1 LIMIT 1',
                 [$username]
             );
             if ($row !== null) {
                 $staffId = (int) $row['id'];
                 $name = (string) $row['nama_staff'];
                 $flag = (int) ($row['edm'] ?? 0);
+                $departmentId = (int) ($row['department'] ?? 0) > 0 ? (int) $row['department'] : null;
             }
         }
 
@@ -46,7 +67,7 @@ final class Auth
             ? (int) $_SESSION['edm_dev_role_override']
             : null;
 
-        return new self($staffId, $name, $flag, $override ?? $flag, $override === null && $flag === 1);
+        return new self($staffId, $name, $flag, $override ?? $flag, $override === null && $flag === 1, $departmentId);
     }
 
     public function isLoggedIn(): bool
@@ -74,26 +95,42 @@ final class Auth
         return is_string($name) && trim($name) !== '' ? trim($name) : null;
     }
 
+    /** Effective role: NORMAL, SUPERADMIN or BU_HEAD (unknown values = NORMAL). */
+    public function role(): int
+    {
+        if ($this->isSuperadmin) {
+            return self::SUPERADMIN;
+        }
+
+        return isset(self::ROLES[$this->permission]) ? $this->permission : self::NORMAL;
+    }
+
+    /** Superadmin (staff.edm = 1, or the dev override to 1): sees and does everything. */
+    public function isAdmin(): bool
+    {
+        return $this->role() === self::SUPERADMIN;
+    }
+
+    /** Business unit head (role 2): the whole department's records. */
+    public function isBuHead(): bool
+    {
+        return $this->role() === self::BU_HEAD;
+    }
+
     /**
-     * Department PIC (effective role 2): may only create their own
-     * newsletters through the Email creator wizard and submit them - every
-     * controller refuses other actions (Controller::allowsPic()).
+     * Normal user or business unit head: limited to their own / their
+     * department's records (Services\AccessScope) and to the actions each
+     * controller lists in allowsScoped() (Controller::run()).
      */
-    public function isPic(): bool
+    public function isScoped(): bool
     {
-        return $this->permission === 2 && !$this->isSuperadmin;
+        return !$this->isAdmin();
     }
 
-    /** Approves newsletters (Email creator step 6): role 1 (dev override included) or a real superadmin. */
-    public function isApprover(): bool
-    {
-        return $this->isSuperadmin || $this->permission === 1;
-    }
-
-    /** Any EDM tier (1-4) or a real superadmin. */
+    /** Every logged-in staff member has EDM access. */
     public function hasAccess(): bool
     {
-        return $this->permission >= 1 || $this->isSuperadmin;
+        return $this->isLoggedIn();
     }
 
     public static function isLocal(): bool

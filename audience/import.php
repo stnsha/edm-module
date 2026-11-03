@@ -7,6 +7,7 @@ $page_js = EDM_BASE . 'audience/import.js';
 require __DIR__ . '/../app/bootstrap.php';
 $edm_import_modes = \Edm\Services\Import\ContactImport::MODES;
 ?>
+<script>window.EDM_IMPORT_SCOPED = <?php echo !empty($edm_is_scoped) ? 'true' : 'false'; ?>;</script>
 <div id="edm-imp-alert" class="alert alert-danger py-2 px-3 small" hidden></div>
 
 <nav class="edm-imp-steps-bar" aria-label="Import steps">

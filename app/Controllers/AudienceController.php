@@ -5,11 +5,14 @@ declare(strict_types=1);
 namespace Edm\Controllers;
 
 use Edm\Core\Controller;
+use Edm\Core\HttpException;
 use Edm\Core\ValidationException;
+use Edm\Models\Campaign;
 use Edm\Models\Contact;
 use Edm\Models\CustomField;
 use Edm\Models\Segment;
 use Edm\Models\Tag;
+use Edm\Services\AccessScope;
 use Edm\Services\CampaignRecipients;
 use Edm\Services\Import\ContactImport;
 use Edm\Services\Import\ImportFileReader;
@@ -24,10 +27,38 @@ use Edm\Services\SegmentQuery;
  */
 final class AudienceController extends Controller
 {
-    /** Department PICs: only the Email creator Recipients picker (search + live count). */
-    protected static function allowsPic(string $action): bool
+    /**
+     * Normal users and business unit heads: their own / department's
+     * contacts (All contacts, Import) and the Email creator Recipients
+     * picker (search + live count). Segments, custom fields and tags are
+     * superadmin screens.
+     */
+    private const SCOPED_ACTIONS = [
+        'contacts_list', 'contacts_delete', 'contacts_search', 'audience_count',
+        'import_template', 'import_preview', 'import_run',
+    ];
+
+    protected static function allowsScoped(string $action): bool
     {
-        return in_array($action, ['contacts_search', 'audience_count'], true);
+        return in_array($action, self::SCOPED_ACTIONS, true);
+    }
+
+    /**
+     * The contacts this request may touch: with ?campaign= (Email creator
+     * picker) the ones that newsletter may reach (AccessScope::forCampaign()
+     * - its creator's, after checking the user may see it), otherwise the
+     * user's own (AccessScope::forUser()).
+     */
+    private function contactScope(): AccessScope
+    {
+        $id = (int) $this->request->query('campaign', 0);
+        if ($id <= 0) {
+            return AccessScope::forUser($this->auth);
+        }
+        $campaign = Campaign::findOrFail($id);
+        Campaign::assertVisibleTo($campaign, $this->auth);
+
+        return AccessScope::forCampaign($campaign);
     }
 
     protected function handle(string $action): mixed
@@ -197,21 +228,26 @@ final class AudienceController extends Controller
     }
 
     /**
-     * Contacts > All contacts (audience/index.php).
-     *   contacts_list    every contact on the masterlist, newest first
+     * Contacts > All contacts (audience/index.php), within the user's scope
+     * (own / department / all).
+     *   contacts_list    the contacts, newest first
      *   contacts_delete  { id } -> soft-deletes one contact
      */
     private function contacts(string $action): mixed
     {
+        $scope = AccessScope::forUser($this->auth);
         if ($action === 'contacts_delete') {
             $id = $this->requireId('Contact');
-            Contact::findOrFail($id);
+            if (!$scope->hasContact(Contact::findOrFail($id))) {
+                throw new HttpException('Contact not found', 404);
+            }
             Contact::delete($id);
 
             return null;
         }
+        [$cond, $params] = $scope->contactWhere('');
 
-        return Contact::all();
+        return Contact::where($cond, $params);
     }
 
     /**
@@ -227,11 +263,13 @@ final class AudienceController extends Controller
             return [];
         }
         $like = '%' . addcslashes(mb_strtolower($q), '\\%_') . '%';
+        [$cond, $params] = $this->contactScope()->contactWhere('m');
         $rows = $this->db->select(
-            'SELECT `id`, `email`, `name`, `status` FROM `edm_contacts`
-              WHERE `deleted_at` IS NULL AND (LOWER(`email`) LIKE ? OR LOWER(COALESCE(`name`, \'\')) LIKE ?)
-              ORDER BY `email` LIMIT 20',
-            [$like, $like]
+            'SELECT m.`id`, m.`email`, m.`name`, m.`status` FROM `edm_contacts` m
+              WHERE m.`deleted_at` IS NULL AND ' . $cond . '
+                AND (LOWER(m.`email`) LIKE ? OR LOWER(COALESCE(m.`name`, \'\')) LIKE ?)
+              ORDER BY m.`email` LIMIT 20',
+            [...$params, $like, $like]
         );
 
         return array_map(static fn (array $r): array => [
@@ -249,7 +287,7 @@ final class AudienceController extends Controller
     private function audienceCount(): array
     {
         $audience = CampaignRecipients::normalize($this->request->get('audience'));
-        $recipients = new CampaignRecipients($this->db);
+        $recipients = new CampaignRecipients($this->db, $this->contactScope());
         $count = $recipients->count($audience);
 
         return [
@@ -271,7 +309,12 @@ final class AudienceController extends Controller
      */
     private function import(string $action): array
     {
-        $import = new ContactImport($this->db, (int) $this->auth->staffId);
+        $import = new ContactImport(
+            $this->db,
+            (int) $this->auth->staffId,
+            AccessScope::forUser($this->auth),
+            AccessScope::contactStamp($this->auth)
+        );
 
         if ($action === 'import_preview') {
             $rows = isset($_FILES['file']) && ($_FILES['file']['error'] ?? UPLOAD_ERR_NO_FILE) !== UPLOAD_ERR_NO_FILE

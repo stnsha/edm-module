@@ -5,6 +5,8 @@
  *   var picker = edmAudiencePicker({
  *       root: element,               // filled with the picker markup
  *       segments: [{ id, label }],   // every saved segment
+ *       campaignId: 12,              // the newsletter: search and count only the
+ *                                    // contacts it may reach (AccessScope::forCampaign)
  *       onChange: function () {}     // called after every add / remove
  *   });
  *   picker.set(audience, names);     // audience { include, exclude: { segments: [id], contacts: [id] } },
@@ -36,6 +38,7 @@
         var disabled = false;
         var countSeq = 0;
         var countTimer = null;
+        var campaignQS = o.campaignId ? '&campaign=' + encodeURIComponent(o.campaignId) : '';
 
         function side(key, title, hint) {
             return '<div class="edm-aud-side" data-side="' + key + '">' +
@@ -156,7 +159,7 @@
             var q = input.value.trim();
             if (q.length < 2) { hideResults(input); return; }
             searchTimers[key] = setTimeout(function () {
-                fetch(API + '?action=contacts_search&q=' + encodeURIComponent(q), { headers: { 'Accept': 'application/json' } })
+                fetch(API + '?action=contacts_search&q=' + encodeURIComponent(q) + campaignQS, { headers: { 'Accept': 'application/json' } })
                     .then(function (r) { return r.json(); })
                     .then(function (res) {
                         if (input.value.trim() !== q) { return; }
@@ -191,7 +194,7 @@
             var mine = ++countSeq;
             box.className = 'edm-aud-count';
             box.innerHTML = '<span class="spinner-border spinner-border-sm me-1"></span>Counting recipients...';
-            fetch(API + '?action=audience_count', {
+            fetch(API + '?action=audience_count' + campaignQS, {
                 method: 'POST',
                 headers: { 'Content-Type': 'application/json', 'Accept': 'application/json' },
                 body: JSON.stringify({ audience: state })

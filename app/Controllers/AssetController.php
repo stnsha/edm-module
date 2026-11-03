@@ -43,10 +43,11 @@ final class AssetController extends Controller
     private const LEGACY_DIR = 'uploads/assets';
 
     /**
-     * Department PICs (Auth::isPic()) may upload images from the Email
-     * creator's Image block, but not delete or edit the shared library.
+     * Normal users and business unit heads (Auth::isScoped()) may upload
+     * images from the Email creator's Image block, but not delete or edit
+     * the shared library.
      */
-    protected static function allowsPic(string $action): bool
+    protected static function allowsScoped(string $action): bool
     {
         return $action === 'assets_upload';
     }

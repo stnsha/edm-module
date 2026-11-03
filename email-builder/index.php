@@ -137,9 +137,10 @@ window.EDM_EB_CUSTOM_VARS = <?php echo json_encode($edm_custom_vars); ?>;
 window.EDM_EB_ASSETS = <?php echo json_encode($edm_assets); ?>;
 window.EDM_EB_SEGMENTS = <?php echo json_encode($edm_segments); ?>;
 window.EDM_EB_TAGS = <?php echo json_encode($edm_master_tags); ?>;
-// Department PIC (role 2): pick only - no new sender, no new tags, no image
-// delete in the editor - uploading images is allowed (the APIs refuse the rest).
-window.EDM_EB_PIC = <?php echo !empty($edm_is_pic) ? 'true' : 'false'; ?>;
+// Normal user / business unit head (not superadmin): pick only - no new
+// sender, no new tags, no image delete in the editor - uploading images is
+// allowed (the APIs refuse the rest).
+window.EDM_EB_SCOPED = <?php echo !empty($edm_is_scoped) ? 'true' : 'false'; ?>;
 </script>
 
 
@@ -173,7 +174,7 @@ window.EDM_EB_PIC = <?php echo !empty($edm_is_pic) ? 'true' : 'false'; ?>;
                 <?php foreach ($edm_senders as $o): ?>
                 <option value="<?php echo $o['id']; ?>"><?php echo htmlspecialchars($o['label']); ?></option>
                 <?php endforeach; ?>
-                <?php if (empty($edm_is_pic)): ?>
+                <?php if (empty($edm_is_scoped)): ?>
                 <option value="__new">+ Create new sender</option>
                 <?php endif; ?>
             </select>
@@ -185,7 +186,7 @@ window.EDM_EB_PIC = <?php echo !empty($edm_is_pic) ? 'true' : 'false'; ?>;
                 <?php foreach ($edm_senders as $o): ?>
                 <option value="<?php echo $o['id']; ?>"><?php echo htmlspecialchars($o['label']); ?></option>
                 <?php endforeach; ?>
-                <?php if (empty($edm_is_pic)): ?>
+                <?php if (empty($edm_is_scoped)): ?>
                 <option value="__new">+ Create new sender</option>
                 <?php endif; ?>
             </select>
@@ -239,6 +240,9 @@ window.EDM_EB_PIC = <?php echo !empty($edm_is_pic) ? 'true' : 'false'; ?>;
         <div class="edm-wiz-tools">
             <button type="button" class="btn btn-outline-secondary btn-sm" id="edm-eb-template" disabled title="Replace the design with a template">
                 <i class="bi bi-layout-text-window me-1"></i>Start from template
+            </button>
+            <button type="button" class="btn btn-outline-secondary btn-sm" data-eb-preview title="Save, then show the email as it will be sent">
+                <i class="bi bi-eye me-1"></i>Preview
             </button>
             <button type="button" class="btn btn-outline-secondary btn-sm" id="edm-eb-test" disabled title="Save, then send one test email through Amazon SES">
                 <i class="bi bi-envelope-paper me-1"></i>Send test
@@ -328,8 +332,20 @@ window.EDM_EB_PIC = <?php echo !empty($edm_is_pic) ? 'true' : 'false'; ?>;
     </div>
     <div class="row g-3 mt-1" id="edm-eb-schedule-row">
         <div class="col-12">
-            <label class="form-label" for="edm-eb-f-scheduled">Send date and time</label>
-            <input type="datetime-local" class="form-control" id="edm-eb-f-scheduled">
+            <label class="form-label" for="edm-eb-f-scheduled-date">Send date and time</label>
+            <!-- Sends start on the hour only: a date + an hour, combined by
+                 email-builder.js into the hidden Y-m-dTH:00 value. -->
+            <div class="d-flex gap-2">
+                <input type="date" class="form-control" id="edm-eb-f-scheduled-date" min="<?php echo date('Y-m-d'); ?>" style="max-width: 220px;">
+                <select class="form-select" id="edm-eb-f-scheduled-hour" style="max-width: 140px;" aria-label="Send hour">
+                    <option value="">Hour</option>
+                    <?php for ($hr = 0; $hr < 24; $hr++): ?>
+                    <option value="<?php echo sprintf('%02d', $hr); ?>"><?php echo sprintf('%02d:00', $hr); ?></option>
+                    <?php endfor; ?>
+                </select>
+            </div>
+            <input type="hidden" id="edm-eb-f-scheduled">
+            <div class="form-text">Newsletters are sent on the hour (every 1 hour).</div>
             <div class="form-text text-warning-emphasis" id="edm-eb-conflicts" hidden></div>
         </div>
     </div>
@@ -349,12 +365,12 @@ window.EDM_EB_PIC = <?php echo !empty($edm_is_pic) ? 'true' : 'false'; ?>;
 
 <!-- Step 6 Approval: filled by email-builder.js from the load answer's
      `approval` (EmailBuilderController::details()). Submitter / department,
-     requested send time, readiness checks; the EDM approver (role 1)
-     approves (-> Scheduled) or rejects with a reason (-> Draft); the
+     requested send time, readiness checks; a superadmin or the business
+     unit head of the newsletter's department approves (-> Scheduled) or rejects with a reason (-> Draft); the
      submitter can withdraw while it is pending. -->
 <section class="edm-wiz-pane" data-pane="6" aria-label="Approval" hidden>
     <h2 class="edm-wiz-title">Approval</h2>
-    <p class="edm-wiz-sub">The EDM approver checks the newsletter before it is sent. Approving schedules it for the requested time.</p>
+    <p class="edm-wiz-sub">A Super Admin or the Head of Business Unit of your department checks the newsletter before it is sent. Approving schedules it for the requested time.</p>
     <div id="edm-eb-approval-state"></div>
     <dl class="edm-wiz-summary" id="edm-eb-approval-info"></dl>
     <h3 class="edm-wiz-subtitle">Newsletter summary</h3>

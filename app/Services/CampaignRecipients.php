@@ -32,8 +32,16 @@ final class CampaignRecipients
     public const MAX_SEGMENTS = 20;
     public const MAX_CONTACTS = 500;
 
-    public function __construct(private Database $db)
+    /**
+     * $scope limits every query to the contacts the newsletter may reach
+     * (AccessScope::forCampaign(): the creator's own, their department's,
+     * or all for a superadmin newsletter). Null = all.
+     */
+    private AccessScope $scope;
+
+    public function __construct(private Database $db, ?AccessScope $scope = null)
     {
+        $this->scope = $scope ?? AccessScope::all();
     }
 
     /**
@@ -143,9 +151,9 @@ final class CampaignRecipients
     }
 
     /**
-     * SQL condition over edm_contacts aliased $a selecting the audience (the
-     * subscribed / not deleted scope is added by the caller), plus bound
-     * values.
+     * SQL condition over edm_contacts aliased $a selecting the audience
+     * within the contact scope (the subscribed / not deleted condition is
+     * added by the caller), plus bound values.
      *
      * @return array{0: string, 1: list<mixed>}
      */
@@ -174,8 +182,9 @@ final class CampaignRecipients
         if ($exc !== '') {
             $sql .= ' AND NOT ' . $exc;
         }
+        [$own, $ownParams] = $this->scope->contactWhere($a);
 
-        return ['(' . $sql . ')', [...$incParams, ...$excParams]];
+        return ['(' . $own . ' AND ' . $sql . ')', [...$ownParams, ...$incParams, ...$excParams]];
     }
 
     /**
@@ -187,7 +196,11 @@ final class CampaignRecipients
     public function count(array $audience, int $sample = 0): array
     {
         $scope = 'm.`deleted_at` IS NULL AND m.`status` = ?';
-        $total = (int) $this->db->scalar('SELECT COUNT(DISTINCT LOWER(TRIM(m.`email`))) FROM `edm_contacts` m WHERE ' . $scope, [Contact::SUBSCRIBED]);
+        [$own, $ownParams] = $this->scope->contactWhere('m');
+        $total = (int) $this->db->scalar(
+            'SELECT COUNT(DISTINCT LOWER(TRIM(m.`email`))) FROM `edm_contacts` m WHERE ' . $scope . ' AND ' . $own,
+            [Contact::SUBSCRIBED, ...$ownParams]
+        );
         [$cond, $params] = $this->where($audience);
         $where = $scope . ' AND ' . $cond;
         $params = [Contact::SUBSCRIBED, ...$params];

@@ -4,16 +4,10 @@
  * prefix; see css/style.css). Menu items are gated by the staff.edm tier.
  */
 
-// Resolve role first so it can gate the dev toolbar and the menu.
-$edm_role = 0;
-if (isset($edm_permission)) {
-    $edm_role = (int)$edm_permission;
-}
-
-// Menu visibility gates by tier (see sql/add_staff_edm_column.sql and SPEC.md).
-$edm_can_build = in_array($edm_role, array(1, 2, 3), true); // superadmin / admin / bpt
-$edm_can_view  = ($edm_role >= 1);                          // includes management (read-only)
-$edm_is_super  = ($edm_role === 1) || !empty($_is_superadmin);
+// Role resolved by header.php ($edm_role: 0 normal user, 1 superadmin,
+// 2 business unit head; $edm_is_scoped = not superadmin).
+$edm_role = isset($edm_role) ? (int)$edm_role : 0;
+$edm_is_super = ($edm_role === 1);
 
 // Dev role switcher toolbar (localhost + real superadmin only)
 $_navbar_serverName = isset($_SERVER['SERVER_NAME']) ? $_SERVER['SERVER_NAME'] : '';
@@ -30,12 +24,11 @@ if ($_navbar_isLocal && $_navbar_isRealSuperAdmin) {
         session_start();
     }
 
-    // staff.edm role levels (see sql/add_staff_edm_column.sql).
+    // staff.edm role levels (Edm\Core\Auth::ROLES).
     $_navbar_roleLabels = array(
-        1 => 'superadmin',
-        2 => 'dept pic',
-        3 => 'bpt team',
-        4 => 'management',
+        0 => 'normal user',
+        1 => 'super admin',
+        2 => 'head of BU',
     );
 
     $_navbar_activeRole      = isset($_SESSION['edm_dev_role_override']) ? (int)$_SESSION['edm_dev_role_override'] : null;
@@ -87,35 +80,38 @@ $current_script = basename($_self);
  *
  * Each entry:
  *   label - text shown in the bar
- *   gate  - 'build' (edm in 1,2,3), 'view' (edm >= 1), or 'super' (edm == 1)
+ *   gate  - 'all' (every role) or 'super' (superadmin only)
  *   href    - single-link target relative to EDM_BASE; omit when 'items' is set
  *   folders - optional extra folders that also mark a single link active
- *   pic     - true: shown to a department PIC (role 2, $edm_is_pic from
- *             header.php), who sees only these entries / children
+ *   scoped  - true: also shown to a normal user / business unit head
+ *             ($edm_is_scoped from header.php), who sees only these entries /
+ *             children (with their own / department's records)
  *   items   - dropdown children: array of (folder, file, label), plus optional
  *             files   - other scripts in the same folder that mark it active
  *             folders - other folders (any script) that mark it active
  */
 $edm_nav = array(
     array(
-        'label' => 'Dashboard',
-        'gate'  => 'view',
+        'label'  => 'Dashboard',
+        'gate'   => 'all',
+        'scoped' => true,
         'href'  => 'dashboard/index.php',
     ),
     array(
-        'label' => 'Calendar',
-        'gate'  => 'view',
+        'label'  => 'Calendar',
+        'gate'   => 'all',
+        'scoped' => true,
         'href'  => 'calendar/index.php',
     ),
     array(
-        'label' => 'Newsletters',
-        'gate'  => 'build',
-        'pic'   => true,
+        'label'  => 'Newsletters',
+        'gate'   => 'all',
+        'scoped' => true,
         'items' => array(
             // Email creator has no menu entry of its own; it is reached from
             // the Newsletters list (Design button) and keeps this highlighted.
             array('folder' => 'newsletters', 'file' => 'index.php', 'label' => 'All newsletters',
-                'folders' => array('email-builder'), 'pic' => true),
+                'folders' => array('email-builder'), 'scoped' => true),
             // Template editor (edit.php) is reached from the Templates list.
             array('folder' => 'templates', 'file' => 'index.php', 'label' => 'Templates',
                 'files' => array('edit.php')),
@@ -125,12 +121,13 @@ $edm_nav = array(
         ),
     ),
     array(
-        'label' => 'Contacts',
-        'gate'  => 'build',
-        'items' => array(
+        'label'  => 'Contacts',
+        'gate'   => 'all',
+        'scoped' => true,
+        'items'  => array(
             // Import contacts (import.php) is reached from the All contacts button.
             array('folder' => 'audience',    'file' => 'index.php',    'label' => 'All contacts',
-                'files' => array('import.php')),
+                'files' => array('import.php'), 'scoped' => true),
             array('folder' => 'audience',    'file' => 'segments.php', 'label' => 'Segments'),
             array('folder' => 'audience',    'file' => 'fields.php',   'label' => 'Custom fields'),
             array('folder' => 'suppression', 'file' => 'index.php',    'label' => 'Exclusion lists'),
@@ -138,7 +135,7 @@ $edm_nav = array(
     ),
     array(
         'label' => 'Automation',
-        'gate'  => 'build',
+        'gate'  => 'super',
         'items' => array(
             array('folder' => 'automation', 'file' => 'index.php',          'label' => 'Workflows'),
             array('folder' => 'automation', 'file' => 'autoresponders.php', 'label' => 'Autoresponders'),
@@ -158,8 +155,7 @@ $edm_nav = array(
 );
 
 $edm_gate_ok = array(
-    'build' => $edm_can_build,
-    'view'  => $edm_can_view,
+    'all'   => true,
     'super' => $edm_is_super,
 );
 ?>
@@ -173,7 +169,7 @@ $edm_gate_ok = array(
             <ul class="navbar-nav align-items-lg-center w-100">
                 <?php foreach ($edm_nav as $_item): ?>
                 <?php if (empty($edm_gate_ok[$_item['gate']])) { continue; } ?>
-                <?php if (!empty($edm_is_pic) && empty($_item['pic'])) { continue; } ?>
+                <?php if (!empty($edm_is_scoped) && empty($_item['scoped'])) { continue; } ?>
                 <?php if (isset($_item['items'])): ?>
                 <?php
                     $_child_folders = array();
@@ -190,7 +186,7 @@ $edm_gate_ok = array(
                         data-bs-toggle="dropdown" aria-expanded="false"><?php echo htmlspecialchars($_item['label']); ?></a>
                     <ul class="dropdown-menu">
                         <?php foreach ($_item['items'] as $_c): ?>
-                        <?php if (!empty($edm_is_pic) && empty($_c['pic'])) { continue; } ?>
+                        <?php if (!empty($edm_is_scoped) && empty($_c['scoped'])) { continue; } ?>
                         <?php
                             $_child_files  = array_merge(array($_c['file']), isset($_c['files']) ? $_c['files'] : array());
                             $_child_active = (($current_dir === $_c['folder'] && in_array($current_script, $_child_files, true))

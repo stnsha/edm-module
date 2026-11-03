@@ -15,9 +15,11 @@ $page_js = EDM_BASE . ($report_id ? 'dashboard/report.js' : 'dashboard/dashboard
 
 require_once __DIR__ . '/../app/bootstrap.php';
 
-// Picker: every newsletter that has sent something (send log rows), archived
+// Picker: every newsletter the user may see (own / department / all -
+// AccessScope::forUser()) that has sent something (send log rows), archived
 // ones included, newest first.
-$report_choices = array_values(array_filter(\Edm\Models\Campaign::listing(), function ($c) {
+$report_scope = \Edm\Services\AccessScope::forUser(\Edm\Core\Auth::fromSession(\Edm\Core\Database::get()));
+$report_choices = array_values(array_filter(\Edm\Models\Campaign::listing(null, null, $report_scope), function ($c) {
     return (int)$c['delivered'] > 0;
 }));
 $report_current = null;

@@ -20,7 +20,7 @@ use Edm\Services\Import\EmailListCleanse;
  */
 final class EmailCleanerController extends Controller
 {
-    protected static function allowsPic(string $action): bool
+    protected static function allowsScoped(string $action): bool
     {
         return in_array($action, ['cleaner_preview', 'cleaner_run', 'cleaner_download'], true);
     }

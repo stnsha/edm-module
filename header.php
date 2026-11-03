@@ -74,26 +74,26 @@ if (isset($_SESSION['edm_dev_role_override'])) {
 // Real superadmin only - a dev override never grants superadmin.
 $_is_superadmin = (!isset($_SESSION['edm_dev_role_override']) && $edm_flag === 1);
 
-if ((int)$edm_permission === 0 && !$_is_superadmin) {
-    ob_end_clean();
-    if (isset($_SESSION['edm_dev_role_override'])) {
-        unset($_SESSION['edm_dev_role_override']);
-        header('Location: ' . EDM_BASE . 'dashboard/index.php');
-    } else {
-        header('Location: /odb/index.php');
-    }
-    exit;
-}
+// Effective role (Edm\Core\Auth::role()): 0 normal user, 1 superadmin,
+// 2 business unit head; any other stored value (the removed 3 / 4) is 0.
+// Every logged-in odb staff may open EDM.
+$edm_role = $_is_superadmin ? 1 : (in_array((int)$edm_permission, array(0, 1, 2), true) ? (int)$edm_permission : 0);
+$edm_is_admin = ($edm_role === 1);
 
-// Department PIC (role 2, Auth::isPic()): only the Newsletters list, the
-// Email creator wizard and the Email cleaner. Any other page (Dashboard, the default entry,
-// included) goes to the Newsletters list; the APIs refuse other actions too.
-$edm_is_pic = ((int)$edm_permission === 2 && !$_is_superadmin);
-if ($edm_is_pic) {
-    $_pic_page = basename(dirname($_SERVER['SCRIPT_NAME'])) . '/' . basename($_SERVER['SCRIPT_NAME']);
-    if (!in_array($_pic_page, array('newsletters/index.php', 'email-builder/index.php', 'email-cleaner/index.php'), true)) {
+// Normal user / business unit head (Auth::isScoped()): Dashboard, Calendar,
+// Newsletters, Email creator, Contacts (All contacts, Import) and the Email
+// cleaner, showing only their own / their department's records. Any other
+// page goes to the Dashboard; the APIs refuse other actions too.
+$edm_is_scoped = !$edm_is_admin;
+if ($edm_is_scoped) {
+    $_scoped_page = basename(dirname($_SERVER['SCRIPT_NAME'])) . '/' . basename($_SERVER['SCRIPT_NAME']);
+    $_scoped_pages = array(
+        'dashboard/index.php', 'calendar/index.php', 'newsletters/index.php', 'newsletters/report.php',
+        'email-builder/index.php', 'email-cleaner/index.php', 'audience/index.php', 'audience/import.php',
+    );
+    if (!in_array($_scoped_page, $_scoped_pages, true)) {
         ob_end_clean();
-        header('Location: ' . EDM_BASE . 'newsletters/index.php');
+        header('Location: ' . EDM_BASE . 'dashboard/index.php');
         exit;
     }
 }

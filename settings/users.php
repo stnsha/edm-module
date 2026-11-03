@@ -13,11 +13,11 @@ if (empty($_is_superadmin)) {
 $page_js = EDM_BASE . 'settings/users.js';
 
 // staff.edm roles (CLAUDE.md "staff.edm").
+// Roles a superadmin grants; everyone else is a normal user (0) - they can
+// already create newsletters and manage their own contacts.
 $edm_roles = array(
-    1 => array('label' => 'Superadmin', 'cls' => 'edm-pill-danger'),
-    2 => array('label' => 'Department PIC', 'cls' => 'edm-pill-primary'),
-    3 => array('label' => 'BPT team', 'cls' => 'edm-pill-info'),
-    4 => array('label' => 'Management', 'cls' => 'edm-pill-secondary'),
+    1 => array('label' => 'Super Admin', 'cls' => 'edm-pill-danger'),
+    2 => array('label' => 'Head of Business Unit', 'cls' => 'edm-pill-primary'),
 );
 ?>
 <!-- Markup, classes and font sizes follow atem/access_control/index.php. -->
@@ -73,7 +73,14 @@ $edm_roles = array(
     <!-- Right: add / update access -->
     <div class="col-md-5">
         <div>
-            <p class="mb-3 text-muted edm-users-panel-label" id="edm-users-panel-title">Add / Update EDM Access</p>
+            <p class="mb-2 text-muted edm-users-panel-label" id="edm-users-panel-title">Add / Update EDM Access</p>
+
+            <!-- Who approves what (Campaign::canApprove()). -->
+            <ul class="edm-users-role-guide mb-3">
+                <li><strong>Normal user</strong> (every staff, no role needed) - creates newsletters and submits them for approval. Cannot approve.</li>
+                <li><strong>Head of Business Unit</strong> - approves or rejects newsletters from their own department.</li>
+                <li><strong>Super Admin</strong> - approves or rejects any newsletter.</li>
+            </ul>
 
             <div id="edm-users-form-alert" class="alert alert-dismissible fade show mb-3" role="alert" hidden>
                 <span id="edm-users-form-alert-msg"></span>

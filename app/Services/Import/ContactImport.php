@@ -9,6 +9,7 @@ use Edm\Core\HttpException;
 use Edm\Core\ValidationException;
 use Edm\Models\Contact;
 use Edm\Models\CustomField;
+use Edm\Services\AccessScope;
 use PhpOffice\PhpSpreadsheet\Shared\Date as ExcelDate;
 
 /**
@@ -71,8 +72,23 @@ final class ContactImport
     private const PREVIEW_ROWS = 5;
     private const STAGE_TTL = 86400;
 
-    public function __construct(private Database $db, private int $staffId)
+    /**
+     * $scope: the contacts the importer may update (AccessScope::forUser());
+     * an address already on the masterlist outside it is left alone.
+     * $owner: ownership columns stamped on new contacts
+     * (AccessScope::contactStamp()). Defaults: all / unowned (superadmin).
+     *
+     * @param array{owner_id: ?int, department_id: ?int}|null $owner
+     */
+    private AccessScope $scope;
+
+    /** @var array{owner_id: ?int, department_id: ?int} */
+    private array $owner;
+
+    public function __construct(private Database $db, private int $staffId, ?AccessScope $scope = null, ?array $owner = null)
     {
+        $this->scope = $scope ?? AccessScope::all();
+        $this->owner = $owner ?? ['owner_id' => null, 'department_id' => null];
     }
 
     /**
@@ -207,11 +223,15 @@ final class ContactImport
         if ($emails !== []) {
             $in = implode(',', array_fill(0, count($emails), '?'));
             foreach ($this->db->select(
-                'SELECT `id`, LOWER(TRIM(`email`)) AS email, `fields` FROM `edm_contacts`
+                'SELECT `id`, LOWER(TRIM(`email`)) AS email, `fields`, `owner_id`, `department_id` FROM `edm_contacts`
                  WHERE `deleted_at` IS NULL AND LOWER(TRIM(`email`)) IN (' . $in . ')',
                 array_keys($emails)
             ) as $r) {
-                $existing[$r['email']] = ['id' => (int) $r['id'], 'fields' => json_decode((string) $r['fields'], true) ?: []];
+                $existing[$r['email']] = [
+                    'id'       => (int) $r['id'],
+                    'fields'   => json_decode((string) $r['fields'], true) ?: [],
+                    'in_scope' => $this->scope->hasContact($r),
+                ];
             }
             foreach ($this->db->select(
                 'SELECT LOWER(TRIM(`email`)) AS email FROM `edm_suppressions` WHERE `deleted_at` IS NULL AND LOWER(TRIM(`email`)) IN (' . $in . ')',
@@ -253,6 +273,13 @@ final class ContactImport
                 }
                 $seen[$email] = true;
                 $isExisting = isset($existing[$email]);
+                // One record per address: a contact owned by someone outside
+                // the importer's scope is never changed or taken over.
+                if ($isExisting && !$existing[$email]['in_scope']) {
+                    $sum['ignored']++;
+                    $issues[] = ['row' => $rowNumber, 'email' => $email, 'type' => 'note', 'message' => 'Already on the masterlist under another owner - not changed.'];
+                    continue;
+                }
                 if (($isExisting && $mode === self::MODE_ADD) || (!$isExisting && $mode === self::MODE_UPDATE)) {
                     $sum['ignored']++;
                     continue;
@@ -320,6 +347,8 @@ final class ContactImport
                         'source'        => 'import',
                         'status'        => Contact::SUBSCRIBED,
                         'subscribed_at' => $now,
+                        'owner_id'      => $this->owner['owner_id'],
+                        'department_id' => $this->owner['department_id'],
                         'created_at'    => $now,
                         'updated_at'    => $now,
                     ]);

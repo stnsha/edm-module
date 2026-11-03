@@ -59,7 +59,7 @@
     }
     function rolePill(edm) {
         var r = ROLES[edm];
-        return r ? '<span class="edm-pill ' + r.cls + '">' + esc(r.label) + '</span>' : '<span class="text-muted">No access</span>';
+        return r ? '<span class="edm-pill ' + r.cls + '">' + esc(r.label) + '</span>' : '<span class="text-muted">Normal user</span>';
     }
     function showAlert(msg) { alertEl.textContent = msg; alertEl.hidden = false; }
     // Same alert as atem's #form-alert: dismissible, success / danger.
@@ -111,7 +111,7 @@
                         '<ul class="dropdown-menu dropdown-menu-end edm-row-menu">' +
                             '<li><button type="button" class="dropdown-item" data-act="edit">Edit</button></li>' +
                             '<li><hr class="dropdown-divider"></li>' +
-                            '<li><button type="button" class="dropdown-item text-danger" data-act="delete">Remove access</button></li>' +
+                            '<li><button type="button" class="dropdown-item text-danger" data-act="delete">Set as normal user</button></li>' +
                         '</ul>' +
                     '</div>') + '</td>' +
             '</tr>';
@@ -169,11 +169,11 @@
             document.getElementById('edm-users-panel-title').scrollIntoView({ behavior: 'smooth', block: 'center' });
             return;
         }
-        window.edmConfirm('Remove EDM access for ' + row.nama_staff + '? They will no longer be able to open EDM.', function () {
+        window.edmConfirm('Set ' + row.nama_staff + ' as a normal user? They keep EDM, limited to their own newsletters and contacts.', function () {
             call('users_delete', 'DELETE', { id: id }).then(function (res) {
                 if (!res.success) { showAlert(firstError(res)); return; }
                 if (picked && picked.id === id) { resetPanel(); }
-                formMessage('Access removed for ' + row.nama_staff + '.', true);
+                formMessage(row.nama_staff + ' is now a normal user.', true);
                 load();
             }).catch(function () { showAlert('Could not reach the server.'); });
         });

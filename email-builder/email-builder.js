@@ -29,6 +29,8 @@
         subject:   document.getElementById('edm-eb-f-subject'),
         preheader: document.getElementById('edm-eb-f-preheader'),
         scheduled: document.getElementById('edm-eb-f-scheduled'),
+        scheduledDate: document.getElementById('edm-eb-f-scheduled-date'),
+        scheduledHour: document.getElementById('edm-eb-f-scheduled-hour'),
         whenNow:   document.getElementById('edm-eb-f-when-now'),
         whenLater: document.getElementById('edm-eb-f-when-later'),
         trackOpens:  document.getElementById('edm-eb-f-track-opens'),
@@ -68,8 +70,8 @@
     // Tags (Setup step): several per newsletter, as chips. A typed name that
     // matches a tag on the master list (any case) uses it; any other becomes
     // a new tag, created by the server on Save (settings_save new_tags) -
-    // except for a department PIC, who can only pick existing tags.
-    var IS_PIC = !!window.EDM_EB_PIC;
+    // except for a normal user / business unit head, who only pick existing tags.
+    var IS_SCOPED = !!window.EDM_EB_SCOPED;
     var MAX_TAGS = 10;
     var tagBox = document.getElementById('edm-eb-tags');
     var tagInput = document.getElementById('edm-eb-f-tag-input');
@@ -87,7 +89,7 @@
                 (tagInput.disabled ? '' : '<button type="button" aria-label="Remove ' + esc(t.name) + '" data-i="' + i + '">&times;</button>');
             tagBox.insertBefore(chip, tagInput);
         });
-        tagInput.placeholder = tags.length ? '' : (IS_PIC ? 'Pick a tag...' : 'Add a tag...');
+        tagInput.placeholder = tags.length ? '' : (IS_SCOPED ? 'Pick a tag...' : 'Add a tag...');
     }
     function addTag(raw) {
         var name = String(raw || '').replace(/\s+/g, ' ').trim();
@@ -97,7 +99,7 @@
         if (tags.some(function (t) { return t.name.toLowerCase() === lower; })) { return; }
         if (tags.length >= MAX_TAGS) { showAlert('A newsletter can have at most ' + MAX_TAGS + ' tags.'); return; }
         var known = knownTags.filter(function (t) { return t.name.toLowerCase() === lower; })[0];
-        if (!known && IS_PIC) { showAlert('Choose an existing tag from the list - new tags are added by the EDM team.'); return; }
+        if (!known && IS_SCOPED) { showAlert('Choose an existing tag from the list - new tags are added by the EDM team.'); return; }
         tags.push(known ? { id: known.id, name: known.name } : { id: null, name: name.slice(0, 100) });
         renderTags();
         setDirty(true);
@@ -154,6 +156,7 @@
     var audiencePicker = window.edmAudiencePicker({
         root: document.getElementById('edm-eb-audience'),
         segments: window.EDM_EB_SEGMENTS || [],
+        campaignId: CID,
         onChange: function () { setDirty(true); paintSteps(); }
     });
 
@@ -208,7 +211,7 @@
             html: content.html || '',
             variables: VARIABLES,
             assets: window.EDM_EB_ASSETS || [], // Files library images for the Image block
-            assetsNoDelete: IS_PIC // PIC: may upload images, not delete them
+            assetsNoDelete: IS_SCOPED // normal user / BU head: may upload images, not delete them
         });
         setDirty(false);
         saveBtn.disabled = false;
@@ -227,11 +230,32 @@
         return (res && res.message) || 'Request failed.';
     }
 
-    // API 'd-m-Y H:i:s' <-> <input type="datetime-local"> 'Y-m-dTH:i'.
+    // API 'd-m-Y H:i:s' <-> the hidden 'Y-m-dTH:00' value. Sends start on
+    // the hour only, so minutes are dropped (an older value is rounded down).
     function toInputDate(v) {
         var m = /^(\d{2})-(\d{2})-(\d{4}) (\d{2}):(\d{2})/.exec(v || '');
-        return m ? m[3] + '-' + m[2] + '-' + m[1] + 'T' + m[4] + ':' + m[5] : '';
+        return m ? m[3] + '-' + m[2] + '-' + m[1] + 'T' + m[4] + ':00' : '';
     }
+
+    // The visible date + hour pickers fill the hidden f.scheduled value (empty
+    // until both are chosen) and fire its change event, so conflict checks,
+    // the summary and the dirty flag follow as before.
+    function setScheduledPickers(v) {
+        var m = /^(\d{4}-\d{2}-\d{2})T(\d{2})/.exec(v || '');
+        f.scheduledDate.value = m ? m[1] : '';
+        f.scheduledHour.value = m ? m[2] : '';
+        f.scheduled.value = m ? m[1] + 'T' + m[2] + ':00' : '';
+    }
+    function syncScheduled() {
+        var d = f.scheduledDate.value;
+        var h = f.scheduledHour.value;
+        var v = d && h ? d + 'T' + h + ':00' : '';
+        if (v === f.scheduled.value) { return; }
+        f.scheduled.value = v;
+        f.scheduled.dispatchEvent(new Event('change'));
+    }
+    f.scheduledDate.addEventListener('change', syncScheduled);
+    f.scheduledHour.addEventListener('change', syncScheduled);
 
     // Calendar conflicts for the chosen send date (app/Services/
     // ScheduleConflicts): a warning only, saving is never blocked.
@@ -270,7 +294,7 @@
         f.subject.value = c.subject || '';
         f.preheader.value = c.preheader || '';
         setTags(c.tags);
-        f.scheduled.value = toInputDate(c.scheduled_at);
+        setScheduledPickers(toInputDate(c.scheduled_at));
         f.whenNow.checked = !!c.send_now;
         f.whenLater.checked = !c.send_now;
         f.trackOpens.checked = c.track_opens !== false;
@@ -636,7 +660,7 @@
                     html: res.data.html || '',
                     variables: VARIABLES,
                     assets: window.EDM_EB_ASSETS || [],
-                    assetsNoDelete: IS_PIC
+                    assetsNoDelete: IS_SCOPED
                 });
                 setDirty(true);
                 tplModal.hide();
@@ -825,7 +849,7 @@
             return;
         }
         if (!f.whenNow.checked && !f.scheduled.value) {
-            f.scheduled.focus();
+            (f.scheduledDate.value ? f.scheduledHour : f.scheduledDate).focus();
             showAlert('Choose Send now, or a send date and time, before submitting for review.');
             return;
         }

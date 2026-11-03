@@ -49,13 +49,17 @@ final class PerformanceReport
         'month' => ['%Y-%m', 'Y-m', 'P1M', 'M Y'],
     ];
 
-    public function __construct(private Database $db)
+    /** Newsletters the figures cover (AccessScope::forUser()); null = all. */
+    private AccessScope $scope;
+
+    public function __construct(private Database $db, ?AccessScope $scope = null)
     {
+        $this->scope = $scope ?? AccessScope::all();
     }
 
     /**
-     * Dashboard: every newsletter, emails sent from $from to $to (Y-m-d,
-     * both days included).
+     * Dashboard: every newsletter in scope, emails sent from $from to $to
+     * (Y-m-d, both days included).
      *
      * @return array<string, mixed>
      */
@@ -67,7 +71,7 @@ final class PerformanceReport
         $prevEnd = $start->modify('-1 second');
         $prevStart = $start->modify('-' . $days . ' days');
 
-        $overview = new ReportingOverview($this->db);
+        $overview = new ReportingOverview($this->db, $this->scope);
 
         return [
             'from'     => $start->format('Y-m-d'),
@@ -148,6 +152,9 @@ final class PerformanceReport
             $scope = ' AND `campaign_id` = ?';
             $scopeParams[] = $campaignId;
         }
+        [$own, $ownParams] = $this->scope->sendLogAnd();
+        $scope .= $own;
+        array_push($scopeParams, ...$ownParams);
 
         $data = [];
         foreach (self::SERIES as $key => $column) {
@@ -167,9 +174,14 @@ final class PerformanceReport
 
         // Soft (Transient / Undetermined) and hard (Permanent) bounces from
         // the SES Bounce events; all bounces = both.
-        $join = $campaignId !== null
-            ? ' JOIN `edm_send_log` s ON s.`ses_message_id` = e.`ses_message_id` AND s.`deleted_at` IS NULL AND s.`campaign_id` = ?'
-            : '';
+        $join = '';
+        $joinParams = [];
+        if ($campaignId !== null || !$this->scope->isAll()) {
+            [$ownS, $ownSParams] = $this->scope->sendLogAnd('s');
+            $join = ' JOIN `edm_send_log` s ON s.`ses_message_id` = e.`ses_message_id` AND s.`deleted_at` IS NULL'
+                . ($campaignId !== null ? ' AND s.`campaign_id` = ?' : '') . $ownS;
+            $joinParams = [...($campaignId !== null ? [$campaignId] : []), ...$ownSParams];
+        }
         $rows = $this->db->select(
             'SELECT DATE_FORMAT(e.`occurred_at`, ?) AS bucket,
                     SUM(JSON_UNQUOTE(JSON_EXTRACT(e.`payload`, \'$.bounce.bounceType\')) = \'Permanent\') AS hard,
@@ -177,7 +189,7 @@ final class PerformanceReport
                FROM `edm_ses_events` e' . $join . '
               WHERE e.`deleted_at` IS NULL AND e.`event_type` = ? AND e.`occurred_at` BETWEEN ? AND ?
               GROUP BY bucket',
-            array_merge([$sqlFormat], $scopeParams, ['Bounce', $from, $to])
+            array_merge([$sqlFormat], $joinParams, ['Bounce', $from, $to])
         );
         $data['bounced'] = self::fill($keys, $rows);
         $data['hard_bounced'] = self::fill($keys, $rows, 'hard');
@@ -197,6 +209,7 @@ final class PerformanceReport
      */
     private function messages(DateTimeImmutable $start, DateTimeImmutable $end): array
     {
+        [$own, $ownParams] = $this->scope->sendLogAnd('s');
         $rows = $this->db->select(
             'SELECT s.`campaign_id`, c.`name`, c.`deleted_at` AS campaign_deleted, sd.`from_name`,
                     MIN(s.`sent_at`) AS sent_on, COUNT(*) AS sent,
@@ -207,10 +220,10 @@ final class PerformanceReport
                LEFT JOIN `edm_campaigns` c ON c.`id` = s.`campaign_id`
                LEFT JOIN `edm_senders` sd ON sd.`id` = c.`sender_id`
               WHERE s.`deleted_at` IS NULL AND s.`campaign_id` IS NOT NULL
-                AND s.`status` IN (?, ?, ?, ?) AND s.`sent_at` BETWEEN ? AND ?
+                AND s.`status` IN (?, ?, ?, ?) AND s.`sent_at` BETWEEN ? AND ?' . $own . '
               GROUP BY s.`campaign_id`, c.`name`, c.`deleted_at`, sd.`from_name`
               ORDER BY sent_on DESC',
-            [SendLog::SENT, SendLog::DELIVERED, SendLog::BOUNCED, SendLog::COMPLAINED, self::sql($start), self::sql($end)]
+            [SendLog::SENT, SendLog::DELIVERED, SendLog::BOUNCED, SendLog::COMPLAINED, self::sql($start), self::sql($end), ...$ownParams]
         );
 
         return array_map(static fn (array $r): array => [
@@ -254,6 +267,9 @@ final class PerformanceReport
             $where .= ' AND `sent_at` BETWEEN ? AND ?';
             array_push($params, self::sql($start), self::sql($end));
         }
+        [$own, $ownParams] = $this->scope->sendLogAnd();
+        $where .= $own;
+        array_push($params, ...$ownParams);
         $rows = $this->db->select(
             'SELECT `unsubscribe_reason` AS reason, COUNT(*) AS n FROM `edm_send_log` WHERE ' . $where . '
               GROUP BY `unsubscribe_reason` ORDER BY n DESC',
@@ -281,6 +297,9 @@ final class PerformanceReport
             $where .= ' AND `sent_at` BETWEEN ? AND ?';
             array_push($params, self::sql($start), self::sql($end));
         }
+        [$own, $ownParams] = $this->scope->sendLogAnd();
+        $where .= $own;
+        array_push($params, ...$ownParams);
         $rows = $this->db->select(
             'SELECT LOWER(SUBSTRING_INDEX(`email`, \'@\', -1)) AS domain, COUNT(*) AS sent,
                     COUNT(`opened_at`) AS opened, COUNT(`clicked_at`) AS clicked, COUNT(`bounced_at`) AS bounced

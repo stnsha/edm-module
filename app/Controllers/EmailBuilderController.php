@@ -13,6 +13,7 @@ use Edm\Models\CampaignContent;
 use Edm\Models\MasterTag;
 use Edm\Models\Sender;
 use Edm\Models\Template;
+use Edm\Services\AccessScope;
 use Edm\Services\ScheduleConflicts;
 use Edm\Services\ScheduleReadiness;
 use Edm\Services\Ses\CampaignMessage;
@@ -38,7 +39,8 @@ use Edm\Services\Ses\Unsubscribe;
  *                   loaded into the editor only, saved by the next Save)
  *   submit          "Submit for review" (step 5): draft -> pending approval,
  *                   submitter + department stamped (Campaign::submit())
- *   approve         step 6, EDM approver (role 1): pending -> scheduled
+ *   approve         step 6, a superadmin or the business unit head of the
+ *                   newsletter's department: pending -> scheduled
  *   reject          { comment } step 6: pending -> draft with the reason
  *   withdraw        the submitter: pending -> draft
  *   load / submit / approve / reject / withdraw answer with the newsletter
@@ -62,24 +64,26 @@ final class EmailBuilderController extends Controller
     ];
 
     /**
-     * Department PICs (Auth::isPic()): the wizard on their own newsletters,
-     * picking only what exists - no new sender (sender_create), no new tags
-     * (settings_save refuses new_tags), no approval.
+     * Normal users and business unit heads (Auth::isScoped()): the wizard on
+     * the newsletters they may see (own / department), picking only what
+     * exists - no new sender (sender_create), no new tags (settings_save
+     * refuses new_tags). approve / reject are listed so a business unit
+     * head can decide; Campaign::canApprove() refuses everyone else.
      */
-    private const PIC_ACTIONS = [
+    private const SCOPED_ACTIONS = [
         'campaigns_list', 'load', 'settings_save', 'content_get', 'content_save', 'conflicts',
-        'template_get', 'send_test', 'submit', 'withdraw',
+        'template_get', 'send_test', 'submit', 'withdraw', 'approve', 'reject',
     ];
 
-    protected static function allowsPic(string $action): bool
+    protected static function allowsScoped(string $action): bool
     {
-        return in_array($action, self::PIC_ACTIONS, true);
+        return in_array($action, self::SCOPED_ACTIONS, true);
     }
 
     protected function handle(string $action): mixed
     {
         if ($action === 'campaigns_list') {
-            return Campaign::listing(null, null, $this->auth->isPic() ? $this->auth->staffId : null);
+            return Campaign::listing(null, null, AccessScope::forUser($this->auth));
         }
 
         $id = (int) ($this->request->query('newsletter') ?? $this->request->query('campaign') ?? $this->request->get('campaign', 0));
@@ -98,7 +102,12 @@ final class EmailBuilderController extends Controller
                     + $this->request->ids(['sender_id', 'reply_to_id']);
                 $data = $this->validator->validate($payload, self::SETTINGS_RULES, $id)
                     + Campaign::settingsInput($this->request->input);
-                if ($this->auth->isPic() && array_filter((array) $this->request->get('new_tags', [])) !== []) {
+                // Scheduled sends start on the hour only (the Send step offers whole hours).
+                $at = trim((string) ($data['scheduled_at'] ?? ''));
+                if ($at !== '' && Model::parseDate($at)?->format('i:s') !== '00:00') {
+                    throw ValidationException::single('scheduled_at', 'Choose a send time on the hour (for example 09:00 or 14:00).');
+                }
+                if ($this->auth->isScoped() && array_filter((array) $this->request->get('new_tags', [])) !== []) {
                     throw ValidationException::single('tags', 'Choose existing tags only - new tags are added by the EDM team.');
                 }
                 // Tags: chosen ids + new names typed in the Setup step; new
@@ -134,7 +143,7 @@ final class EmailBuilderController extends Controller
                 if ($date === null) {
                     throw new HttpException('A valid date is required', 422);
                 }
-                return (new ScheduleConflicts($this->db))->forDate($date, $id);
+                return (new ScheduleConflicts($this->db))->forDate($date, $id, AccessScope::forUser($this->auth));
             case 'template_get':
                 $template = Template::findOrFail((int) $this->request->query('template', 0));
                 return ['html' => $template['html'] ?? '', 'editor_json' => $template['editor_json'] ?? null];
@@ -169,7 +178,7 @@ final class EmailBuilderController extends Controller
             'me'           => ['name' => $this->auth->staffName, 'department' => $this->auth->department($this->db)],
             'can_approve'  => Campaign::canApprove($campaign, $this->auth),
             'can_withdraw' => Campaign::canWithdraw($campaign, $this->auth),
-            'approvers'    => Campaign::approverNames(),
+            'approvers'    => Campaign::approverNames($campaign),
             'checks'       => (new ScheduleReadiness())->checks($campaign, Campaign::sendAt($campaign), true),
         ];
 

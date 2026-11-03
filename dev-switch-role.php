@@ -5,7 +5,7 @@
  * cache so the next API request fetches a fresh token.
  *
  * Role levels (staff.edm):
- *   1 = superadmin, 2 = admin, 3 = bpt team, 4 = management
+ *   0 = normal user, 1 = superadmin, 2 = business unit head
  *
  * This file must NOT be deployed to production.
  */
@@ -35,7 +35,7 @@ if (!isset($_SERVER['REQUEST_METHOD']) || $_SERVER['REQUEST_METHOD'] !== 'POST')
     exit;
 }
 
-$allowed_roles = array(1, 2, 3, 4);
+$allowed_roles = array(0, 1, 2);
 $role_input    = isset($_POST['role']) ? $_POST['role'] : null;
 
 if ($role_input === 'clear') {

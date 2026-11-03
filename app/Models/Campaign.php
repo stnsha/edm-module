@@ -10,6 +10,7 @@ use Edm\Core\Database;
 use Edm\Core\HttpException;
 use Edm\Core\Model;
 use Edm\Core\ValidationException;
+use Edm\Services\AccessScope;
 use Edm\Services\CampaignRecipients;
 use Edm\Services\ScheduleReadiness;
 use Edm\Services\UtmTagger;
@@ -47,14 +48,14 @@ final class Campaign extends Model
     protected const FILLABLE = [
         'name', 'subject', 'subject_b', 'preheader', 'tag_ids', 'sender_id', 'reply_to_id', 'audience', 'send_now',
         'track_opens', 'track_clicks', 'utm_enabled', 'utm',
-        'status', 'archived_from', 'scheduled_at', 'requested_by', 'requested_by_name',
+        'status', 'archived_from', 'scheduled_at', 'requested_by', 'requested_by_name', 'owner_role', 'department_id',
         'submitted_by', 'submitted_by_name', 'submitted_department', 'submitted_at',
         'reviewed_by', 'reviewed_by_name', 'reviewed_at', 'review_comment',
     ];
 
     protected const CASTS = [
         'status' => 'int', 'archived_from' => 'int', 'scheduled_at' => 'datetime', 'audience' => 'json', 'utm' => 'json',
-        'tag_ids' => 'json',
+        'tag_ids' => 'json', 'requested_by' => 'int', 'owner_role' => 'int', 'department_id' => 'int',
         'submitted_by' => 'int', 'submitted_at' => 'datetime', 'reviewed_by' => 'int', 'reviewed_at' => 'datetime',
         'send_now' => 'bool', 'track_opens' => 'bool', 'track_clicks' => 'bool', 'utm_enabled' => 'bool',
     ];
@@ -140,14 +141,15 @@ final class Campaign extends Model
      *
      * @return list<array<string, mixed>>
      */
-    public static function listing(?int $status = null, ?bool $archived = null, ?int $ownerId = null): array
+    public static function listing(?int $status = null, ?bool $archived = null, ?AccessScope $scope = null): array
     {
         $where = ['c.`deleted_at` IS NULL'];
         $params = [];
-        // $ownerId: only newsletters created by that staff (department PIC).
-        if ($ownerId !== null) {
-            $where[] = 'c.`requested_by` = ?';
-            $params[] = $ownerId;
+        // $scope: only the newsletters the user may see (AccessScope::forUser()).
+        if ($scope !== null && !$scope->isAll()) {
+            [$cond, $condParams] = $scope->campaignWhere('c');
+            $where[] = $cond;
+            array_push($params, ...$condParams);
         }
         if ($status !== null) {
             $where[] = 'c.`status` = ?';
@@ -337,34 +339,54 @@ final class Campaign extends Model
     }
 
     /**
-     * Who may approve or reject (step 6): EDM role 1 only (Auth::isApprover()
-     * - staff.edm = 1, or the dev override to role 1).
+     * Who may approve or reject (step 6): a superadmin (staff.edm = 1, or the
+     * dev override to 1), or the business unit head of the newsletter's
+     * department (staff.edm = 2 with the same staff.department).
      */
     public static function canApprove(array $campaign, Auth $auth): bool
     {
-        return $campaign['status'] === self::PENDING_APPROVAL && $auth->isApprover();
+        if ($campaign['status'] !== self::PENDING_APPROVAL) {
+            return false;
+        }
+
+        return $auth->isAdmin()
+            || ($auth->isBuHead() && $auth->departmentId !== null
+                && (int) ($campaign['department_id'] ?? 0) === $auth->departmentId);
     }
 
     /**
-     * A department PIC (Auth::isPic()) only sees newsletters they created;
-     * anyone else sees all. Answers "not found" so other newsletters are
-     * not revealed.
+     * A normal user sees only the newsletters they created, a business unit
+     * head those of their department, a superadmin all
+     * (AccessScope::forUser()). Answers "not found" so other newsletters
+     * are not revealed.
      *
      * @throws HttpException 404
      */
     public static function assertVisibleTo(array $campaign, Auth $auth): void
     {
-        if ($auth->isPic() && $campaign['requested_by'] !== $auth->staffId) {
+        if (!AccessScope::forUser($auth)->hasCampaign($campaign)) {
             throw new HttpException('Newsletter not found', 404);
         }
     }
 
-    /** Names of the staff who approve newsletters (staff.edm = 1), for "Waiting for ...". */
-    public static function approverNames(): array
+    /**
+     * Names of the staff who may approve this newsletter, for "Waiting for
+     * ...": the superadmins, plus the business unit heads of its department.
+     *
+     * @return list<string>
+     */
+    public static function approverNames(array $campaign): array
     {
+        $department = (int) ($campaign['department_id'] ?? 0);
+
         return array_map(
             static fn (array $r): string => (string) $r['nama_staff'],
-            self::db()->select('SELECT `nama_staff` FROM `staff` WHERE `edm` = 1 AND `recycle` != 1 ORDER BY `nama_staff`')
+            self::db()->select(
+                'SELECT `nama_staff` FROM `staff`
+                  WHERE `recycle` != 1 AND (`edm` = ? OR (`edm` = ? AND `department` = ?))
+                  ORDER BY `edm` DESC, `nama_staff`',
+                [Auth::SUPERADMIN, Auth::BU_HEAD, $department > 0 ? $department : -1]
+            )
         );
     }
 
@@ -372,7 +394,7 @@ final class Campaign extends Model
     public static function canWithdraw(array $campaign, Auth $auth): bool
     {
         return $campaign['status'] === self::PENDING_APPROVAL
-            && ($auth->isSuperadmin || ($auth->staffId !== null && $campaign['submitted_by'] === $auth->staffId));
+            && ($auth->isAdmin() || ($auth->staffId !== null && $campaign['submitted_by'] === $auth->staffId));
     }
 
     /**
@@ -442,7 +464,7 @@ final class Campaign extends Model
     {
         return $campaign['status'] !== self::PENDING_APPROVAL
             ? 'This newsletter is not pending approval.'
-            : 'Only the EDM approver (role 1) can approve or reject newsletters.';
+            : 'Only a Super Admin or the Head of Business Unit of this newsletter\'s department can approve or reject it.';
     }
 
     /**
@@ -547,13 +569,14 @@ final class Campaign extends Model
         return self::update($id, ['status' => $next]);
     }
 
-    /** Count per status label, every label present (0 when none); $ownerId as in listing(). */
-    public static function countsByStatus(?int $ownerId = null): array
+    /** Count per status label, every label present (0 when none); $scope as in listing(). */
+    public static function countsByStatus(?AccessScope $scope = null): array
     {
+        [$cond, $params] = ($scope ?? AccessScope::all())->campaignWhere('c');
         $rows = self::db()->select(
-            'SELECT `status`, COUNT(*) AS total FROM ' . Database::ident(self::TABLE)
-            . ' WHERE `deleted_at` IS NULL' . ($ownerId !== null ? ' AND `requested_by` = ?' : '') . ' GROUP BY `status`',
-            $ownerId !== null ? [$ownerId] : []
+            'SELECT c.`status`, COUNT(*) AS total FROM ' . Database::ident(self::TABLE) . ' c'
+            . ' WHERE c.`deleted_at` IS NULL AND ' . $cond . ' GROUP BY c.`status`',
+            $params
         );
         $byInt = [];
         foreach ($rows as $r) {

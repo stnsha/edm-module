@@ -9,6 +9,7 @@ use Edm\Models\Campaign;
 use Edm\Models\CampaignContent;
 use Edm\Models\Contact;
 use Edm\Models\SendLog;
+use Edm\Services\AccessScope;
 use Edm\Services\CampaignRecipients;
 use Edm\Services\Analytics\CampaignAnalytics;
 use Edm\Services\CampaignReport;
@@ -80,35 +81,37 @@ final class CampaignController extends Controller
     ];
 
     /**
-     * Department PICs (Auth::isPic()): their own newsletters only (handle()
-     * checks the id), no templates-based create, no report.
+     * Normal users and business unit heads (Auth::isScoped()): the
+     * newsletters they may see only (own / department, handle() checks the
+     * id), no create-from-template.
      */
-    private const PIC_ACTIONS = [
+    private const SCOPED_ACTIONS = [
         'campaigns_list', 'campaigns_new', 'campaigns_update', 'campaigns_delete', 'campaigns_duplicate',
         'campaigns_stop', 'campaigns_recall', 'campaigns_archive', 'campaigns_unarchive', 'campaigns_counts',
-        'campaigns_recipients', 'campaigns_preview',
+        'campaigns_recipients', 'campaigns_preview', 'campaigns_report', 'campaigns_analytics',
     ];
 
-    protected static function allowsPic(string $action): bool
+    protected static function allowsScoped(string $action): bool
     {
-        return in_array($action, self::PIC_ACTIONS, true);
+        return in_array($action, self::SCOPED_ACTIONS, true);
     }
 
     protected function handle(string $action): mixed
     {
-        // A PIC may only act on newsletters they created.
-        $owner = $this->auth->isPic() ? $this->auth->staffId : null;
-        if ($owner !== null && $this->request->id() > 0) {
+        // Only newsletters the user may see (own / department / all).
+        $scope = AccessScope::forUser($this->auth);
+        if ($this->request->id() > 0) {
             Campaign::assertVisibleTo(Campaign::findOrFail($this->request->id()), $this->auth);
         }
 
         switch ($action) {
             case 'campaigns_list':
-                return Campaign::listing(null, !empty($this->request->query('archived')), $owner);
+                return Campaign::listing(null, !empty($this->request->query('archived')), $scope);
             case 'campaigns_new':
-                return Campaign::createBlank($this->stamp('requested_by'));
+                return Campaign::createBlank($this->ownerStamp());
             case 'campaigns_create':
                 $data = $this->validator->validate($this->payload() + $this->stamp('requested_by'), self::RULES)
+                    + AccessScope::campaignStamp($this->auth)
                     + Campaign::settingsInput($this->request->input);
                 $template = $this->validator->validate(
                     $this->request->ids(['template_id']),
@@ -127,7 +130,7 @@ final class CampaignController extends Controller
                 Campaign::delete($this->requireId('Newsletter'));
                 return null;
             case 'campaigns_duplicate':
-                return Campaign::duplicate($this->requireId('Newsletter'), $this->stamp('requested_by'));
+                return Campaign::duplicate($this->requireId('Newsletter'), $this->ownerStamp());
             case 'campaigns_stop':
                 return Campaign::stop($this->requireId('Newsletter'));
             case 'campaigns_recall':
@@ -135,7 +138,7 @@ final class CampaignController extends Controller
             case 'campaigns_archive':
                 return Campaign::archive($this->requireId('Newsletter'));
             case 'campaigns_counts':
-                $byStatus = Campaign::countsByStatus($owner);
+                $byStatus = Campaign::countsByStatus($scope);
                 return ['archived' => $byStatus['archived'], 'active' => array_sum($byStatus) - $byStatus['archived']];
             case 'campaigns_unarchive':
                 return Campaign::unarchive($this->requireId('Newsletter'));
@@ -152,6 +155,17 @@ final class CampaignController extends Controller
                 $this->preview();
         }
         $this->unknown();
+    }
+
+    /**
+     * Creator + ownership of a new newsletter: requested_by / _name and
+     * owner_role / department_id (AccessScope::campaignStamp()).
+     *
+     * @return array<string, mixed>
+     */
+    private function ownerStamp(): array
+    {
+        return $this->stamp('requested_by') + AccessScope::campaignStamp($this->auth);
     }
 
     /** @return array<string, mixed> */
@@ -189,7 +203,7 @@ final class CampaignController extends Controller
             ];
         }
 
-        $service = new CampaignRecipients($this->db);
+        $service = new CampaignRecipients($this->db, AccessScope::forCampaign($campaign));
         $audience = CampaignRecipients::of($campaign);
 
         return [
@@ -249,7 +263,7 @@ final class CampaignController extends Controller
     private function previewRecipient(array $campaign): array
     {
         // Suppressed addresses are listed by rows() but never sent to.
-        $rows = (new CampaignRecipients($this->db))->rows(CampaignRecipients::of($campaign), 50);
+        $rows = (new CampaignRecipients($this->db, AccessScope::forCampaign($campaign)))->rows(CampaignRecipients::of($campaign), 50);
         $first = array_values(array_filter($rows, static fn (array $r): bool => !$r['suppressed']))[0] ?? null;
         $email = $first['email'] ?? 'preview@example.com';
         $contact = $first !== null ? (Contact::where('LOWER(`email`) = ?', [strtolower($email)])[0] ?? null) : null;

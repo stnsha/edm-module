@@ -53,8 +53,8 @@ abstract class Controller
         }
         $request = new Request();
         $action = (string) $request->action;
-        if ($auth->isPic() && !static::allowsPic($action)) {
-            Response::json(['success' => false, 'message' => 'Department PICs can only create and submit their own newsletters.'], 403);
+        if ($auth->isScoped() && !static::allowsScoped($action)) {
+            Response::json(['success' => false, 'message' => 'Only an EDM superadmin can do this.'], 403);
         }
 
         try {
@@ -74,11 +74,13 @@ abstract class Controller
     }
 
     /**
-     * Whether a department PIC (Auth::isPic()) may call this action. Nothing
-     * by default; the Newsletters, Email creator and Audience controllers
-     * list the actions the wizard needs (and check ownership themselves).
+     * Whether a normal user or business unit head (Auth::isScoped()) may
+     * call this action. Nothing by default (superadmin-only screens); the
+     * Newsletters, Email creator, Contacts, Calendar, Dashboard, Files and
+     * Email cleaner controllers list theirs and limit the data to
+     * Services\AccessScope::forUser().
      */
-    protected static function allowsPic(string $action): bool
+    protected static function allowsScoped(string $action): bool
     {
         return false;
     }

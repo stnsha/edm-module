@@ -7,6 +7,7 @@ namespace Edm\Controllers;
 use DateTimeImmutable;
 use Edm\Core\Controller;
 use Edm\Core\ValidationException;
+use Edm\Services\AccessScope;
 use Edm\Services\PerformanceReport;
 use Edm\Services\ReportingOverview;
 
@@ -17,16 +18,23 @@ use Edm\Services\ReportingOverview;
  *                this year to today) message performance for that period
  *                against the period of equal length before it
  *                (Services/PerformanceReport)
+ * Both cover only the newsletters (and contacts) the user may see -
+ * AccessScope::forUser(): own / department / all.
  */
 final class DashboardController extends Controller
 {
+    protected static function allowsScoped(string $action): bool
+    {
+        return in_array($action, ['overview', 'performance'], true);
+    }
+
     /** Longest period one request may cover (days). */
     private const MAX_DAYS = 1100;
 
     protected function handle(string $action): mixed
     {
         return match ($action) {
-            'overview'    => (new ReportingOverview($this->db))->build(),
+            'overview'    => (new ReportingOverview($this->db, AccessScope::forUser($this->auth)))->build(),
             'performance' => $this->performance(),
             default       => $this->unknown(),
         };
@@ -46,7 +54,7 @@ final class DashboardController extends Controller
             throw ValidationException::single('to', 'Choose a period of at most ' . self::MAX_DAYS . ' days.');
         }
 
-        return (new PerformanceReport($this->db))->forPeriod($from, $to);
+        return (new PerformanceReport($this->db, AccessScope::forUser($this->auth)))->forPeriod($from, $to);
     }
 
     /** A Y-m-d query value; null when empty, 422 when not a real date. */

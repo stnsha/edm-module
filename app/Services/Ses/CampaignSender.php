@@ -9,6 +9,7 @@ use Edm\Models\Campaign;
 use Edm\Models\CampaignContent;
 use Edm\Models\SendLog;
 use Edm\Models\Sender;
+use Edm\Services\AccessScope;
 use Edm\Services\CampaignRecipients;
 
 /**
@@ -176,7 +177,7 @@ final class CampaignSender
                 ($this->log)("Newsletter #{$id} was stopped.");
                 return $sent;
             }
-            $batch = $this->pending($id, $audience);
+            $batch = $this->pending($id, $audience, AccessScope::forCampaign($c));
             if ($batch === []) {
                 Campaign::update($id, ['status' => Campaign::COMPLETED]);
                 ($this->log)("Newsletter #{$id} completed.");
@@ -239,17 +240,18 @@ final class CampaignSender
     }
 
     /**
-     * Next recipients (the newsletter's audience, CampaignRecipients) without
-     * a send-log row for this newsletter.
+     * Next recipients (the newsletter's audience, CampaignRecipients, within
+     * the contacts it may reach - AccessScope::forCampaign()) without a
+     * send-log row for this newsletter.
      *
      * One row per address (the oldest if the masterlist holds it twice), with
      * the contact's name and custom field values for personalisation.
      *
      * @return list<array{email: string, name: ?string, fields: ?string}>
      */
-    private function pending(int $campaignId, array $audience): array
+    private function pending(int $campaignId, array $audience, AccessScope $scope): array
     {
-        [$audienceSql, $audienceParams] = (new CampaignRecipients($this->db))->where($audience, 'm');
+        [$audienceSql, $audienceParams] = (new CampaignRecipients($this->db, $scope))->where($audience, 'm');
 
         return $this->db->select(
             'SELECT LOWER(TRIM(m.`email`)) AS email, m.`name`, m.`fields`

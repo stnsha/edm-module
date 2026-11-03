@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Edm\Controllers;
 
+use Edm\Core\Auth;
 use Edm\Core\Controller;
 use Edm\Core\HttpException;
 use Edm\Core\ValidationException;
@@ -60,7 +61,7 @@ final class SettingsController extends Controller
     /** SES event log (superadmin, like the rest of Amazon SES settings). */
     private function events(string $action): mixed
     {
-        if (!$this->auth->isSuperadmin && $this->auth->permission !== 1) {
+        if (!$this->auth->isAdmin()) {
             throw new HttpException('Only EDM superadmins can view the SES event log.', 403);
         }
         if ($action === 'events_get') {
@@ -89,7 +90,7 @@ final class SettingsController extends Controller
      */
     private function ses(string $action): array
     {
-        if (!$this->auth->isSuperadmin && $this->auth->permission !== 1) {
+        if (!$this->auth->isAdmin()) {
             throw new HttpException('Only EDM superadmins can manage Amazon SES.', 403);
         }
         $gateway = SesGateway::fromEnv();
@@ -253,8 +254,8 @@ final class SettingsController extends Controller
      * Superadmin only.
      *   users_list    staff with an EDM role (edm 1-4)
      *   users_search  ?q= active staff by name (20), for "Add access"
-     *   users_save    { id, edm 1-4 } grant or change a role
-     *   users_delete  { id } remove access (edm = 0)
+     *   users_save    { id, edm 1 superadmin | 2 business unit head } grant or change a role
+     *   users_delete  { id } back to normal user (edm = 0; every staff has EDM)
      * Nobody can change or remove their own role, so the last superadmin
      * cannot lock everyone out by accident.
      */
@@ -266,7 +267,7 @@ final class SettingsController extends Controller
 
         switch ($action) {
             case 'users_list':
-                return $this->staffRows('s.`edm` > 0', [], 's.`edm` ASC, s.`nama_staff` ASC', null);
+                return $this->staffRows('s.`edm` IN (?, ?)', [Auth::SUPERADMIN, Auth::BU_HEAD], 's.`edm` ASC, s.`nama_staff` ASC', null);
             case 'users_search':
                 $q = trim((string) $this->request->query('q', ''));
                 if (mb_strlen($q) < 2) {
@@ -277,7 +278,7 @@ final class SettingsController extends Controller
             case 'users_save':
                 $id = $this->requireId('Staff');
                 $role = (int) $this->request->get('edm', 0);
-                if ($role < 1 || $role > 4) {
+                if (!in_array($role, [Auth::SUPERADMIN, Auth::BU_HEAD], true)) {
                     throw ValidationException::single('edm', 'Choose a role.');
                 }
                 $this->guardStaff($id);
